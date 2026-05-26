@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "get_capabilities command",
+  "type": "object",
+  "required": ["action"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "default": "0.2" },
+    "request_id": { "type": "string" },
+    "action": { "const": "get_capabilities" },
+    "params": { "type": "object", "additionalProperties": false }
+  }
+}

@@ -1,0 +1,16 @@
+[general]
+name=SIGMAI
+description=Secure local AI-QGIS interface with auditable commands.
+version=0.1.0
+qgisMinimumVersion=3.28
+author=MACIEL, L. S. C.
+email=herpetomantiqueira@gmail.com
+about=SIGMAI is a secure local bridge between AI agents and QGIS. It exposes validated JSON commands, bearer-token authentication, session discovery, permissions, dry-run support where applicable, audit logs, cartographic map generation, layer/project inspection, vector/raster tools, workflow foundations and plugin diagnostics. The bridge is local-only and binds to 127.0.0.1. Normal mode does not expose unrestricted Python execution. Developer Mode is explicit, warning-protected, disabled by default and intended for QGIS plugin development. SIGMAI is designed to use the Python and libraries bundled with QGIS/OSGeo4W; optional workflows may require QGIS Processing providers or user-installed plugins. Developed by Luan da Silva Cortes Maciel (MACIEL, L. S. C.) as a research product associated with Herpeto Mantiqueira.
+category=Plugins
+icon=icons/sigmai_icon.png
+experimental=False
+deprecated=False
+homepage=https://github.com/LuanCortesM/SIGMAI
+repository=https://github.com/LuanCortesM/SIGMAI
+tracker=https://github.com/LuanCortesM/SIGMAI/issues
+license=GPL-3.0-or-later

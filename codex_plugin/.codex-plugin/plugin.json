@@ -1,0 +1,27 @@
+{
+  "id": "sigmai",
+  "name": "SIGMAI",
+  "version": "0.1.0",
+  "description": "Secure GIS-AI Interface skills and client helpers for controlling QGIS through local structured commands.",
+  "author": "MACIEL, L. S. C.",
+  "mcp": {
+    "local_server": "../../mcp_server/sigmai_mcp_server.py",
+    "transport": "stdio-json-lines",
+    "description": "Local SIGMAI tool server. Prefer MCP tools, then CLI, then Python client."
+  },
+  "skills": [
+    "skills/qgis-diagnose-project",
+    "skills/qgis-create-map",
+    "skills/qgis-run-analysis",
+    "skills/qgis-run-processing",
+    "skills/qgis-create-map-layout",
+    "skills/qgis-fix-crs",
+    "skills/qgis-export-map",
+    "skills/qgis-plugin-development",
+    "skills/qgis-plugin-testing",
+    "skills/qgis-plugin-management",
+    "skills/sigmai-self-management",
+    "skills/qgis-debugging",
+    "skills/qgis-workflow-report"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "inspect_plugin command",
+  "type": "object",
+  "required": ["action", "params"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "default": "0.2" },
+    "request_id": { "type": "string" },
+    "action": { "const": "inspect_plugin" },
+    "params": {
+      "type": "object",
+      "required": ["plugin_name"],
+      "additionalProperties": false,
+      "properties": {
+        "plugin_name": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

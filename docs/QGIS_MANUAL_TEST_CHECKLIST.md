@@ -1,0 +1,25 @@
+# QGIS Manual Test Checklist
+
+- Open QGIS with a clean profile.
+- Install SIGMAI as `sigmai`.
+- Enable the plugin.
+- Open the SIGMAI panel.
+- Start the bridge.
+- Copy the token.
+- Run `status`.
+- Run `get_capabilities`.
+- Run `get_qgis_environment`.
+- Open a project with vector and raster layers.
+- Run `list_layers`.
+- Run `get_project_info`.
+- Run `get_layer_info` for one real layer id.
+- Run `list_layouts`.
+- Create a test layout with `dry_run: true`.
+- Export an existing layout to a new PDF path.
+- Run `list_installed_plugins`.
+- Run `inspect_plugin` for `sigmai`.
+- Run `validate_metadata_txt` for `sigmai`.
+- Run `get_recent_errors`.
+- Stop the bridge.
+- Restart QGIS.
+- Confirm port `8765` is free and can be started again.

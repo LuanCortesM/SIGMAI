@@ -1,0 +1,8 @@
+{
+  "schema_version": "0.2",
+  "request_id": "example-inspect-plugin",
+  "action": "inspect_plugin",
+  "params": {
+    "plugin_name": "TopoTrail"
+  }
+}

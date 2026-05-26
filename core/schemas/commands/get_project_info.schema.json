@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "get_project_info command",
+  "type": "object",
+  "required": ["action"],
+  "additionalProperties": false,
+  "properties": {
+    "action": { "const": "get_project_info" },
+    "params": { "type": "object", "additionalProperties": false }
+  }
+}

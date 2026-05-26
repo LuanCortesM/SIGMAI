@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "list_layers command",
+  "type": "object",
+  "required": ["action"],
+  "additionalProperties": false,
+  "properties": {
+    "action": { "const": "list_layers" },
+    "params": { "type": "object", "additionalProperties": false }
+  }
+}

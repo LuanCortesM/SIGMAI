@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sigmai.ai/schemas/response.schema.json",
+  "title": "SIGMAI Response",
+  "type": "object",
+  "required": ["schema_version", "request_id", "ok", "action", "data", "warnings", "errors", "meta"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string" },
+    "request_id": { "type": "string" },
+    "ok": { "type": "boolean" },
+    "action": { "type": "string" },
+    "data": {},
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "errors": {
+      "type": "array",
+      "items": { "$ref": "error.schema.json" }
+    },
+    "meta": {
+      "type": "object",
+      "required": ["timestamp", "duration_ms"],
+      "additionalProperties": true,
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "duration_ms": { "type": "integer", "minimum": 0 },
+        "permission_level": { "type": "string" },
+        "qgis_version": { "type": "string" },
+        "request_id": { "type": "string" }
+      }
+    }
+  }
+}

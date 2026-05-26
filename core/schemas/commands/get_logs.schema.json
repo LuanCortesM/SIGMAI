@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "get_logs command",
+  "type": "object",
+  "required": ["action"],
+  "additionalProperties": false,
+  "properties": {
+    "action": { "const": "get_logs" },
+    "params": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tail": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 200 }
+      }
+    }
+  }
+}

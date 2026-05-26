@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sigmai.ai/schemas/command.schema.json",
+  "title": "SIGMAI Command",
+  "type": "object",
+  "required": ["action"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "default": "0.2"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "status",
+        "get_capabilities",
+        "get_qgis_environment",
+        "get_bridge_config",
+        "get_recent_errors",
+        "list_layers",
+        "load_vector_layer",
+        "list_project_layers",
+        "get_project_info",
+        "get_project_crs",
+        "get_layer_info",
+        "run_processing",
+        "list_layouts",
+        "create_layout",
+        "export_layout",
+        "get_logs",
+        "list_installed_plugins",
+        "inspect_plugin",
+        "validate_metadata_txt",
+        "collect_plugin_logs",
+        "search_qgis_plugin_repository",
+        "download_qgis_plugin_zip",
+        "inspect_qgis_plugin_zip",
+        "install_plugin_from_zip",
+        "install_qgis_plugin_from_repository"
+      ]
+    },
+    "dry_run": {
+      "type": "boolean",
+      "default": false
+    },
+    "params": {
+      "type": "object",
+      "default": {}
+    }
+  }
+}

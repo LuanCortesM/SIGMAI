@@ -1,0 +1,5 @@
+{
+  "schema_version": "0.2",
+  "request_id": "example-environment",
+  "action": "get_qgis_environment"
+}

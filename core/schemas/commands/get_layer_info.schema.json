@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "get_layer_info command",
+  "type": "object",
+  "required": ["action", "params"],
+  "additionalProperties": false,
+  "properties": {
+    "action": { "const": "get_layer_info" },
+    "params": {
+      "type": "object",
+      "required": ["layer_id"],
+      "additionalProperties": false,
+      "properties": {
+        "layer_id": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

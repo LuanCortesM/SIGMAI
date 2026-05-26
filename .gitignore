@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# QGIS / SIGMAI runtime artifacts
+sigmai/logs/
+diagnostics/
+test_outputs/
+dist/
+*.zip
+current_bridge_session.json
+*bridge_session*.json
+*token*
+
+# Local docs and large data mirrors
+external_docs/
+QGIS-3.44-Documentation-en/
+QGIS-3.44-Documentation-en.zip
+
+# Environments and IDEs
+.venv/
+venv/
+env/
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
