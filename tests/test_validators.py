@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from qgis_plugin.validators import ValidationError, validate_command  # noqa: E402
+from sigmai.validators import ValidationError, validate_command  # noqa: E402
 
 
 class ValidatorTests(unittest.TestCase):

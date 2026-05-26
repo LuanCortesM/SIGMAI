@@ -10,6 +10,8 @@ from ..validators import ValidationError, require_param
 from .common import crs_authid, extent_to_dict, layer_type_name, project
 from .load_layers import handle as load_vector_layer
 
+MAX_SAFE_GPX_XML_BYTES = 25_000_000
+
 
 def _safe_url(url: str) -> dict[str, Any]:
     parsed = urlparse(url)
@@ -18,6 +20,16 @@ def _safe_url(url: str) -> dict[str, Any]:
     if parsed.username or parsed.password:
         raise ValidationError("CREDENTIALS_IN_URL_BLOCKED", "Credentials in service URLs are not allowed.", {})
     return {"scheme": parsed.scheme, "host": parsed.hostname or "", "path": parsed.path, "query_keys": sorted([part.split("=", 1)[0] for part in parsed.query.split("&") if part])}
+
+
+def _safe_xml_root_from_file(path: Path) -> ET.Element:
+    data = path.read_bytes()
+    if len(data) > MAX_SAFE_GPX_XML_BYTES:
+        raise ValidationError("XML_TOO_LARGE", "GPX XML exceeds the safe parsing limit.", {"path": str(path), "max_bytes": MAX_SAFE_GPX_XML_BYTES})
+    probe = data[:4096].lower()
+    if b"<!doctype" in probe or b"<!entity" in probe:
+        raise ValidationError("UNSAFE_XML_BLOCKED", "GPX XML with DTD or entity declarations is blocked.", {"path": str(path)})
+    return ET.fromstring(data)  # nosec B314 - size-limited GPX XML; DTD/entity declarations are rejected before parsing.
 
 
 def inspect_data_source(params: dict[str, Any], context: dict[str, Any]):
@@ -113,7 +125,7 @@ def summarize_gpx_track(params: dict[str, Any], context: dict[str, Any]):
         if not path.exists():
             raise ValidationError("FILE_NOT_FOUND", "GPX file was not found.", {"path": str(path)})
         try:
-            root = ET.parse(path).getroot()
+            root = _safe_xml_root_from_file(path)
             ns = {"gpx": root.tag.split("}")[0].strip("{")} if "}" in root.tag else {}
             trk = root.findall(".//gpx:trk", ns) if ns else root.findall(".//trk")
             trkpt = root.findall(".//gpx:trkpt", ns) if ns else root.findall(".//trkpt")

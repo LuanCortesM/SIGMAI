@@ -6,8 +6,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from qgis_plugin.qgis_actions.gis_tools import PROCESSING_ALLOWLIST  # noqa: E402
-from qgis_plugin.permissions import permission_for  # noqa: E402
+from sigmai.qgis_actions.gis_tools import PROCESSING_ALLOWLIST  # noqa: E402
+from sigmai.permissions import permission_for  # noqa: E402
 
 
 class GisToolsTests(unittest.TestCase):

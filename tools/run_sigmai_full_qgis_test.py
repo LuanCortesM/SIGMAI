@@ -21,7 +21,7 @@ REPORT_MD = OUTPUT_DIR / "SIGMAI_QGIS_FULL_TEST_REPORT.md"
 LOGS_TXT = OUTPUT_DIR / "SIGMAI_QGIS_FULL_TEST_LOGS.txt"
 MAP_PDF = OUTPUT_DIR / "SIGMAI_TEST_MAP.pdf"
 MAP_PNG = OUTPUT_DIR / "SIGMAI_TEST_MAP.png"
-SIGMAI_LOGO = ROOT / "qgis_plugin" / "icons" / "sigmai_logo_full.png"
+SIGMAI_LOGO = ROOT / "sigmai" / "icons" / "sigmai_logo_full.png"
 COMMAND_TIMEOUT_SECONDS = 60
 
 

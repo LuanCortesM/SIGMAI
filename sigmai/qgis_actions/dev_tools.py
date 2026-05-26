@@ -67,7 +67,7 @@ def execute_qgis_python(params: dict[str, Any], context: dict[str, Any]):
     try:
         with contextlib.redirect_stdout(stdout):
             compiled = compile(code, "<SIGMAI_DEV_QGIS_PYTHON>", "exec")
-            exec(compiled, namespace, namespace)  # noqa: S102 - gated DEV mode for explicit QGIS plugin development.
+            exec(compiled, namespace, namespace)  # nosec B102 - gated DEV mode only, disabled by default and requires UI opt-in plus confirm_dev_python=SIM.
     except Exception as exc:
         raise ValidationError(
             "DEV_PYTHON_ERROR",

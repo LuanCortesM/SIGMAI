@@ -1,12 +1,13 @@
-[project]
+﻿[project]
 name = "sigmai"
 version = "0.1.0"
 description = "Secure GIS-AI Interface for local, auditable AI-QGIS interaction."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = { text = "GPL-3.0-or-later" }
 authors = [{ name = "MACIEL, L. S. C.", email = "herpetomantiqueira@gmail.com" }]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+

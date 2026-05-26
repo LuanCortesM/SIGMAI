@@ -72,7 +72,7 @@ def build_session_payload(
     qgis_version: str,
     plugin_version: str,
     running: bool,
-    source: str = "qgis_plugin",
+    source: str = "sigmai",
     session_id: str | None = None,
 ) -> dict[str, Any]:
     code = session_id or generate_pairing_code()

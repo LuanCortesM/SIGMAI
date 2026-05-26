@@ -6,12 +6,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from qgis_plugin.qgis_actions.cartography import PLUGIN_AUTHOR, build_product_credit  # noqa: E402
+from sigmai.qgis_actions.cartography import PLUGIN_AUTHOR, build_product_credit  # noqa: E402
 
 
 class AuthorshipRulesTests(unittest.TestCase):
     def test_metadata_keeps_plugin_author(self):
-        metadata = (ROOT / "qgis_plugin" / "metadata.txt").read_text(encoding="utf-8")
+        metadata = (ROOT / "sigmai" / "metadata.txt").read_text(encoding="utf-8")
         self.assertIn("author=MACIEL, L. S. C.", metadata)
         self.assertIn("email=herpetomantiqueira@gmail.com", metadata)
 
@@ -21,7 +21,7 @@ class AuthorshipRulesTests(unittest.TestCase):
         self.assertIn("herpetomantiqueira@gmail.com", readme)
 
     def test_hud_keeps_plugin_author(self):
-        plugin_py = (ROOT / "qgis_plugin" / "plugin.py").read_text(encoding="utf-8")
+        plugin_py = (ROOT / "sigmai" / "plugin.py").read_text(encoding="utf-8")
         self.assertIn("Plugin author: MACIEL, L. S. C.", plugin_py)
 
     def test_public_map_credit_does_not_default_to_plugin_author(self):

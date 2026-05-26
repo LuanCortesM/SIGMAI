@@ -69,12 +69,14 @@ def validate_command(command: Any, unsafe_developer_mode: bool = False) -> dict[
         raise ValidationError("BAD_REQUEST", "Command params must be a JSON object.", {"action": action})
 
     if metadata and metadata.requires_confirmation and not dry_run:
-        confirmed = bool(
-            params.get("confirm")
-            or params.get("confirm_action")
-            or params.get(f"confirm_{action}")
-            or params.get("confirm_plugin_write")
-            or str(params.get("confirm_dev_python", "")).strip().upper() == "SIM"
+        confirmed = any(
+            (
+                params.get("confirm"),
+                params.get("confirm_action"),
+                params.get(f"confirm_{action}"),
+                params.get("confirm_plugin_write"),
+                str(params.get("confirm_dev_python", "")).strip().upper() == "SIM",
+            )
         )
         if not confirmed:
             raise ValidationError(
@@ -131,15 +133,17 @@ def _redact_dev_code_values(value: Any) -> Any:
 
 
 def _is_path_like_key(key_lower: str) -> bool:
-    return (
-        key_lower in {"path", "output", "input", "output_path", "source_folder", "backup_path"}
-        or key_lower.startswith("input_")
-        or key_lower.startswith("output_")
-        or key_lower.endswith("_path")
-        or key_lower.endswith("_folder")
-        or key_lower.endswith("_file")
-        or key_lower.endswith("_raster")
-        or key_lower.endswith("_vector")
+    return any(
+        (
+            key_lower in {"path", "output", "input", "output_path", "source_folder", "backup_path"},
+            key_lower.startswith("input_"),
+            key_lower.startswith("output_"),
+            key_lower.endswith("_path"),
+            key_lower.endswith("_folder"),
+            key_lower.endswith("_file"),
+            key_lower.endswith("_raster"),
+            key_lower.endswith("_vector"),
+        )
     )
 
 

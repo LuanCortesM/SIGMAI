@@ -150,7 +150,7 @@ def scan_public_repository() -> list[dict[str, str]]:
         for token in FORBIDDEN_REPO_TOKENS:
             if token in text:
                 findings.append({"file": str(rel), "token": token})
-        if path.name == "metadata.txt" and rel.parts[:1] == ("qgis_plugin",):
+        if path.name == "metadata.txt" and rel.parts[:1] == ("sigmai",):
             parser = configparser.ConfigParser()
             parser.read_string(text)
             if parser.get("general", "experimental", fallback="").strip().lower() == "true":
@@ -186,7 +186,7 @@ def write_reports(report: dict[str, Any]) -> None:
 
 def main() -> int:
     steps = [
-        run_step("compileall", [sys.executable, "-m", "compileall", "-q", "qgis_plugin", "codex_plugin", "tools", "mcp_server", "tests"]),
+        run_step("compileall", [sys.executable, "-m", "compileall", "-q", "sigmai", "codex_plugin", "tools", "mcp_server", "tests"]),
         run_step("unit_tests", [sys.executable, "-m", "unittest", "discover", "tests"]),
         run_step("package_plugin_zip", [sys.executable, "tools/package_qgis_plugin_zip.py"]),
     ]

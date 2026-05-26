@@ -6,7 +6,7 @@ from typing import Any
 
 from ..security import normalize_output_path, reject_existing_path_without_confirmation
 from ..validators import ValidationError, require_param
-from .common import crs_authid, extent_to_dict, layer_type_name, project, qgis_imports
+from .common import crs_authid, layer_type_name, project, qgis_imports
 
 
 PROCESSING_ALLOWLIST = {

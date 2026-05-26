@@ -12,7 +12,11 @@ def _imports() -> dict[str, Any]:
         from qgis.core import QgsExpression, QgsExpressionContext, QgsExpressionContextUtils  # type: ignore
     except Exception as exc:
         raise RuntimeError("PyQGIS is only available inside QGIS.") from exc
-    return locals()
+    return {
+        "QgsExpression": QgsExpression,
+        "QgsExpressionContext": QgsExpressionContext,
+        "QgsExpressionContextUtils": QgsExpressionContextUtils,
+    }
 
 
 def _vector_layer(layer_id: str):

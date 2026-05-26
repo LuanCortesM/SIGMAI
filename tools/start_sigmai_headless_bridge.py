@@ -25,12 +25,12 @@ def _init_qgis() -> object:
 
 
 def main() -> int:
-    plugin_root = Path(__file__).resolve().parents[1] / "qgis_plugin"
+    plugin_root = Path(__file__).resolve().parents[1] / "sigmai"
     sys.path.insert(0, str(plugin_root.parent))
     app = _init_qgis()
 
-    from qgis_plugin.bridge_server import SIGMAIServer
-    from qgis_plugin.security import DEFAULT_HOST, DEFAULT_PORT, generate_token
+    from sigmai.bridge_server import SIGMAIServer
+    from sigmai.security import DEFAULT_HOST, DEFAULT_PORT, generate_token
 
     token = os.environ.get("SIGMAI_TOKEN") or generate_token()
     server = SIGMAIServer(iface=None, host=DEFAULT_HOST, port=DEFAULT_PORT, token=token, log_dir=plugin_root / "logs")

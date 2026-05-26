@@ -60,7 +60,7 @@ sigmai/test_outputs/sigmai.zip
 Copy the contents of:
 
 ```text
-sigmai/qgis_plugin/
+sigmai/sigmai/
 ```
 
 into:

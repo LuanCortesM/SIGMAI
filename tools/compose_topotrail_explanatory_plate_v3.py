@@ -216,7 +216,7 @@ def main() -> None:
     )
     draw_wrapped(draw, (660, scale_y - 20), footer, 22, dark, 122)
 
-    logo = ROOT / "qgis_plugin" / "icons" / "sigmai_logo_full.png"
+    logo = ROOT / "sigmai" / "icons" / "sigmai_logo_full.png"
     if logo.exists():
         logo_img = Image.open(logo).convert("RGBA")
         logo_img.thumbnail((175, 70), Image.Resampling.LANCZOS)

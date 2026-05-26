@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from qgis_plugin.session import build_session_payload, is_safe_session_path  # noqa: E402
+from sigmai.session import build_session_payload, is_safe_session_path  # noqa: E402
 from session_discovery import read_session_file, resolve_connection  # noqa: E402
 from core.session_paths import generate_pairing_code  # noqa: E402
 

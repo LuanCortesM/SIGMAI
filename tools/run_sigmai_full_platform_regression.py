@@ -29,7 +29,7 @@ def _run(name: str, args: list[str], timeout: int = 180) -> dict[str, Any]:
 def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     checks = [
-        _run("compileall", [sys.executable, "-m", "compileall", "-q", "qgis_plugin", "codex_plugin", "tools", "mcp_server", "tests"]),
+        _run("compileall", [sys.executable, "-m", "compileall", "-q", "sigmai", "codex_plugin", "tools", "mcp_server", "tests"]),
         _run("unittest", [sys.executable, "-m", "unittest", "discover", "tests"]),
         _run("status", [sys.executable, "tools/sigmai.py", "status"], timeout=60),
         _run("self_health_check", [sys.executable, "tools/sigmai.py", "self-health-check"], timeout=90),

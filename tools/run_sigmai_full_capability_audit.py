@@ -120,17 +120,17 @@ def clean(obj: Any) -> Any:
 
 
 def extract_registry() -> dict[str, dict[str, str]]:
-    path = ROOT / "qgis_plugin" / "qgis_actions" / "__init__.py"
+    path = ROOT / "sigmai" / "qgis_actions" / "__init__.py"
     text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
     matches = re.findall(r'registry\.register\("([^"]+)",\s*([^\)]+)\)', text)
     return {
-        action: {"handler_file": "qgis_plugin/qgis_actions/__init__.py", "handler_function": handler.strip()}
+        action: {"handler_file": "sigmai/qgis_actions/__init__.py", "handler_function": handler.strip()}
         for action, handler in matches
     }
 
 
 def extract_permissions() -> dict[str, dict[str, Any]]:
-    path = ROOT / "qgis_plugin" / "permissions.py"
+    path = ROOT / "sigmai" / "permissions.py"
     text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
     pattern = re.compile(r'"([^"]+)"\s*:\s*CommandPermission\("[^"]+",\s*"([^"]+)",\s*([^,\)]+)([^\)]*)\)')
     constants = {
@@ -608,7 +608,7 @@ def main() -> None:
         "disk_state": {
             "registry_actions": sorted(registry_disk),
             "permissions_actions": sorted(permissions_disk),
-            "qgis_actions_files": sorted(str(p.relative_to(ROOT)) for p in (ROOT / "qgis_plugin" / "qgis_actions").glob("*.py")),
+            "qgis_actions_files": sorted(str(p.relative_to(ROOT)) for p in (ROOT / "sigmai" / "qgis_actions").glob("*.py")),
         },
         "capabilities_state": clean(cap_data),
         "command_registry_state": {"disk_registered_actions": registry_disk, "runtime_registered_actions": sorted(runtime_registered)},

@@ -235,7 +235,7 @@ def main() -> None:
     )
     text_box(draw, (650, scale_y - 14), footer, 21, dark, 140, line_gap=6)
 
-    logo = ROOT / "qgis_plugin" / "icons" / "sigmai_logo_full.png"
+    logo = ROOT / "sigmai" / "icons" / "sigmai_logo_full.png"
     if logo.exists():
         logo_img = Image.open(logo).convert("RGBA")
         logo_img.thumbnail((170, 70), Image.Resampling.LANCZOS)

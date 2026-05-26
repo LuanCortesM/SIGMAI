@@ -114,7 +114,7 @@ def main() -> None:
     credit = "Fonte: DataGEO; SMMA; RPPN Gigante do Itaguare. Autor: Luan da Silva Cortes Maciel. CRS: SIRGAS 2000 / UTM 23S. Criado com SIGMAI/QGIS."
     draw.text((760, scale_y + 18), credit, fill=dark, font=font(22))
 
-    logo = ROOT / "qgis_plugin" / "icons" / "sigmai_logo_full.png"
+    logo = ROOT / "sigmai" / "icons" / "sigmai_logo_full.png"
     if logo.exists():
         logo_img = Image.open(logo).convert("RGBA")
         logo_img.thumbnail((190, 78), Image.Resampling.LANCZOS)

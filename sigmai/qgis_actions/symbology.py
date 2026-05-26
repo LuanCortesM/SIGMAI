@@ -29,7 +29,24 @@ def _imports() -> dict[str, Any]:
         )
     except Exception as exc:
         raise RuntimeError("PyQGIS is only available inside QGIS.") from exc
-    return locals()
+    return {
+        "Qt": Qt,
+        "QColor": QColor,
+        "QFont": QFont,
+        "QgsCategorizedSymbolRenderer": QgsCategorizedSymbolRenderer,
+        "QgsFillSymbol": QgsFillSymbol,
+        "QgsGraduatedSymbolRenderer": QgsGraduatedSymbolRenderer,
+        "QgsLineSymbol": QgsLineSymbol,
+        "QgsMarkerSymbol": QgsMarkerSymbol,
+        "QgsPalLayerSettings": QgsPalLayerSettings,
+        "QgsRendererCategory": QgsRendererCategory,
+        "QgsRendererRange": QgsRendererRange,
+        "QgsSingleSymbolRenderer": QgsSingleSymbolRenderer,
+        "QgsTextBufferSettings": QgsTextBufferSettings,
+        "QgsTextFormat": QgsTextFormat,
+        "QgsVectorLayerSimpleLabeling": QgsVectorLayerSimpleLabeling,
+        "QgsWkbTypes": QgsWkbTypes,
+    }
 
 
 def _layer(layer_id: str):

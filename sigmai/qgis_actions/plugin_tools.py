@@ -33,6 +33,7 @@ ICON_EXTENSIONS = {".svg", ".png", ".ico", ".jpg", ".jpeg"}
 SELF_NAMES = {"sigmai", "SIGMAI".lower(), "sigmai", "sigmai ai", "sigmai", "SIGMAI".lower()}
 OFFICIAL_PLUGIN_REPOSITORY_URL = "https://plugins.qgis.org/plugins/plugins.xml"
 OFFICIAL_PLUGIN_HOSTS = {"plugins.qgis.org"}
+MAX_SAFE_REPOSITORY_XML_BYTES = 25_000_000
 
 
 def _plugin_roots() -> list[Path]:
@@ -52,7 +53,7 @@ def _plugin_roots() -> list[Path]:
         if appdata:
             roots.append(Path(appdata) / "QGIS" / "QGIS3" / "profiles" / "default" / "python" / "plugins")
         current_plugin = Path(__file__).resolve().parents[1]
-        if current_plugin.name != "qgis_plugin":
+        if current_plugin.name != "sigmai":
             roots.append(current_plugin.parent)
     unique: list[Path] = []
     for root in roots:
@@ -179,10 +180,19 @@ def _safe_plugin_download_url(raw_url: str, repository_url: str = OFFICIAL_PLUGI
     return url
 
 
+def _assert_official_https_url(url: str) -> None:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != "https" or parsed.hostname not in OFFICIAL_PLUGIN_HOSTS:
+        raise ValidationError("PLUGIN_NETWORK_URL_BLOCKED", "Only HTTPS requests to the official QGIS plugin repository are allowed.", {"url": url, "host": parsed.hostname})
+    if parsed.username or parsed.password:
+        raise ValidationError("PLUGIN_NETWORK_URL_BLOCKED", "Credentials in plugin repository URLs are blocked.", {})
+
+
 def _fetch_url_bytes(url: str, timeout: int = 45, max_bytes: int = 120_000_000) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": "SIGMAI/0.2 QGIS-plugin-manager"}, method="GET")
+    _assert_official_https_url(url)
+    request = urllib.request.Request(url, headers={"User-Agent": "SIGMAI/0.1 QGIS-plugin-manager"}, method="GET")
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310 - URL is restricted to HTTPS plugins.qgis.org by _assert_official_https_url.
             status = getattr(response, "status", 200)
             if int(status) >= 400:
                 raise ValidationError("PLUGIN_REPOSITORY_HTTP_ERROR", "QGIS plugin repository returned an HTTP error.", {"url": url, "status": status})
@@ -192,6 +202,15 @@ def _fetch_url_bytes(url: str, timeout: int = 45, max_bytes: int = 120_000_000) 
     if len(data) > max_bytes:
         raise ValidationError("PLUGIN_DOWNLOAD_TOO_LARGE", "Plugin repository response exceeded the safe download limit.", {"url": url, "max_bytes": max_bytes})
     return data
+
+
+def _safe_repository_xml_root(xml_bytes: bytes) -> ET.Element:
+    if len(xml_bytes) > MAX_SAFE_REPOSITORY_XML_BYTES:
+        raise ValidationError("PLUGIN_REPOSITORY_XML_TOO_LARGE", "Plugin repository XML exceeded the safe parsing limit.", {"max_bytes": MAX_SAFE_REPOSITORY_XML_BYTES})
+    probe = xml_bytes[:4096].lower()
+    if b"<!doctype" in probe or b"<!entity" in probe:
+        raise ValidationError("PLUGIN_REPOSITORY_UNSAFE_XML", "Plugin repository XML with DTD or entity declarations is blocked.", {})
+    return ET.fromstring(xml_bytes)  # nosec B314 - official repository XML is size-limited and DTD/entity declarations are rejected before parsing.
 
 
 def _text_of(element: ET.Element, *names: str) -> str:
@@ -206,7 +225,7 @@ def _text_of(element: ET.Element, *names: str) -> str:
 
 def _parse_repository_plugins(xml_bytes: bytes, repository_url: str) -> list[dict[str, Any]]:
     try:
-        root = ET.fromstring(xml_bytes)
+        root = _safe_repository_xml_root(xml_bytes)
     except ET.ParseError as exc:
         raise ValidationError("PLUGIN_REPOSITORY_BAD_XML", "Plugin repository XML could not be parsed.", {"error": str(exc)}) from exc
     plugins: list[dict[str, Any]] = []
@@ -794,9 +813,14 @@ def search_qgis_plugin_repository(params: dict[str, Any], context: dict[str, Any
         plugins = [
             item
             for item in plugins
-            if query in item.get("name", "").lower()
-            or query in item.get("package_name", "").lower()
-            or query in item.get("description", "").lower()
+            if any(
+                query in text
+                for text in (
+                    item.get("name", "").lower(),
+                    item.get("package_name", "").lower(),
+                    item.get("description", "").lower(),
+                )
+            )
         ]
     limit = max(1, min(int(params.get("limit", 20)), 100))
     return {
@@ -1279,12 +1303,14 @@ def self_health_check(params: dict[str, Any], context: dict[str, Any]):
     }
     structure = checks["structure"]
     resources = checks["resources"]
-    ok = bool(
-        checks["metadata"].get("valid")
-        and checks["imports"].get("valid")
-        and checks["icon"].get("valid")
-        and structure.get("checks", {}).get("metadata_txt")
-        and structure.get("checks", {}).get("init_py")
+    ok = all(
+        (
+            checks["metadata"].get("valid"),
+            checks["imports"].get("valid"),
+            checks["icon"].get("valid"),
+            structure.get("checks", {}).get("metadata_txt"),
+            structure.get("checks", {}).get("init_py"),
+        )
     )
     warnings = []
     if structure.get("packaging_issues"):

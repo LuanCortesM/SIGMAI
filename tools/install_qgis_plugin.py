@@ -10,7 +10,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "qgis_plugin"
+SOURCE = ROOT / "sigmai"
 DIAGNOSTICS = ROOT / "diagnostics"
 JSON_REPORT = DIAGNOSTICS / "plugin_installation_report.json"
 MD_REPORT = DIAGNOSTICS / "plugin_installation_report.md"

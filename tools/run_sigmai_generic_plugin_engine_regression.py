@@ -68,7 +68,7 @@ def _write_markdown(path: Path, payload: dict[str, Any]) -> None:
 def main() -> int:
     sys.path.insert(0, str(ROOT))
     qgis_ok, qgis_note = _try_init_qgis()
-    from qgis_plugin.qgis_actions.plugin_tools import build_plugin_capability_manifest, dry_run_plugin_algorithm_generic
+    from sigmai.qgis_actions.plugin_tools import build_plugin_capability_manifest, dry_run_plugin_algorithm_generic
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     manifest = build_plugin_capability_manifest({"include_inactive": True, "max_algorithms": 50}, {"dry_run": True})

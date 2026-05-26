@@ -7,8 +7,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from qgis_plugin.qgis_actions.dev_tools import execute_qgis_python  # noqa: E402
-from qgis_plugin.validators import ValidationError, validate_command  # noqa: E402
+from sigmai.qgis_actions.dev_tools import execute_qgis_python  # noqa: E402
+from sigmai.validators import ValidationError, validate_command  # noqa: E402
 
 
 class DeveloperModeTests(unittest.TestCase):

@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "qgis_plugin"
+SOURCE = ROOT / "sigmai"
 OUTPUT_DIR = ROOT / "dist"
 ZIP_PATH = OUTPUT_DIR / "sigmai.zip"
 DIAGNOSTICS = ROOT / "diagnostics"

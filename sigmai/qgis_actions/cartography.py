@@ -119,7 +119,30 @@ def _imports() -> dict[str, Any]:
         )
     except Exception as exc:
         raise RuntimeError("PyQGIS is only available inside QGIS.") from exc
-    return locals()
+    return {
+        "Qt": Qt,
+        "QColor": QColor,
+        "QFont": QFont,
+        "QImage": QImage,
+        "QgsFillSymbol": QgsFillSymbol,
+        "QgsLayoutItemLabel": QgsLayoutItemLabel,
+        "QgsLayoutItemLegend": QgsLayoutItemLegend,
+        "QgsLayoutItemMap": QgsLayoutItemMap,
+        "QgsLayoutItemPicture": QgsLayoutItemPicture,
+        "QgsLayoutItemScaleBar": QgsLayoutItemScaleBar,
+        "QgsLayoutPoint": QgsLayoutPoint,
+        "QgsLayoutSize": QgsLayoutSize,
+        "QgsLineSymbol": QgsLineSymbol,
+        "QgsMarkerSymbol": QgsMarkerSymbol,
+        "QgsPrintLayout": QgsPrintLayout,
+        "QgsProject": QgsProject,
+        "QgsRectangle": QgsRectangle,
+        "QgsCoordinateReferenceSystem": QgsCoordinateReferenceSystem,
+        "QgsCoordinateTransform": QgsCoordinateTransform,
+        "QgsSingleSymbolRenderer": QgsSingleSymbolRenderer,
+        "QgsUnitTypes": QgsUnitTypes,
+        "QgsWkbTypes": QgsWkbTypes,
+    }
 
 
 def _layout(layout_name: str):
@@ -530,30 +553,6 @@ def add_layout_scale_bar(params: dict[str, Any], context: dict[str, Any]):
     return {"layout_name": layout_name, "item_id": item_id, "linked_map_item_id": linked_map_id, "units": units, "warnings": warnings}
 
 
-def add_layout_north_arrow(params: dict[str, Any], context: dict[str, Any]):
-    layout_name = require_param(params, "layout_name", str)
-    item_id = params.get("item_id", "north_arrow")
-    x = float(params.get("x", 180))
-    y = float(params.get("y", 28))
-    width = float(params.get("width", 15))
-    height = float(params.get("height", 20))
-    if context.get("dry_run"):
-        return {"dry_run": True, "layout_name": layout_name, "item_id": item_id, "fallback": "label"}
-    imports = _imports()
-    layout = _layout(layout_name)
-    label = imports["QgsLayoutItemLabel"](layout)
-    label.setId(str(item_id))
-    label.setText("N\n↑")
-    font = imports["QFont"]()
-    font.setPointSize(16)
-    font.setBold(True)
-    label.setFont(font)
-    _position_item(label, x, y, width, height)
-    layout.addLayoutItem(label)
-    label.refresh()
-    return {"layout_name": layout_name, "item_id": item_id, "fallback": "label", "text": "N ↑"}
-
-
 def _valid_hex(value: str) -> str:
     if not re.fullmatch(r"#[0-9a-fA-F]{6}", value):
         raise ValidationError("BAD_REQUEST", "Color must be a hex value like #00A86B.", {"color": value})
@@ -938,54 +937,6 @@ def suggest_layout_improvements(params: dict[str, Any], context: dict[str, Any])
     return {"quality": quality, "suggestions": suggestions}
 
 
-def generate_basic_map(params: dict[str, Any], context: dict[str, Any]):
-    layer_id = require_param(params, "layer_id", str)
-    title = str(params.get("title", "SIGMAI Test Map"))
-    output_path = normalize_output_path(require_param(params, "output_path", str))
-    fmt = str(params.get("format", output_path.suffix.lstrip(".") or "pdf")).lower()
-    confirm_overwrite = bool(params.get("confirm_overwrite", False))
-    if fmt not in {"pdf", "png"}:
-        raise ValidationError("BAD_REQUEST", "generate_basic_map supports pdf and png.", {"format": fmt})
-    ensure_parent_exists(output_path)
-    try:
-        reject_existing_path_without_confirmation(output_path, confirm_overwrite)
-    except FileExistsError as exc:
-        raise ValidationError("OVERWRITE_BLOCKED", str(exc), {"path": str(output_path)}) from exc
-    layout_name = str(params.get("layout_name") or _safe_layout_name(title))
-    if project().layoutManager().layoutByName(layout_name) is not None:
-        layout_name = f"{layout_name}_{len(project().layoutManager().layouts()) + 1}"
-    if context.get("dry_run"):
-        return {"dry_run": True, "layout_name": layout_name, "output_path": str(output_path), "items_planned": ["main_map", "title", "legend", "scale_bar", "north_arrow", "source"], "credits": build_product_credit(params, context)}
-    imports = _imports()
-    layout = imports["QgsPrintLayout"](project())
-    layout.initializeDefaults()
-    layout.setName(layout_name)
-    project().layoutManager().addLayout(layout)
-    if bool(params.get("apply_default_style", True)) and _is_vector_layer_id(layer_id):
-        set_layer_style({"layer_id": layer_id}, context)
-    items_created = []
-    add_layout_map({"layout_name": layout_name, "layer_id": layer_id, "item_id": "main_map", "x": 10, "y": 25, "width": 180, "height": 145, "margin_percent": 5}, context)
-    items_created.append("main_map")
-    add_layout_label({"layout_name": layout_name, "item_id": "title", "text": title, "x": 10, "y": 8, "width": 260, "height": 12, "font_size": 16, "bold": True, "align": "center"}, context)
-    items_created.append("title")
-    if bool(params.get("include_legend", True)):
-        add_layout_legend({"layout_name": layout_name, "item_id": "legend", "title": "Legenda", "x": 200, "y": 25, "width": 75, "height": 90, "linked_map_item_id": "main_map"}, context)
-        items_created.append("legend")
-    if bool(params.get("include_scale_bar", True)):
-        add_layout_scale_bar({"layout_name": layout_name, "item_id": "scale_bar", "linked_map_item_id": "main_map", "x": 15, "y": 175, "width": 65, "height": 10, "units": "km"}, context)
-        items_created.append("scale_bar")
-    if bool(params.get("include_north_arrow", True)):
-        add_layout_north_arrow({"layout_name": layout_name, "item_id": "north_arrow", "x": 180, "y": 28, "width": 15, "height": 20}, context)
-        items_created.append("north_arrow")
-    if bool(params.get("include_source", True)):
-        source = build_product_credit(params, context)["credit_line"]
-        add_layout_label({"layout_name": layout_name, "item_id": "source", "text": source, "x": 10, "y": 190, "width": 260, "height": 8, "font_size": 8}, context)
-        items_created.append("source")
-    export_result = export_layout({"layout_name": layout_name, "format": fmt, "path": str(output_path), "confirm_overwrite": confirm_overwrite}, context)
-    assessment = evaluate_layout_cartographic_completeness(layout_name, str(output_path))
-    return {"layout_name": layout_name, "output_path": str(output_path), "format": fmt, "items_created": items_created, "credits": build_product_credit(params, context), "export": export_result, "cartographic_assessment": assessment}
-
-
 def evaluate_layout_cartographic_completeness(layout_name: str, output_path: str | None = None) -> dict[str, Any]:
     layout = _layout(layout_name)
     items = {}
@@ -1101,7 +1052,7 @@ def generate_workflow_report(params: dict[str, Any], context: dict[str, Any]):
             if path.is_file() and path.suffix.lower() in {".pdf", ".png", ".gpkg", ".md", ".json"}:
                 outputs.append({"path": str(path), "size": path.stat().st_size})
     credits = build_product_credit(params, context)
-    summary = {"product": "SIGMAI — Secure GIS-AI Interface", "qgis_version": context.get("qgis_version"), "plugin_version": context.get("plugin_version", "0.2.0"), "host": context.get("host"), "port": context.get("port"), "project_crs": crs_authid(qgs_project.crs()), "layer_count": len(layers), "layout_count": len(layouts), "recent_log_count": len(logs), "output_count": len(outputs), "plugin_author": credits["plugin_author"], "map_author": credits["map_author"] or "not specified"}
+    summary = {"product": "SIGMAI — Secure GIS-AI Interface", "qgis_version": context.get("qgis_version"), "plugin_version": context.get("plugin_version", "0.1.0"), "host": context.get("host"), "port": context.get("port"), "project_crs": crs_authid(qgs_project.crs()), "layer_count": len(layers), "layout_count": len(layouts), "recent_log_count": len(logs), "output_count": len(outputs), "plugin_author": credits["plugin_author"], "map_author": credits["map_author"] or "not specified"}
     if context.get("dry_run"):
         return {"dry_run": True, "summary": summary, "credits": credits, "would_write": output_value}
     markdown = ["# SIGMAI Workflow Report", "", "## Environment", ""]

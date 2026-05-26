@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -71,8 +70,6 @@ class SIGMAIPlugin:
             QTextEdit,
             QVBoxLayout,
             QCheckBox,
-            QMessageBox,
-            QInputDialog,
         )
         from qgis.PyQt.QtCore import Qt  # type: ignore
         from qgis.PyQt.QtGui import QIcon, QPixmap  # type: ignore

@@ -1,6 +1,6 @@
 import unittest
 
-from qgis_plugin.security import is_localhost, validate_bearer_header
+from sigmai.security import is_localhost, validate_bearer_header
 
 
 class SecurityTests(unittest.TestCase):

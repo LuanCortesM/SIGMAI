@@ -10,8 +10,8 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from qgis_plugin.qgis_actions import plugin_tools  # noqa: E402
-from qgis_plugin.validators import ValidationError  # noqa: E402
+from sigmai.qgis_actions import plugin_tools  # noqa: E402
+from sigmai.validators import ValidationError  # noqa: E402
 
 
 def make_plugin(root: Path, name: str = "sample_plugin") -> Path:

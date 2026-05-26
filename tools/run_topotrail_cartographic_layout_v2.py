@@ -169,7 +169,7 @@ def make_layout(client: SigmaiClient, layers: dict[str, dict[str, Any]]) -> dict
     )
     source = "Fonte: DataGEO; SMMA; RPPN Gigante do Itaguare. Autor: Luan da Silva Cortes Maciel. CRS: SIRGAS 2000 / UTM 23S. SIGMAI/QGIS."
     command(client, "add_layout_label", {"layout_name": layout_name, "item_id": "source", "text": source, "x": 12, "y": 184, "width": 230, "height": 8, "font_size": 7})
-    logo = ROOT / "qgis_plugin" / "icons" / "sigmai_logo_full.png"
+    logo = ROOT / "sigmai" / "icons" / "sigmai_logo_full.png"
     if logo.exists():
         command(client, "add_layout_picture", {"layout_name": layout_name, "item_id": "sigmai_logo", "path": str(logo), "x": 248, "y": 176, "width": 25, "height": 11})
 

@@ -181,7 +181,7 @@ Atualizacao de 2026-05-18 — Fase Cartographic Map Generation Capable:
   - `generate_basic_map` passou a aceitar `include_grid` e `logo_path`;
   - `get_capabilities` passou a declarar nivel de maturidade, formatos suportados, capacidades cartograficas e limitacoes por fase.
 - Testes locais desta fase:
-  - `python -m compileall -q qgis_plugin codex_plugin tools mcp_server tests`: OK;
+  - `python -m compileall -q sigmai codex_plugin tools mcp_server tests`: OK;
   - `python -m unittest discover tests`: 40 testes, OK.
 
 Nivel de maturidade operacional antes da proxima validacao real no QGIS:
@@ -224,7 +224,7 @@ Ultima rodada local de testes apos Plugin Management:
 
 ```powershell
 python -m unittest discover tests
-python -m compileall -q qgis_plugin codex_plugin tools mcp_server tests
+python -m compileall -q sigmai codex_plugin tools mcp_server tests
 ```
 
 Resultado:
@@ -251,7 +251,7 @@ sigmai/
 ├── LICENSE
 ├── pyproject.toml
 ├── core/
-├── qgis_plugin/
+├── sigmai/
 ├── codex_plugin/
 ├── tools/
 ├── mcp_server/
@@ -297,7 +297,7 @@ Arquivos importantes:
 Pasta:
 
 ```text
-qgis_plugin/
+sigmai/
 ```
 
 Responsabilidades:
@@ -816,7 +816,7 @@ Ele aponta para um session file local que contem o token.
 
 ## 12. Comandos implementados
 
-Esta lista reflete o estado atual de `qgis_plugin/permissions.py`.
+Esta lista reflete o estado atual de `sigmai/permissions.py`.
 
 ### 12.1 Sistema
 
@@ -1465,7 +1465,7 @@ Para testar localmente sem QGIS:
 
 ```powershell
 python -m unittest discover tests
-python -m compileall -q qgis_plugin codex_plugin tools mcp_server tests
+python -m compileall -q sigmai codex_plugin tools mcp_server tests
 ```
 
 Para gerar ZIP do plugin:

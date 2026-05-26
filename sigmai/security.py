@@ -26,7 +26,7 @@ def validate_bearer_header(header_value: str | None, expected_token: str) -> boo
     prefix = "Bearer "
     if not header_value.startswith(prefix):
         return False
-    supplied = header_value[len(prefix) :].strip()
+    supplied = header_value[len(prefix):].strip()
     return secrets.compare_digest(supplied, expected_token)
 
 

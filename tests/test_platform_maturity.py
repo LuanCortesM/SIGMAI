@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from qgis_plugin.permissions import COMMAND_PERMISSIONS
-from qgis_plugin.qgis_actions.platform import evaluate_sigmai_maturity
+from sigmai.permissions import COMMAND_PERMISSIONS
+from sigmai.qgis_actions.platform import evaluate_sigmai_maturity
 
 
 class PlatformMaturityTests(unittest.TestCase):

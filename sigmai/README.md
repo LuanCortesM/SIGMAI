@@ -20,14 +20,14 @@ Use `map_author`, SIGMAI user profile settings or QGIS project metadata to credi
 - Requires a bearer token generated for the current session.
 - Accepts structured JSON commands on `/command`.
 - Executes a small whitelist of QGIS and Processing actions.
-- Logs every request and result to `qgis_plugin/logs/sigmai.jsonl`.
+- Logs every request and result to `sigmai/logs/sigmai.jsonl`.
 - Reports command capabilities and permission levels.
 - Provides high-level GIS commands for CRS diagnosis, geometry validation, fix geometries, buffer, clip, dissolve, reprojection and layer export.
 - Provides basic Developer Mode and Plugin Management inspection commands.
 
 ## Install for Manual Testing
 
-Copy or symlink this `qgis_plugin` folder into the QGIS profile plugin directory under the final plugin folder name `sigmai`.
+Copy or symlink this `sigmai` folder into the QGIS profile plugin directory.
 
 On Windows, a typical target is:
 

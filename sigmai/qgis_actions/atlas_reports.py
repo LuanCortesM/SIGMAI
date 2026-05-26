@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from ..security import ensure_parent_exists, normalize_output_path, reject_existing_path_without_confirmation
@@ -209,7 +208,7 @@ def _export_report(params: dict[str, Any], context: dict[str, Any], fmt: str):
     if context.get("dry_run"):
         return {"dry_run": True, "report_name": report_name, "format": fmt, "output_path": str(output_path)}
     if fmt == "html":
-        body = "\n".join(f"<h2>{section.get('title','')}</h2><p>{section.get('body','')}</p>" for section in report.get("sections", []))
+        body = "\n".join(f"<h2>{section.get('title', '')}</h2><p>{section.get('body', '')}</p>" for section in report.get("sections", []))
         output_path.write_text(f"<!doctype html><html><head><meta charset='utf-8'><title>{report_name}</title></head><body><h1>{report_name}</h1>{body}</body></html>", encoding="utf-8")
     else:
         output_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")

@@ -180,7 +180,7 @@ def main() -> None:
     footer = "Fontes: DataGEO; Secretaria Municipal de Meio Ambiente; RPPN Gigante do Itaguaré. Autor do mapa: Luan da Silva Cortes Maciel. Criado com SIGMAI/QGIS. CRS: SIRGAS 2000 / UTM zona 23S. Data: 2026."
     wrapped(draw, (650, scale_y - 18), footer, 22, dark, 124)
 
-    logo = ROOT / "qgis_plugin" / "icons" / "sigmai_logo_full.png"
+    logo = ROOT / "sigmai" / "icons" / "sigmai_logo_full.png"
     if logo.exists():
         logo_img = Image.open(logo).convert("RGBA")
         logo_img.thumbnail((175, 70), Image.Resampling.LANCZOS)
