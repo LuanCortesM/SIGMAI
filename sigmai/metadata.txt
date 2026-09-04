@@ -29,6 +29,14 @@ changelog=0.2.2
     - Corrigido: estilo embutido em KML/KMZ não gerava amostra na legenda; passa a receber a paleta padrão, com nota de como preservar o original.
     - Corrigido: dois polígonos saíam com o mesmo preenchimento, e o inserto vinha na cor aleatória do QGIS competindo com o retângulo do recorte.
     - Corrigido: numa folha de comparação a legenda ignorava o segundo painel, e CART021 acusava de fantasma uma camada visível nele.
+    - Novo: map_language traduz para 15 línguas tudo que o compositor escreve sozinho (Escala, Fonte, Elaboração, Legenda); antes um mapa em japonês saía bilíngue.
+    - Novo: vocabulário de orientação de página em 15 línguas — 'A4 paysage', 'A4 Querformat', 'A4 横', 'A3 أفقي' eram todos recusados.
+    - Novo: scale fixa a escala impressa, e uma escala que cortaria os dados é recusada dizendo qual é a maior que ainda os contém.
+    - Corrigido: confirm_overwrite='false' (string) apagava o arquivo do usuário, porque em Python bool('false') é verdadeiro.
+    - Corrigido: 18 quebras por tipo errado de valor (dpi, margin_percent, layer_ids, orientation) viravam erro de programador em vez de recusa.
+    - Corrigido: título longo sem espaço (chinês, japonês, tailandês) era cortado em silêncio; agora encolhe, quebra ou recusa dizendo quanto cabe.
+    - Corrigido: format e extensão divergentes gravavam um PDF com nome .png; dpi sem faixa gerava imagem de 11x8 px ou de 992 milhões de pixels.
+    - Nova bancada tools/scenario_runner.py, com os 242 cenários desta rodada versionados em tests/cenarios/.
     - Nova aba Ajuda no painel: o que é a ferramenta, frases de exemplo para dizer ao assistente, o que ele vai perguntar de volta, o que a nota significa e por que ele às vezes recusa.
     - Corrigido: projeto sem CRS definido derrubava a composição com um ValueError cru; agora herda o CRS da primeira camada válida e avisa.
     - Corrigido: CART007 conferia presença de rodapé e não procedência, então um mapa sem fonte nem autoria declaradas passava com nota A.

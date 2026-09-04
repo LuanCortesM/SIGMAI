@@ -20,12 +20,16 @@ Substitui ``generate_professional_map``. As diferenças que importam:
 from __future__ import annotations
 
 import datetime as _datetime
+import math
+import re
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from .layoutgrid import DEFAULT_TEMPLATE, TEMPLATES, LayoutPlan, Rect, solve_layout
+from .maptext import MAP_TEXT, RTL_LANGUAGES, maptext, resolve_language
 from .pagespec import PageSpec, resolve_page
+from .params import ParameterError, as_flag, as_id_list, as_number, as_text
 from .qtcompat import distance_unit, layout_unit_mm, qt_enum
 from .rulebook import SCALEBAR_MIN_LENGTH_MM, evaluate
 from .scaling import (
@@ -35,6 +39,7 @@ from .scaling import (
     scalebar_spec,
 )
 from .symbology import apply_default_symbology
+from .textfit import MIN_FONT_PT, TextTooLongError, fit_text
 
 #: SVG de norte preferidos, do mais sóbrio para o mais decorativo. O primeiro
 #: que existir na instalação do QGIS é usado.
@@ -67,6 +72,11 @@ KNOWN_PARAMETERS = frozenset({
     # texto
     "title", "subtitle", "legend_title", "data_source", "map_author",
     "map_author_email", "organization", "production_date", "notes_text",
+    # língua dos textos que o compositor escreve sozinho na moldura (título
+    # padrão, "Fonte:"/"Elaboração:", "Legenda", "Painel A/B", crédito da
+    # ferramenta) — ver maptext.py. Não afeta title/subtitle/legend_title e
+    # companhia, que já saem na língua em que o usuário os escreveu.
+    "map_language",
     # página e template
     "page", "orientation", "margin_mm", "template", "layout_template", "layout_name",
     # geografia
@@ -81,13 +91,41 @@ KNOWN_PARAMETERS = frozenset({
     # rótulos
     "label_field", "label_layer_id", "label_font_size",
     # estilo
-    "apply_style", "style_profile",
+    "apply_style",
     # saída
     "output_path", "format", "dpi", "confirm_overwrite",
 })
 
 # Formatos que QgsLayoutExporter sabe escrever nesta ferramenta.
 SUPPORTED_FORMATS = frozenset({"png", "pdf", "svg"})
+
+#: Estilos de grade aceitos por ``grid_style`` — as chaves que ``_apply_grid``
+#: sabe traduzir para o QGIS. Um valor fora daqui caía num padrão ("solid")
+#: em silêncio; ver ``_apply_grid``.
+GRID_STYLES: tuple[str, ...] = ("solid", "cross", "markers", "frame")
+
+#: Regras do regulamento (rulebook.py) que significam "a exportação não
+#: existe de verdade": quadro em branco (CART062) ou arquivo não gravado/vazio
+#: demais (CART063). compose_map não pode devolver sucesso quando a própria
+#: auditoria marca uma destas como erro — ver o bloco após ``audit_layout``.
+_BLANK_OUTPUT_RULES = frozenset({"CART062", "CART063"})
+
+#: Parâmetros que já foram cogitados e nunca chegaram a ter implementação —
+#: ficavam em KNOWN_PARAMETERS e eram aceitos e ignorados em silêncio, o
+#: mesmo defeito que a lista de conhecidos existe para evitar. Removidos daqui
+#: para fora de KNOWN_PARAMETERS, caem na recusa de parâmetro desconhecido;
+#: esta lista só troca a mensagem genérica por uma que explica o motivo.
+_RETIRED_PARAMETER_HINTS: dict[str, str] = {
+    "scale": (
+        "não existe controle direto de escala nesta versão; a escala é derivada da extensão "
+        "das camadas e de margin_percent/round_scale — ajuste esses dois para chegar perto do "
+        "denominador que você quer."
+    ),
+    "style_profile": (
+        "não existem perfis de estilo predefinidos; use apply_style ('missing', 'all' ou 'none') "
+        "para controlar a reestilização automática, que aplica a paleta segura para daltônicos."
+    ),
+}
 
 
 def _reject_unknown_parameters(params: dict[str, Any]) -> None:
@@ -98,6 +136,9 @@ def _reject_unknown_parameters(params: dict[str, Any]) -> None:
         return
     hints = []
     for name in unknown:
+        if name in _RETIRED_PARAMETER_HINTS:
+            hints.append(f"{name} ({_RETIRED_PARAMETER_HINTS[name]})")
+            continue
         close = difflib.get_close_matches(name, sorted(KNOWN_PARAMETERS), n=2, cutoff=0.6)
         hints.append(f"{name}" + (f" (você quis dizer {' ou '.join(close)}?)" if close else ""))
     raise CompositionError(
@@ -105,6 +146,71 @@ def _reject_unknown_parameters(params: dict[str, Any]) -> None:
         "compose_map não os ignora em silêncio para que você não receba um mapa diferente do pedido. "
         "Parâmetros aceitos: " + ", ".join(sorted(KNOWN_PARAMETERS)) + "."
     )
+
+
+def _resolve_template(params: dict[str, Any]) -> str:
+    """Resolve ``template``/``layout_template`` para uma chave de TEMPLATES.
+
+    Normaliza a caixa antes de comparar: ``"CIENTIFICO"`` era recusado
+    enquanto ``page`` já tolerava ``"a4 LANDSCAPE"`` — a mesma tolerância que
+    ``resolve_page`` aplica a page/orientation faltava aqui. A recusa para um
+    nome de fato inexistente continua valendo, com sugestão por proximidade.
+    Função pura (não toca QGIS) para poder ser testada sem PyQGIS.
+    """
+    template_raw = as_text(params, "template", default="", label="template")
+    if not template_raw:
+        template_raw = as_text(params, "layout_template", default="", label="layout_template")
+    template_raw = template_raw or DEFAULT_TEMPLATE
+    template = template_raw.strip().lower()
+    if template not in TEMPLATES:
+        import difflib
+
+        near = difflib.get_close_matches(template, list(TEMPLATES), n=1, cutoff=0.5)
+        suggestion = f" Você quis dizer '{near[0]}'?" if near else ""
+        raise CompositionError(
+            f"Template de layout desconhecido: '{template_raw}'.{suggestion} "
+            f"Templates disponíveis: {', '.join(sorted(TEMPLATES))}."
+        )
+    return template
+
+
+def _resolve_grid_style(params: dict[str, Any]) -> str:
+    """Resolve ``grid_style`` para um dos valores que ``_apply_grid`` entende.
+
+    Um valor fora de ``GRID_STYLES`` caía num padrão ("solid") em silêncio;
+    aqui é recusado com a lista de aceitos e sugestão por proximidade. Função
+    pura para poder ser testada sem PyQGIS.
+    """
+    grid_style_raw = as_text(params, "grid_style", default="solid", label="grid_style").strip()
+    grid_style = grid_style_raw.lower()
+    if grid_style not in GRID_STYLES:
+        import difflib
+
+        near = difflib.get_close_matches(grid_style, GRID_STYLES, n=1, cutoff=0.4)
+        suggestion = f" Você quis dizer '{near[0]}'?" if near else ""
+        raise CompositionError(
+            f"grid_style desconhecido: {grid_style_raw!r}.{suggestion} "
+            f"Valores aceitos: {', '.join(GRID_STYLES)}."
+        )
+    return grid_style
+
+
+def _resolve_map_crs_text(params: dict[str, Any]) -> str:
+    """Texto de ``map_crs`` pronto para ``QgsCoordinateReferenceSystem``.
+
+    ``None``/chave ausente viram ``""`` (equivalente a omitir — antes disso
+    ``map_crs: null`` era tratado como a string literal ``"None"`` e recusado
+    com uma mensagem que não dizia por quê). Espaços em volta dos dois-pontos
+    (``"EPSG: 4674"``, comum quando a IA copia texto em alemão) são
+    normalizados: ``QgsCoordinateReferenceSystem`` não tolera esse espaço e
+    recusava sem nenhuma dica de formato. Função pura para poder ser testada
+    sem PyQGIS — a validação de que o resultado é um CRS de verdade continua
+    em ``_compose_map``, que precisa do PyQGIS para isso.
+    """
+    raw = as_text(params, "map_crs", default="", label="map_crs").strip()
+    if not raw:
+        return ""
+    return re.sub(r"\s*:\s*", ":", raw)
 
 
 def _imports() -> dict[str, Any]:
@@ -126,11 +232,14 @@ def _imports() -> dict[str, Any]:
             QgsLayoutItemPicture,
             QgsLayoutItemScaleBar,
             QgsLayoutPoint,
+            QgsLayoutUtils,
             QgsPointXY,
             QgsLayoutSize,
             QgsPrintLayout,
             QgsProject,
             QgsRectangle,
+            QgsTextFormat,
+            QgsTextRenderer,
             QgsUnitTypes,
         )
     except Exception as exc:  # pragma: no cover - só ocorre fora do QGIS
@@ -147,9 +256,15 @@ def _imports() -> dict[str, Any]:
 
 def _resolve_layers(params: dict[str, Any], imports: dict[str, Any]) -> list[Any]:
     project = imports["QgsProject"].instance()
-    raw = params.get("layer_ids") or params.get("layers") or params.get("layer_id")
-    if isinstance(raw, str):
-        raw = [raw]
+    # As três chaves são sinônimos históricos; a primeira presente e válida
+    # vence. as_id_list recusa o que não é iterável de textos (int, bool,
+    # None, dict) em vez de deixar a iteração seguinte estourar TypeError.
+    raw = None
+    for key in ("layer_ids", "layers", "layer_id"):
+        candidate = as_id_list(params, key, allow_single=True, label=key)
+        if candidate:
+            raw = candidate
+            break
     if not raw:
         raise CompositionError("Informe layer_ids com pelo menos uma camada.")
     layers = []
@@ -331,11 +446,22 @@ def _aspect_expanded(extent: Any, frame_width: float, frame_height: float, impor
     )
 
 
-def _resolve_layer_ids(raw_ids: Any, imports: dict[str, Any], label: str) -> list[Any]:
-    """Resolve identificadores ou nomes de camada, recusando os que não existem."""
+def _resolve_layer_ids(spec: dict[str, Any], imports: dict[str, Any], label: str) -> list[Any]:
+    """Resolve identificadores ou nomes de camada, recusando os que não existem.
+
+    ``spec`` é o dicionário que carrega ``layer_ids``/``layers`` (o
+    ``second_map`` do pedido, tipicamente). A extração usa ``as_id_list`` em
+    vez de ``spec.get("layer_ids") or spec.get("layers") or []`` cru: esse
+    padrão antigo não validava o tipo, e ``second_map: {"layer_ids": 99}``
+    estourava ``TypeError: 'int' object is not iterable`` na iteração abaixo.
+    """
     project = imports["QgsProject"].instance()
-    if isinstance(raw_ids, str):
-        raw_ids = [raw_ids]
+    raw_ids: list[str] | None = None
+    for key in ("layer_ids", "layers"):
+        candidate = as_id_list(spec, key, allow_single=True, label=f"{label}.{key}")
+        if candidate:
+            raw_ids = candidate
+            break
     layers, missing = [], []
     for identifier in raw_ids or []:
         layer = project.mapLayer(str(identifier))
@@ -449,22 +575,50 @@ def _format_scale(denominator: int) -> str:
     return f"1:{denominator:,}".replace(",", ".")
 
 
-def _credit_line(params: dict[str, Any], crs_label: str, date_label: str) -> str:
+def _credit_line(params: dict[str, Any], crs_label: str, date_label: str, map_language: str = "pt-BR") -> str:
+    # as_text: data_source/map_author/organization nulos viravam o texto
+    # "None" na linha de crédito (str(None) == "None"), porque None é
+    # truthy... não, mas str(None).strip() == "None" é não-vazio e passava no
+    # "if source:" abaixo mesmo sem o usuário ter pedido nada.
     pieces = []
-    source = str(params.get("data_source", "")).strip()
+    source = as_text(params, "data_source", default="", label="data_source").strip()
     if source:
-        pieces.append(f"Fonte: {source}")
-    author = str(params.get("map_author", "")).strip()
+        pieces.append(f"{maptext(map_language, 'fonte')}{source}")
+    author = as_text(params, "map_author", default="", label="map_author").strip()
     if author:
-        pieces.append(f"Elaboração: {author}")
-    organization = str(params.get("organization", "")).strip()
+        pieces.append(f"{maptext(map_language, 'elaboracao')}{author}")
+    organization = as_text(params, "organization", default="", label="organization").strip()
     if organization:
         pieces.append(organization)
     if crs_label:
         pieces.append(crs_label)
     if date_label:
         pieces.append(date_label)
-    pieces.append("Produzido com SIGMAI/QGIS")
+    pieces.append(maptext(map_language, "credito_ferramenta"))
+    # Defeito 3 (RTL) — NÃO inverter a ordem das peças aqui, de propósito.
+    #
+    # A primeira tentativa desta correção invertia `pieces` para línguas RTL,
+    # partindo do pressuposto de que QgsLayoutItemLabel desenha a string
+    # sempre da esquerda para a direita em ordem lógica, ignorando a direção
+    # do script. Comparar lado a lado a mesma linha de crédito COM e SEM essa
+    # inversão (mesmos dados, só a ordem das peças mudando) mostrou o
+    # contrário: o renderizador de texto do QGIS já aplica o algoritmo Unicode
+    # de bidirecionalidade por linha, e o pressuposto era falso — a versão SEM
+    # inversão é a que coloca "Fonte:" (a peça logicamente primeira) no lado
+    # direito da linha (o que um leitor de árabe/hebraico encontra primeiro),
+    # exatamente o resultado que a inversão tentava produzir à força; invertida,
+    # "Fonte:" ia parar à ESQUERDA — o oposto do pedido. A condição para essa
+    # bidirecionalidade funcionar é a linha começar com um caractere de
+    # direção forte RTL, o que passa a valer aqui assim que "Fonte:"/
+    # "Elaboração:" saem traduzidos (defeito 1) em vez de ficarem em português
+    # na frente do valor em árabe/hebraico — as duas correções trabalham
+    # juntas. Ficou como está por não termos como validar exaustivamente o
+    # comportamento de bidi do Qt/QGIS para toda combinação de peças (uma
+    # organization em alfabeto latino como primeira peça preenchida, por
+    # exemplo, ainda pode nascer sem nenhum caractere RTL forte e sair não
+    # invertida) — inventar uma heurística extra por cima do bidi nativo é
+    # exatamente o tipo de solução frágil que o regulamento deste defeito pede
+    # para não fazer; ver o relatório da correção para o limite documentado.
     return " · ".join(pieces)
 
 
@@ -473,7 +627,23 @@ def _credit_line(params: dict[str, Any], crs_label: str, date_label: str) -> str
 # ---------------------------------------------------------------------------
 
 def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
-    """Compõe, exporta e audita um mapa completo."""
+    """Compõe, exporta e audita um mapa completo.
+
+    Ponto único de conversão: qualquer ``ParameterError`` levantada por
+    ``params.py`` ao longo de toda a composição — em ``compose_map`` e nas
+    funções internas que ele chama, como ``_apply_labels`` ou
+    ``_add_inset_map`` — vira ``CompositionError`` aqui. Do lado de quem
+    chamou a ferramenta as duas são idênticas (uma recusa com mensagem
+    acionável); a distinção só evita que ``params.py`` precise conhecer
+    ``CompositionError``.
+    """
+    try:
+        return _compose_map(params, context)
+    except ParameterError as exc:
+        raise CompositionError(str(exc)) from exc
+
+
+def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
     _reject_unknown_parameters(params)
     imports = _imports()
     project = imports["QgsProject"].instance()
@@ -488,14 +658,15 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
     # sorteou, ao lado de um painel a) com a paleta segura.
     styling_targets = list(layers)
     if second_map_spec is not None:
-        for layer in _resolve_layer_ids(
-            second_map_spec.get("layer_ids") or second_map_spec.get("layers") or [],
-            imports, "second_map",
-        ):
+        for layer in _resolve_layer_ids(second_map_spec, imports, "second_map"):
             if all(layer.id() != existing.id() for existing in styling_targets):
                 styling_targets.append(layer)
 
-    styling = apply_default_symbology(styling_targets, str(params.get("apply_style", "missing")))
+    # apply_style é um enum fechado ('missing'/'all'/'none'); um valor fora
+    # disso caía no ramo que força restilo em TODAS as camadas em silêncio —
+    # symbology.apply_default_symbology recusa isso explicitamente.
+    apply_style_value = as_text(params, "apply_style", default="missing", label="apply_style").strip().lower()
+    styling = apply_default_symbology(styling_targets, apply_style_value)
     styling_notes = [
         f"A camada {entry['layer']!r} foi reestilizada: {entry['note']}."
         for entry in styling if entry.get("note")
@@ -510,25 +681,51 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
     except ValueError as exc:
         raise CompositionError(str(exc)) from exc
 
-    template = str(params.get("template", params.get("layout_template", DEFAULT_TEMPLATE)))
-    if template not in TEMPLATES:
-        import difflib
+    template = _resolve_template(params)
 
-        near = difflib.get_close_matches(template, list(TEMPLATES), n=1, cutoff=0.5)
-        suggestion = f" Você quis dizer '{near[0]}'?" if near else ""
-        raise CompositionError(
-            f"Template de layout desconhecido: '{template}'.{suggestion} "
-            f"Templates disponíveis: {', '.join(sorted(TEMPLATES))}."
-        )
+    # title/subtitle cedo: título nulo imprimia o texto "None" no mapa, e
+    # subtitle nulo fazia bool(str(None).strip()) avaliar True — ligando o
+    # subtítulo mesmo sem nenhum texto ter sido pedido.
+    title_value = as_text(params, "title", default="", label="title").strip()
+    subtitle_value = as_text(params, "subtitle", default="", label="subtitle").strip()
 
-    include_legend = bool(params.get("include_legend", True))
-    include_scale_bar = bool(params.get("include_scale_bar", True))
-    include_scale_text = bool(params.get("include_scale_text", True))
-    include_north = bool(params.get("include_north_arrow", True))
-    include_grid = bool(params.get("include_grid", True))
-    include_subtitle = bool(str(params.get("subtitle", "")).strip())
-    include_logo = bool(params.get("include_logo", False))
-    include_inset = bool(params.get("include_inset", False))
+    # map_language escolhe a língua dos textos que o PRÓPRIO compositor
+    # escreve — "Fonte:"/"Elaboração:", o título padrão quando ninguém pede
+    # um, "Legenda", "Painel A/B", o crédito da ferramenta (ver maptext.py).
+    # Não recusa por língua desconhecida — cai em português, resolvida com a
+    # mesma tolerância de grafia que o resto do pacote aplica a entrada de
+    # agente de IA (ver params.py) — mas registra uma nota (mais abaixo,
+    # quando `notes` já existe) quando o código não foi reconhecido, para o
+    # pedido de língua não evaporar em silêncio.
+    map_language_raw = as_text(params, "map_language", default="pt-BR", label="map_language").strip() or "pt-BR"
+    map_language, map_language_known = resolve_language(map_language_raw)
+    map_language_rtl = map_language in RTL_LANGUAGES
+
+    # As bandeiras nunca usam bool() do Python: bool("false") vale True, e foi
+    # assim que confirm_overwrite:"false" (string) sobrescreveu arquivo do
+    # usuário em silêncio. Cada conversão registra uma nota, mesclada em
+    # `notes` mais abaixo (a lista ainda não existe neste ponto do fluxo).
+    flag_notes: list[str] = []
+
+    def _flag(key: str, default: bool) -> bool:
+        value, note = as_flag(params, key, default)
+        if note:
+            flag_notes.append(note)
+        return value
+
+    include_legend = _flag("include_legend", True)
+    include_scale_bar = _flag("include_scale_bar", True)
+    include_scale_text = _flag("include_scale_text", True)
+    include_north = _flag("include_north_arrow", True)
+    include_grid = _flag("include_grid", True)
+    include_subtitle = bool(subtitle_value)
+    include_logo = _flag("include_logo", False)
+    include_inset = _flag("include_inset", False)
+
+    # grid_style é validado uma vez aqui e reaproveitado nos dois lugares que
+    # desenham grade (mapa principal e painel de comparação).
+    grid_style_value = _resolve_grid_style(params)
+
     # O corredor precisa caber o rótulo mais longo da grade. Coordenadas UTM
     # têm 7 dígitos; escritas na vertical nas laterais, consomem a altura da
     # linha, não a largura do texto.
@@ -550,16 +747,33 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
         grid_annotation_gutter_mm=annotation_gutter,
         panels=2 if second_map_spec else 1,
     )
-    plan = solve_layout(**layout_request)
+    # solve_layout (layoutgrid.py) recusa página/margens combinadas que não
+    # sobram espaço com um ValueError — mesmo tratamento que resolve_page
+    # recebe acima: a exceção de programador vira CompositionError na
+    # fronteira de compose_map, nunca escapa crua para quem chamou a ferramenta.
+    try:
+        plan = solve_layout(**layout_request)
+    except ValueError as exc:
+        raise CompositionError(str(exc)) from exc
     frame = plan.map_frame()
 
     # --- sistema de referência ------------------------------------------
-    notes: list[str] = list(plan.notes) + styling_notes
-    requested_crs = str(params.get("map_crs", "")).strip()
+    notes: list[str] = list(plan.notes) + styling_notes + flag_notes
+    if not map_language_known:
+        notes.append(
+            f"map_language={map_language_raw!r} não foi reconhecido; os textos que o compositor "
+            "escreve sozinho (título padrão, 'Fonte:'/'Elaboração:', 'Legenda', rótulos de painel, "
+            "crédito da ferramenta) saíram em português (pt-BR). Línguas reconhecidas: "
+            + ", ".join(sorted(MAP_TEXT)) + "."
+        )
+    requested_crs = _resolve_map_crs_text(params)
     if requested_crs:
         map_crs = imports["QgsCoordinateReferenceSystem"](requested_crs)
         if not map_crs.isValid():
-            raise CompositionError(f"map_crs inválido: {requested_crs}")
+            raise CompositionError(
+                f"map_crs inválido: {requested_crs!r}. Use um código de sistema de referência, "
+                "por exemplo 'EPSG:4674' (SIRGAS 2000) ou 'EPSG:31983' (SIRGAS 2000 / UTM 23S)."
+            )
     else:
         map_crs = project.crs()
     map_crs_label = ""
@@ -590,7 +804,7 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
     # união de todas as camadas enquadraria o estado inteiro e o parque
     # sumiria. Sem isto, a única forma de obter um recorte de detalhe era
     # remover as camadas de contexto — e perder o contexto.
-    subject_id = str(params.get("subject_layer_id", "")).strip()
+    subject_id = as_text(params, "subject_layer_id", default="", label="subject_layer_id").strip()
     extent_layers = layers
     if subject_id:
         subject = [layer for layer in layers if layer.id() == subject_id or layer.name() == subject_id]
@@ -607,16 +821,16 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
 
     extent = _combined_extent(extent_layers, map_crs, imports)
 
-    if map_crs.isGeographic() and bool(params.get("auto_projected_crs", True)):
+    auto_projected_crs, auto_projected_note = as_flag(params, "auto_projected_crs", True)
+    if auto_projected_note:
+        notes.append(auto_projected_note)
+    if map_crs.isGeographic() and auto_projected_crs:
         # A projeção é escolhida pelo recorte que vai ao papel, não pelo recorte
         # cru dos dados: o quadro alarga a extensão para casar com sua proporção,
         # e um segundo painel pode cobrir uma área muito maior que o primeiro.
         decision_extent = _aspect_expanded(extent, frame.width, frame.height, imports)
         if second_map_spec is not None and "map_2" in plan.slots:
-            second_layers = _resolve_layer_ids(
-                second_map_spec.get("layer_ids") or second_map_spec.get("layers") or [],
-                imports, "second_map",
-            )
+            second_layers = _resolve_layer_ids(second_map_spec, imports, "second_map")
             if second_layers:
                 second_extent = _combined_extent(
                     _subject_subset(second_layers, second_map_spec.get("subject_layer_id", "")),
@@ -642,12 +856,25 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
                 "escolha uma projeção adequada com map_crs."
             )
 
+    # margin_percent: "cinco" ou null estouravam ValueError cru dentro de
+    # fit_extent_to_frame; negativo era só grampeado a 0 em silêncio por
+    # max(0.0, ...) lá dentro — minimum=0.0 aqui recusa antes disso.
+    margin_percent_value = as_number(params, "margin_percent", default=5.0, minimum=0.0, label="margin_percent")
+
+    # dpi só era lido na hora de exportar. Sem output_path, um valor absurdo
+    # passava calado — e um parâmetro aceito sem efeito é o mesmo defeito de
+    # improvisar em silêncio que o resto do arquivo combate.
+    as_number(params, "dpi", default=300, minimum=50, maximum=1200, integer=True, label="dpi")
+    round_scale_value, round_scale_note = as_flag(params, "round_scale", True)
+    if round_scale_note:
+        notes.append(round_scale_note)
+
     def _fit(target_frame: Rect) -> Any:
         return fit_extent_to_frame(
             extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum(),
             target_frame.width, target_frame.height,
-            margin_percent=float(params.get("margin_percent", 5.0)),
-            snap_to_round_scale=bool(params.get("round_scale", True)),
+            margin_percent=margin_percent_value,
+            snap_to_round_scale=round_scale_value,
             map_units_per_metre=_map_units_per_metre(map_crs, extent, imports),
         )
 
@@ -658,12 +885,46 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
     # como decidir isso antes de resolver o layout uma vez.
     if _scalebar_needs_full_width(plan, fitted, frame, include_scale_bar, second_map_spec):
         previous_notes = set(plan.notes)
-        plan = solve_layout(**layout_request, scale_bar_under_map=True)
+        try:
+            plan = solve_layout(**layout_request, scale_bar_under_map=True)
+        except ValueError as exc:
+            raise CompositionError(str(exc)) from exc
         frame = plan.map_frame()
         fitted = _fit(frame)
         notes.extend(note for note in plan.notes if note not in previous_notes)
 
-    notes.extend(fitted.notes)
+    # As notas do ajuste automático só entram se o ajuste automático valer: com
+    # escala fixada elas descrevem uma decisão que foi substituída, e uma nota
+    # que contradiz o resultado é pior do que nota nenhuma.
+    fit_notes = list(fitted.notes)
+
+    # Escala pedida explicitamente. "Faça em 1:25.000" é o pedido cartográfico
+    # mais comum que existe — numa dissertação a escala costuma ser imposta pela
+    # norma, não escolhida. O ajuste automático continua valendo como padrão; o
+    # que este ramo faz é obedecer quando alguém decidiu.
+    requested_scale = as_number(params, "scale", None, minimum=1.0, integer=True, label="scale")
+    if requested_scale:
+        minimum_scale = fitted.raw_scale_denominator / (1.0 + 2.0 * max(0.0, margin_percent_value) / 100.0)
+        if requested_scale < minimum_scale * 0.999:
+            raise CompositionError(
+                f"A escala pedida (1:{int(requested_scale):,}) não cabe: nessa escala o quadro "
+                f"mostraria menos terreno do que os dados ocupam, cortando parte deles. "
+                f"A maior escala que ainda contém tudo é aproximadamente "
+                f"1:{int(math.ceil(minimum_scale)):,}. Peça essa ou uma mais aberta, ou omita "
+                f"'scale' para o SIGMAI escolher.".replace(",", ".")
+            )
+        if int(requested_scale) != int(fitted.scale_denominator):
+            fitted = _rescale(fitted, int(requested_scale))
+            fit_notes = [
+                note for note in fit_notes
+                if "escala" not in note.lower() and "margem efetiva" not in note.lower()
+            ]
+            notes.append(
+                f"Escala fixada em {_format_scale(int(requested_scale))} a pedido; "
+                "o recorte foi centralizado e aberto até essa escala."
+            )
+
+    notes.extend(fit_notes)
 
     notes.extend(_empty_in_frame_advice(layers, extent_layers, fitted, map_crs, imports))
 
@@ -686,15 +947,20 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
     comparison_plan = None
     if second_map_spec is not None and "map_2" in plan.slots:
         comparison_plan = _plan_comparison(second_map_spec, params, plan, map_crs, imports)
-        if bool(params.get("comparison_same_scale", True)):
+        comparison_same_scale, comparison_same_scale_note = as_flag(params, "comparison_same_scale", True)
+        if comparison_same_scale_note:
+            notes.append(comparison_same_scale_note)
+        if comparison_same_scale:
             shared = max(fitted.scale_denominator, comparison_plan["fitted"].scale_denominator)
             if shared != fitted.scale_denominator or shared != comparison_plan["fitted"].scale_denominator:
                 notes.append(
                     f"Os dois painéis foram igualados em 1:{shared:,} — a escala mais aberta dos dois — "
                     "para que a comparação visual entre eles seja honesta.".replace(",", ".")
                 )
+            antes = (fitted.scale_denominator, comparison_plan["fitted"].scale_denominator)
             fitted = _rescale(fitted, shared)
             comparison_plan["fitted"] = _rescale(comparison_plan["fitted"], shared)
+            notes.extend(_equalisation_cost_advice(antes, shared))
         else:
             # Escalas diferentes exigem que cada painel anuncie a sua. Uma barra
             # de escala única sob dois painéis desiguais afirma algo falso sobre
@@ -706,9 +972,28 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
                 "e a barra única foi substituída por essa indicação.".replace(",", ".")
             )
 
-    layout_name = str(params.get("layout_name") or _unique_layout_name(project, params.get("title", "Mapa SIGMAI")))
+    layout_name = as_text(params, "layout_name", default="", label="layout_name").strip()
+    layout_name = layout_name or _unique_layout_name(project, title_value or "Mapa SIGMAI")
     output_path = Path(str(params.get("output_path", ""))).expanduser() if params.get("output_path") else None
-    export_format = str(params.get("format", (output_path.suffix.lstrip(".") if output_path else "pdf"))).lower()
+
+    # format e a extensão de output_path podem discordar (output_path
+    # "mapa.png" com format "pdf"): antes disso gerava um PDF chamado .png sem
+    # avisar. explicit_format sempre vence quando não há conflito; quando os
+    # dois discordam, a composição é recusada em vez de escolher por conta.
+    explicit_format = as_text(params, "format", default="", label="format").strip().lower()
+    suffix_format = output_path.suffix.lstrip(".").lower() if output_path is not None else ""
+    if output_path is not None and explicit_format and suffix_format and explicit_format != suffix_format:
+        raise CompositionError(
+            f"output_path termina em '.{suffix_format}' mas format pede '{explicit_format}'. "
+            f"Escolha um dos dois: troque a extensão do arquivo para '.{explicit_format}', "
+            f"passe format='{suffix_format}', ou omita format para que a extensão decida."
+        )
+    if explicit_format:
+        export_format = explicit_format
+    elif output_path is not None:
+        export_format = suffix_format
+    else:
+        export_format = "pdf"
 
     if context.get("dry_run"):
         return {
@@ -743,7 +1028,14 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
             )
         if not output_path.parent.exists():
             raise CompositionError(f"A pasta de saída não existe: {output_path.parent}")
-        if output_path.exists() and not bool(params.get("confirm_overwrite", False)):
+        # O defeito mais grave do lote: bool("false") vale True em Python, e
+        # confirm_overwrite:"false" (string) sobrescrevia o arquivo do usuário
+        # em silêncio. as_flag nunca usa a conversão bool() do Python — só uma
+        # lista fechada de grafias inequívocas — por isso não repete o acidente.
+        confirm_overwrite, confirm_overwrite_note = as_flag(params, "confirm_overwrite", False)
+        if confirm_overwrite_note:
+            notes.append(confirm_overwrite_note)
+        if output_path.exists() and not confirm_overwrite:
             raise CompositionError(
                 f"O arquivo já existe: {output_path}. Passe confirm_overwrite=true para substituí-lo."
             )
@@ -795,11 +1087,11 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
     created["main_map"] = "map"
 
     if include_grid:
-        _apply_grid(map_item, fitted, map_crs, plan, imports, notes, str(params.get("grid_style", "solid")))
+        _apply_grid(map_item, fitted, map_crs, plan, imports, notes, grid_style_value)
         created["grid"] = "grid"
 
     # Rótulos das feições, quando pedidos
-    label_field = str(params.get("label_field", "")).strip()
+    label_field = as_text(params, "label_field", default="", label="label_field").strip()
     if label_field:
         labelled = _apply_labels(layers, params, label_field, plan, imports, notes)
         if labelled:
@@ -811,11 +1103,24 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
         created["inset_map"] = "map"
 
     # Título e subtítulo
-    title_text = str(params.get("title", "")).strip() or "Mapa"
-    _add_label(layout, "title", title_text, plan.slots["title"], plan.fonts["title"], imports, mm, bold=True, align="center")
+    #
+    # Quando ninguém pede título, "Mapa" (traduzido para map_language) é
+    # usado em vez de deixar o item sem texto: CART001 do regulamento
+    # ("Título presente") é ERROR — um mapa sem título reprova a auditoria de
+    # propósito, porque título ausente não informa tema, recorte nem
+    # propósito a quem lê. Traduzir o padrão mantém a regra satisfeita e o
+    # mapa monolíngue; omitir o item trocaria "sem título" por "reprovado".
+    title_text = title_value or maptext(map_language, "titulo_padrao")
+    _add_label(
+        layout, "title", title_text, plan.slots["title"], plan.fonts["title"], imports, mm,
+        bold=True, align="center", notes=notes, fit=True,
+    )
     created["title"] = "label"
     if include_subtitle and "subtitle" in plan.slots:
-        _add_label(layout, "subtitle", str(params["subtitle"]).strip(), plan.slots["subtitle"], plan.fonts["subtitle"], imports, mm, align="center")
+        _add_label(
+            layout, "subtitle", subtitle_value, plan.slots["subtitle"], plan.fonts["subtitle"], imports, mm,
+            align="center", notes=notes, fit=True,
+        )
         created["subtitle"] = "label"
 
     # Legenda com TODAS as camadas desenhadas — dos dois painéis, quando há
@@ -826,7 +1131,7 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
         for layer in (comparison_plan or {}).get("layers", []):
             if all(layer.id() != existing.id() for existing in legend_layers):
                 legend_layers.append(layer)
-        _add_legend(layout, map_item, legend_layers, plan, params, imports, mm)
+        _add_legend(layout, map_item, legend_layers, plan, params, imports, mm, map_language)
         created["legend"] = "legend"
 
     # Barra de escala dimensionada
@@ -848,9 +1153,9 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
     # Escala numérica
     if include_scale_text and "scale_text" in plan.slots:
         scale_caption = (
-            "Escalas indicadas em cada painel"
+            maptext(map_language, "escalas_por_painel")
             if (comparison_plan or {}).get("per_panel_scale")
-            else f"Escala {_format_scale(fitted.scale_denominator)}"
+            else f"{maptext(map_language, 'escala_prefixo')}{_format_scale(fitted.scale_denominator)}"
         )
         _add_label(
             layout, "scale_text", scale_caption,
@@ -860,20 +1165,31 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
 
     # Rosa dos ventos como símbolo
     if include_north and "north" in plan.slots:
-        kind = _add_north_arrow(layout, map_item, plan.slots["north"], imports, mm, notes)
+        kind = _add_north_arrow(layout, map_item, plan.slots["north"], imports, mm, notes, map_language)
         created["north_arrow"] = kind
 
     # Rodapé: fonte, autoria, CRS e data
+    #
+    # Defeito 3 (RTL): num mapa inteiramente em árabe/hebraico, ancorar o
+    # rodapé sempre na margem ESQUERDA é a metade do defeito que dá para
+    # corrigir sem depender de um controle de direção de texto que esta
+    # versão do QGIS não expõe (a outra metade — a ordem interna dos
+    # pedaços — é resolvida dentro de _credit_line). Alinhar à direita aqui
+    # é o mínimo defensável citado no relatório da correção.
     crs_label = f"{map_crs.description() or map_crs.authid()} ({map_crs.authid()})"
-    date_label = str(params.get("production_date") or _datetime.date.today().strftime("%d/%m/%Y"))
+    date_label = (
+        as_text(params, "production_date", default="", label="production_date").strip()
+        or _datetime.date.today().strftime("%d/%m/%Y")
+    )
     _add_label(
-        layout, "source", _credit_line(params, crs_label, date_label),
-        plan.slots["footer"], plan.fonts["footer"], imports, mm, align="left",
+        layout, "source", _credit_line(params, crs_label, date_label, map_language),
+        plan.slots["footer"], plan.fonts["footer"], imports, mm,
+        align=("right" if map_language_rtl else "left"),
     )
     created["source"] = "label"
 
     if include_logo and "logo" in plan.slots:
-        logo_path = str(params.get("logo_path", "")).strip()
+        logo_path = as_text(params, "logo_path", default="", label="logo_path").strip()
         if logo_path and Path(logo_path).exists():
             picture = imports["QgsLayoutItemPicture"](layout)
             picture.setId("logo")
@@ -885,7 +1201,9 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
     # Segundo quadro de comparação
     if comparison_plan is not None:
         comparison_plan["main_scale"] = fitted.scale_denominator
-        _build_comparison_map(layout, comparison_plan, params, plan, map_crs, imports, mm, notes)
+        _build_comparison_map(
+            layout, comparison_plan, params, plan, map_crs, imports, mm, notes, grid_style_value, map_language,
+        )
         created["comparison_map"] = "map"
         created["panel_captions"] = "label"
 
@@ -920,6 +1238,8 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
         },
         map_frame=frame,
     )
+
+    _reject_if_audit_found_blank_output(audit)
 
     return {
         "layout_name": layout_name,
@@ -1066,6 +1386,32 @@ def audit_layout(
     return report
 
 
+def _reject_if_audit_found_blank_output(audit: dict[str, Any]) -> None:
+    """A ferramenta não pode contradizer o próprio laudo.
+
+    CART062 (quadro em branco) e CART063 (arquivo não gravado ou pequeno
+    demais para ter conteúdo) são o modo de falha mais perigoso do
+    regulamento — todo código de retorno do QGIS diz sucesso mesmo assim.
+    ``margin_mm: 200`` numa página A5 chegou a exportar um PNG branco, a
+    própria auditoria marcava CART063 "provável exportação vazia" com
+    severidade ``error``, e ``compose_map`` devolvia sucesso do mesmo jeito.
+    Esta função é pura (só lê o dicionário do laudo) para poder ser testada
+    sem PyQGIS: veja ``tests/test_parameter_validation.py``.
+    """
+    blank_output_failures = [
+        entry for entry in audit.get("blocking_issues", [])
+        if entry.get("id") in _BLANK_OUTPUT_RULES
+    ]
+    if not blank_output_failures:
+        return
+    detalhe = " ".join(f"[{entry['id']}] {entry['detail_pt']}" for entry in blank_output_failures)
+    raise CompositionError(
+        "A auditoria reprovou a própria exportação, então compose_map não pode devolver isto "
+        f"como sucesso: {detalhe} Ajuste extensão, margem, camadas visíveis ou permissão de "
+        "escrita e gere o mapa novamente."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Construção de itens
 # ---------------------------------------------------------------------------
@@ -1125,15 +1471,102 @@ def _verify_placement(item: Any, rect: Rect, label: str, notes: list[str], toler
         )
 
 
+#: Nome legível de cada item gerado, só para a mensagem de recusa do defeito
+#: 2 apontar "o título"/"o subtítulo" em vez do id interno do item.
+_FIELD_LABELS_PT: dict[str, str] = {
+    "title": "título",
+    "subtitle": "subtítulo",
+    "panel_caption_a": "legenda do painel A",
+    "panel_caption_b": "legenda do painel B",
+}
+
+
+def _measure_text_mm_fn(layout: Any, imports: dict[str, Any], bold: bool) -> Any:
+    """Fecha uma função (texto, pt) -> largura em mm, usando QgsTextRenderer.
+
+    A medição é feita num QgsRenderContext próprio, a um DPI fixo (300):
+    testado empiricamente, a razão pixel/mm que QgsTextRenderer.textWidth
+    devolve é a mesma independente do DPI do contexto (só muda o
+    arredondamento de hinting), então um DPI alto e fixo aqui — em vez do DPI
+    de exportação do mapa, que pode nem ter sido decidido ainda neste ponto
+    da composição — dá uma medição estável e consistente entre chamadas.
+    """
+    context = imports["QgsLayoutUtils"].createRenderContextForLayout(layout, None, 300.0)
+    text_format = imports["QgsTextFormat"]()
+
+    def measure(candidate: str, size_pt: float) -> float:
+        font = imports["QFont"]()
+        font.setPointSizeF(float(size_pt))
+        font.setBold(bool(bold))
+        text_format.setFont(font)
+        text_format.setSize(float(size_pt))
+        try:
+            text_format.setSizeUnit(qt_enum(imports["Qgis"], "RenderUnit", "Points"))
+        except Exception:
+            pass
+        pixels = imports["QgsTextRenderer"].textWidth(context, text_format, [candidate])
+        return float(pixels) * 25.4 / 300.0
+
+    return measure
+
+
+def _fit_label_text(
+    item_id: str, text: str, rect: Rect, font_pt: float,
+    layout: Any, imports: dict[str, Any], bold: bool, notes: list[str] | None,
+) -> tuple[str, float]:
+    """Defeito 2: nunca deixa um texto gerado ser cortado em silêncio.
+
+    QgsLayoutItemLabel não recusa nem quebra texto largo demais para a caixa
+    — desenha a linha inteira, que sai para os dois lados e é cortada pela
+    borda da página, sem nenhum aviso. fit_text (textfit.py) resolve isso
+    reduzindo a fonte (com piso — regra CART044) e/ou quebrando em pontos
+    seguros; aqui só conectamos a medição real (QgsTextRenderer, via
+    _measure_text_mm_fn) e viramos a recusa numa CompositionError com o nome
+    do campo, em vez de deixar a mensagem genérica do textfit.py.
+    """
+    try:
+        result = fit_text(text, rect.width, float(font_pt), _measure_text_mm_fn(layout, imports, bold))
+    except TextTooLongError as exc:
+        nome_campo = _FIELD_LABELS_PT.get(item_id, item_id)
+        raise CompositionError(
+            f"O {nome_campo} não cabe no espaço reservado ({rect.width:.0f} mm de largura) nem "
+            f"reduzindo a fonte até o piso de {MIN_FONT_PT:g}pt (regra CART044) nem quebrando linha "
+            f"nos pontos de quebra seguros disponíveis. Nesse tamanho de fonte, cerca de "
+            f"{exc.max_chars} caracteres cabem nessa largura; encurte o texto, aumente a página ou "
+            "reduza a margem."
+        ) from exc
+    if notes is not None:
+        nome_campo = _FIELD_LABELS_PT.get(item_id, item_id)
+        if result.shrunk:
+            notes.append(
+                f"O {nome_campo} foi reduzido de {font_pt:g}pt para {result.font_pt:g}pt para caber "
+                f"na largura reservada ({rect.width:.0f} mm), sem passar do piso de {MIN_FONT_PT:g}pt "
+                "da regra CART044."
+            )
+        if result.wrapped:
+            notes.append(
+                f"O {nome_campo} foi quebrado em {len(result.lines)} linhas: não havia espaço em "
+                "branco suficiente para o QGIS quebrar sozinho (escrita sem espaço entre palavras, "
+                "ou uma única palavra larga demais para a caixa), e o texto não cabia numa linha só."
+            )
+    return result.text, result.font_pt
+
+
 def _add_label(
     layout: Any, item_id: str, text: str, rect: Rect, font_pt: float,
     imports: dict[str, Any], mm: Any, *, bold: bool = False, align: str = "left",
+    notes: list[str] | None = None, fit: bool = False,
 ) -> Any:
+    display_text = text
+    resolved_font_pt = float(font_pt)
+    if fit and text and text.strip():
+        display_text, resolved_font_pt = _fit_label_text(item_id, text, rect, font_pt, layout, imports, bold, notes)
+
     label = imports["QgsLayoutItemLabel"](layout)
     label.setId(item_id)
-    label.setText(text)
+    label.setText(display_text)
     font = imports["QFont"]()
-    font.setPointSizeF(float(font_pt))
+    font.setPointSizeF(float(resolved_font_pt))
     font.setBold(bool(bold))
     try:
         label.setFont(font)
@@ -1143,7 +1576,7 @@ def _add_label(
     try:
         text_format = label.textFormat()
         text_format.setFont(font)
-        text_format.setSize(float(font_pt))
+        text_format.setSize(float(resolved_font_pt))
         text_format.setSizeUnit(qt_enum(imports["Qgis"], "RenderUnit", "Points"))
         label.setTextFormat(text_format)
     except Exception:
@@ -1163,11 +1596,11 @@ def _add_label(
 
 def _add_legend(
     layout: Any, map_item: Any, layers: list[Any], plan: LayoutPlan,
-    params: dict[str, Any], imports: dict[str, Any], mm: Any,
+    params: dict[str, Any], imports: dict[str, Any], mm: Any, map_language: str = "pt-BR",
 ) -> Any:
     legend = imports["QgsLayoutItemLegend"](layout)
     legend.setId("legend")
-    legend.setTitle(str(params.get("legend_title", "Legenda")))
+    legend.setTitle(as_text(params, "legend_title", default=maptext(map_language, "legenda_padrao"), label="legend_title"))
     legend.setLinkedMap(map_item)
     layout.addLayoutItem(legend)
 
@@ -1263,14 +1696,18 @@ def _add_scalebar(layout: Any, map_item: Any, spec: Any, plan: LayoutPlan, impor
     return bar
 
 
-def _add_north_arrow(layout: Any, map_item: Any, rect: Rect, imports: dict[str, Any], mm: Any, notes: list[str]) -> str:
+def _add_north_arrow(
+    layout: Any, map_item: Any, rect: Rect, imports: dict[str, Any], mm: Any, notes: list[str],
+    map_language: str = "pt-BR",
+) -> str:
     svg_path = _find_north_arrow_svg(imports)
     if not svg_path:
         notes.append(
             "Nenhum SVG de norte foi encontrado na instalação do QGIS; usado rótulo de texto. "
             "Isso viola a regra CART025."
         )
-        label = _add_label(layout, "north_arrow", "N", rect, 14.0, imports, mm, bold=True, align="center")
+        letra_norte = maptext(map_language, "norte_reserva")
+        label = _add_label(layout, "north_arrow", letra_norte, rect, 14.0, imports, mm, bold=True, align="center")
         return "label"
 
     picture = imports["QgsLayoutItemPicture"](layout)
@@ -1374,7 +1811,7 @@ def _apply_labels(
 
     import difflib
 
-    requested_id = str(params.get("label_layer_id", "")).strip()
+    requested_id = as_text(params, "label_layer_id", default="", label="label_layer_id").strip()
     vector_layers = [layer for layer in layers if hasattr(layer, "fields")]
 
     if requested_id and requested_id not in [layer.id() for layer in layers]:
@@ -1440,11 +1877,19 @@ def _apply_labels(
     except Exception:
         pass
 
+    # label_font_size fora de uma faixa legível: abaixo de 3pt o QGIS não
+    # desenha nada (texto menor que a resolução de descarte do PAL), e acima
+    # de 72pt o rótulo mais comum não cabe em lugar nenhum do quadro — os dois
+    # casos faziam a resposta anunciar "rotulado" sem um único rótulo visível.
+    label_font_size = as_number(
+        params, "label_font_size", default=plan.fonts["legend"],
+        minimum=3.0, maximum=72.0, label="label_font_size",
+    )
     text_format = QgsTextFormat()
     font = imports["QFont"]()
-    font.setPointSizeF(float(params.get("label_font_size", plan.fonts["legend"])))
+    font.setPointSizeF(float(label_font_size))
     text_format.setFont(font)
-    text_format.setSize(float(params.get("label_font_size", plan.fonts["legend"])))
+    text_format.setSize(float(label_font_size))
     try:
         text_format.setSizeUnit(qt_enum(imports["Qgis"], "RenderUnit", "Points"))
     except Exception:
@@ -1484,24 +1929,59 @@ def _plan_comparison(
     spec: dict[str, Any], params: dict[str, Any], plan: LayoutPlan, map_crs: Any, imports: dict[str, Any]
 ) -> dict[str, Any]:
     """Resolve camadas e recorte do segundo painel, sem ainda desenhar nada."""
-    layers = _resolve_layer_ids(
-        spec.get("layer_ids") or spec.get("layers") or [], imports, "second_map"
-    )
+    layers = _resolve_layer_ids(spec, imports, "second_map")
     if not layers:
         raise CompositionError("second_map precisa de layer_ids com ao menos uma camada.")
 
-    extent_layers = _subject_subset(layers, spec.get("subject_layer_id", ""))
+    extent_layers = _subject_subset(layers, as_text(spec, "subject_layer_id", default="", label="second_map.subject_layer_id"))
 
+    # second_map.margin_percent é opcional; sem ele, herda o margin_percent do
+    # mapa principal (já validado). float(spec.get(..., params.get(...))) cru
+    # estourava ValueError sem contexto quando "muita" chegava como texto.
+    main_margin = as_number(params, "margin_percent", default=5.0, minimum=0.0, label="margin_percent")
     frame = plan.slots["map_2"]
     extent = _combined_extent(extent_layers, map_crs, imports)
     fitted = fit_extent_to_frame(
         extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum(),
         frame.width, frame.height,
-        margin_percent=float(spec.get("margin_percent", params.get("margin_percent", 5.0))),
-        snap_to_round_scale=bool(params.get("round_scale", True)),
+        margin_percent=as_number(
+            spec, "margin_percent", default=main_margin, minimum=0.0, label="second_map.margin_percent",
+        ),
+        snap_to_round_scale=as_flag(params, "round_scale", True)[0],
         map_units_per_metre=_map_units_per_metre(map_crs, extent, imports),
     )
     return {"layers": layers, "fitted": fitted, "frame": frame, "spec": spec}
+
+
+def _equalisation_cost_advice(before: tuple[int, int], shared: int) -> list[str]:
+    """Avisa quando igualar as escalas esvazia um dos painéis.
+
+    Igualar é honesto: dois painéis em escalas diferentes convidam a uma
+    comparação de tamanho que não se sustenta. Mas honesto não é o mesmo que
+    útil. Ao comparar um parque de 10.000 ha com um estado inteiro, a escala
+    comum é a do estado, e o parque vira um ponto invisível num quadro em
+    branco — o painel cumpre a regra e não informa nada. Quem pediu precisa
+    saber disso para escolher entre a comparação honesta e um inserto de
+    localização, que é o elemento certo quando as ordens de grandeza são
+    incomparáveis.
+    """
+    notes: list[str] = []
+    for index, original in enumerate(before, start=1):
+        if original <= 0 or shared <= 0:
+            continue
+        # A área ocupada cai com o QUADRADO da razão entre as escalas: abrir a
+        # escala dez vezes deixa o assunto com um centésimo do quadro.
+        fracao_area = (float(original) / float(shared)) ** 2
+        if fracao_area < 0.02:
+            notes.append(
+                f"Depois de igualar as escalas, o assunto do painel {index} ocupa cerca de "
+                f"{fracao_area * 100:.1f}% do quadro — visualmente, um quadro vazio. As duas "
+                "ordens de grandeza são distantes demais para uma comparação lado a lado: "
+                "passe comparison_same_scale=false para cada painel anunciar a sua escala, "
+                "ou troque o segundo painel por include_inset=true, que é o elemento próprio "
+                "para situar um recorte pequeno dentro de uma área grande."
+            )
+    return notes
 
 
 def _rescale(fitted: Any, scale: int) -> Any:
@@ -1521,7 +2001,8 @@ def _rescale(fitted: Any, scale: int) -> Any:
 
 def _build_comparison_map(
     layout: Any, comparison: dict[str, Any], params: dict[str, Any], plan: LayoutPlan,
-    map_crs: Any, imports: dict[str, Any], mm: Any, notes: list[str],
+    map_crs: Any, imports: dict[str, Any], mm: Any, notes: list[str], grid_style: str = "solid",
+    map_language: str = "pt-BR",
 ) -> Any:
     """Desenha o segundo quadro e as legendas de painel.
 
@@ -1540,11 +2021,21 @@ def _build_comparison_map(
     second.setLayers(comparison["layers"])
     second.zoomToExtent(imports["QgsRectangle"](fitted.xmin, fitted.ymin, fitted.xmax, fitted.ymax))
     second.setFrameEnabled(True)
-    _apply_grid(second, fitted, map_crs, plan, imports, [], str(params.get("grid_style", "solid")))
+    # grid_style já validado por compose_map; reaproveitado aqui em vez de ler
+    # params.get("grid_style", "solid") de novo, que caía no padrão em
+    # silêncio para um valor desconhecido.
+    _apply_grid(second, fitted, map_crs, plan, imports, [], grid_style)
     _verify_placement(second, frame, "comparison_map", notes)
 
-    left = str(params.get("panel_title", "")).strip() or str(params.get("title", "")).strip() or "Painel A"
-    right = str(comparison["spec"].get("panel_title", "")).strip() or "Painel B"
+    left = (
+        as_text(params, "panel_title", default="", label="panel_title").strip()
+        or as_text(params, "title", default="", label="title").strip()
+        or maptext(map_language, "painel_a")
+    )
+    right = (
+        as_text(comparison["spec"], "panel_title", default="", label="second_map.panel_title").strip()
+        or maptext(map_language, "painel_b")
+    )
     if comparison.get("per_panel_scale"):
         left = f"{left} — {_format_scale(comparison['main_scale'])}"
         right = f"{right} — {_format_scale(fitted.scale_denominator)}"
@@ -1554,7 +2045,7 @@ def _build_comparison_map(
     ):
         if slot_name in plan.slots:
             _add_label(layout, item_id, text, plan.slots[slot_name], plan.fonts["subtitle"],
-                       imports, mm, bold=True, align="center")
+                       imports, mm, bold=True, align="center", notes=notes, fit=True)
 
     second.refresh()
     return second
@@ -1591,7 +2082,10 @@ def _add_inset_map(
     _place(inset, slot, imports, mm)
     inset.setCrs(map_crs)
 
-    requested = params.get("inset_layer_ids")
+    # as_id_list recusa tipos que não são iteráveis de textos (int, bool,
+    # dict) em vez de deixar "for item in requested" estourar TypeError
+    # quando inset_layer_ids chega como um número solto.
+    requested = as_id_list(params, "inset_layer_ids", allow_single=True, label="inset_layer_ids")
     inset_layers = layers
     if requested:
         project = imports["QgsProject"].instance()
@@ -1620,7 +2114,7 @@ def _add_inset_map(
 
     # O inserto precisa mostrar contexto: por padrão, uma área doze vezes mais
     # larga que o recorte principal, ajustada à proporção da caixa reservada.
-    factor = max(2.0, float(params.get("inset_zoom_factor", 12.0)))
+    factor = max(2.0, float(as_number(params, "inset_zoom_factor", default=12.0, label="inset_zoom_factor")))
     centre_x = (fitted.xmin + fitted.xmax) / 2.0
     centre_y = (fitted.ymin + fitted.ymax) / 2.0
     half_width = (fitted.xmax - fitted.xmin) * factor / 2.0
@@ -1954,7 +2448,11 @@ def _assert_render_thread(imports: dict[str, Any]) -> None:
 def _export(layout: Any, output_path: Path, export_format: str, params: dict[str, Any], imports: dict[str, Any]) -> dict[str, Any]:
     _assert_render_thread(imports)
     exporter = imports["QgsLayoutExporter"](layout)
-    dpi = int(params.get("dpi", 300))
+    # dpi<=1 produzia uma imagem de poucos pixels sem avisar (dpi:1 gerava
+    # 11x8 px); dpi>1200 arrisca estourar a memória do QGIS do usuário (dpi
+    # 20000 numa A4 chega a ~990 milhões de pixels). integer=True porque
+    # int(1.5) truncaria em silêncio o que o pedido não disse.
+    dpi = as_number(params, "dpi", default=300, minimum=50, maximum=1200, integer=True, label="dpi")
     if export_format == "png":
         settings = imports["QgsLayoutExporter"].ImageExportSettings()
         settings.dpi = dpi

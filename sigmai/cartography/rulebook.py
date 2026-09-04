@@ -295,9 +295,37 @@ def _check_north_is_symbol(observation: dict[str, Any]) -> CheckOutcome:
     )
 
 
-#: Marcadores de procedência aceitos na linha de crédito, em pt e en.
-SOURCE_MARKERS = ("fonte:", "fontes:", "source:", "sources:", "dados:", "data source:", "base de dados:")
-AUTHOR_MARKERS = ("elabora", "autor", "author", "cartografia", "organiza", "credit")
+def _localized_credit_markers(key: str) -> tuple[str, ...]:
+    """Deriva marcadores de "Fonte:"/"Elaboração:" de todas as línguas de maptext.py.
+
+    map_language (ver compose.py) traduz "Fonte:"/"Elaboração:" para a língua
+    do mapa — um mapa em japonês passa a escrever "出典:"/"作成:" em vez de
+    "Fonte:"/"Elaboração:". Sem isto, _check_source_credit só reconhecia os
+    marcadores em português e inglês, e acusaria "falta a fonte dos dados"
+    num mapa japonês que tem data_source preenchido — a mesma tradução do
+    defeito de idioma teria criado um novo defeito na auditoria.
+    """
+    from .maptext import MAP_TEXT
+
+    markers: set[str] = set()
+    for table in MAP_TEXT.values():
+        value = str(table.get(key, "")).strip().rstrip(":").strip().lower()
+        if value:
+            markers.add(f"{value}:")
+    return tuple(sorted(markers))
+
+
+#: Marcadores de procedência aceitos na linha de crédito: os originais em pt
+#: e en, mais um marcador por língua de maptext.py (ver _localized_credit_markers) —
+#: assim a checagem acompanha map_language em vez de travar em português/inglês.
+SOURCE_MARKERS = (
+    ("fonte:", "fontes:", "source:", "sources:", "dados:", "data source:", "base de dados:")
+    + _localized_credit_markers("fonte")
+)
+AUTHOR_MARKERS = (
+    ("elabora", "autor", "author", "cartografia", "organiza", "credit")
+    + _localized_credit_markers("elaboracao")
+)
 
 #: O que a própria ferramenta escreve sozinha e, portanto, não conta como
 #: procedência: assinatura, data e sistema de referência.

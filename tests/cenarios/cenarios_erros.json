@@ -1,0 +1,1576 @@
+[
+  {
+    "id": "ctrl-basico-pt",
+    "lang": "pt",
+    "intent": "legitimo",
+    "note": "Pedido simples e completo, deve funcionar.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa do Piauí",
+      "data_source": "IBGE 2024",
+      "map_author": "Fulano de Tal",
+      "page": "A4 paisagem"
+    }
+  },
+  {
+    "id": "ctrl-completo-en",
+    "lang": "en",
+    "intent": "legitimo",
+    "note": "Full request with legend, north, grid, all in English.",
+    "params": {
+      "layer_ids": [
+        "@municipios",
+        "@uf"
+      ],
+      "subject_layer_id": "@uf",
+      "title": "State of Piaui",
+      "subtitle": "Municipal boundaries",
+      "data_source": "IBGE 2024",
+      "map_author": "Jane Doe",
+      "organization": "Test Org",
+      "page": "A3 landscape",
+      "include_legend": true,
+      "include_north_arrow": true,
+      "include_grid": true
+    }
+  },
+  {
+    "id": "ctrl-inset-pt",
+    "lang": "pt",
+    "intent": "legitimo",
+    "note": "Mapa de detalhe com inserto de localização.",
+    "params": {
+      "layer_ids": [
+        "@parque"
+      ],
+      "subject_layer_id": "@parque",
+      "include_inset": true,
+      "inset_layer_ids": [
+        "@uf"
+      ],
+      "title": "PE das Carnaúbas",
+      "page": "A4 retrato"
+    }
+  },
+  {
+    "id": "ctrl-second-map-pt",
+    "lang": "pt",
+    "intent": "legitimo",
+    "note": "Comparação lado a lado de dois painéis.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Piauí",
+      "panel_title": "Estado",
+      "second_map": {
+        "layer_ids": [
+          "@municipios"
+        ],
+        "panel_title": "Municípios"
+      },
+      "page": "A3 landscape"
+    }
+  },
+  {
+    "id": "ctrl-raster-dem",
+    "lang": "pt",
+    "intent": "legitimo",
+    "note": "Mapa só com a camada raster (DEM).",
+    "params": {
+      "layer_ids": [
+        "@dem"
+      ],
+      "title": "Altimetria",
+      "include_legend": false,
+      "page": "A4 landscape"
+    }
+  },
+  {
+    "id": "ctrl-espacos-legit",
+    "lang": "pt",
+    "intent": "legitimo",
+    "note": "Espaços em volta do valor de page; deve funcionar.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "page": "  A4 landscape  "
+    }
+  },
+  {
+    "id": "ctrl-caixa-mista-legit",
+    "lang": "en",
+    "intent": "legitimo",
+    "note": "Maiúsculas/minúsculas trocadas em page; deve funcionar.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Map",
+      "page": "a4 LANDSCAPE"
+    }
+  },
+  {
+    "id": "ctrl-sem-metadados",
+    "lang": "pt",
+    "intent": "legitimo",
+    "note": "Iniciante esquece fonte e autor; deve compor com defaults sensatos.",
+    "params": {
+      "layer_ids": [
+        "@trilha"
+      ],
+      "page": "A4"
+    }
+  },
+  {
+    "id": "num-dpi-string-nao-numerica",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "IA manda dpi como texto não numérico.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "dpi": "trezentos"
+    }
+  },
+  {
+    "id": "num-dpi-string-decimal",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "IA formata dpi como string com ponto decimal.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "dpi": "300.0"
+    }
+  },
+  {
+    "id": "num-dpi-null",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "IA manda dpi:null pensando que equivale a omitir.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "dpi": null
+    }
+  },
+  {
+    "id": "num-dpi-string-com-espacos",
+    "lang": "pt",
+    "intent": "legitimo",
+    "note": "dpi como texto com espaços em volta; int() tolera.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "dpi": " 300 "
+    }
+  },
+  {
+    "id": "num-margin-percent-texto",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "margin_percent como texto por extenso.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "margin_percent": "cinco"
+    }
+  },
+  {
+    "id": "num-margin-percent-null",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "margin_percent:null pensando que equivale a omitir.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "margin_percent": null
+    }
+  },
+  {
+    "id": "num-margin-mm-lista",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Iniciante manda margin_mm como lista [topo,dir,baixo,esq] em vez de objeto.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "margin_mm": [
+        10,
+        20,
+        30,
+        40
+      ]
+    }
+  },
+  {
+    "id": "num-label-font-size-texto",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "label_font_size como texto.",
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "title": "Mapa",
+      "label_field": "NM_MUN",
+      "label_font_size": "grande"
+    }
+  },
+  {
+    "id": "num-label-font-size-null",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "label_font_size:null pensando que equivale a omitir.",
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "title": "Mapa",
+      "label_field": "NM_MUN",
+      "label_font_size": null
+    }
+  },
+  {
+    "id": "num-inset-zoom-factor-texto",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "inset_zoom_factor como texto.",
+    "params": {
+      "layer_ids": [
+        "@parque"
+      ],
+      "subject_layer_id": "@parque",
+      "include_inset": true,
+      "title": "Mapa",
+      "inset_zoom_factor": "muito"
+    }
+  },
+  {
+    "id": "num-inset-zoom-factor-null",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "inset_zoom_factor:null com include_inset ligado.",
+    "params": {
+      "layer_ids": [
+        "@parque"
+      ],
+      "subject_layer_id": "@parque",
+      "include_inset": true,
+      "title": "Mapa",
+      "inset_zoom_factor": null
+    }
+  },
+  {
+    "id": "num-page-width-com-unidade",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Iniciante escreve a unidade junto do número em page customizado.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "page": {
+        "width_mm": "300mm",
+        "height_mm": "200mm"
+      }
+    }
+  },
+  {
+    "id": "num-page-height-zero",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "page customizado com height_mm=0.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "page": {
+        "width_mm": 300,
+        "height_mm": 0
+      }
+    }
+  },
+  {
+    "id": "num-second-map-margin-texto",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "second_map.margin_percent como texto.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "second_map": {
+        "layer_ids": [
+          "@municipios"
+        ],
+        "margin_percent": "muita"
+      }
+    }
+  },
+  {
+    "id": "num-orientation-inteiro",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "IA manda orientation como número em vez de texto.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "page": "A4",
+      "orientation": 123
+    }
+  },
+  {
+    "id": "num-orientation-lista",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "IA manda orientation como lista em vez de texto.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "page": "A4",
+      "orientation": [
+        "landscape"
+      ]
+    }
+  },
+  {
+    "id": "iter-layer-ids-inteiro",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "layer_ids como um número solto em vez de lista/string.",
+    "params": {
+      "layer_ids": 42,
+      "title": "Mapa"
+    }
+  },
+  {
+    "id": "iter-layer-ids-bool",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "layer_ids como booleano.",
+    "params": {
+      "layer_ids": true,
+      "title": "Mapa"
+    }
+  },
+  {
+    "id": "iter-inset-layer-ids-inteiro",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "inset_layer_ids como número solto.",
+    "params": {
+      "layer_ids": [
+        "@parque"
+      ],
+      "subject_layer_id": "@parque",
+      "include_inset": true,
+      "title": "Mapa",
+      "inset_layer_ids": 7
+    }
+  },
+  {
+    "id": "iter-second-map-layer-ids-inteiro",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "second_map.layer_ids como número solto.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "second_map": {
+        "layer_ids": 99
+      }
+    }
+  },
+  {
+    "id": "frame-margin-mm-excessiva-a5",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "margin_mm bem maior que a própria página A5.",
+    "params": {
+      "layer_ids": [
+        "@trilha"
+      ],
+      "title": "Mapa",
+      "page": "A5",
+      "margin_mm": 200
+    }
+  },
+  {
+    "id": "frame-page-custom-diminuta",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "página customizada minúscula com margens padrão.",
+    "params": {
+      "layer_ids": [
+        "@trilha"
+      ],
+      "title": "Mapa",
+      "page": {
+        "width_mm": 15,
+        "height_mm": 15
+      }
+    }
+  },
+  {
+    "id": "dead-scale-ignorado",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Iniciante pede 'escala 150000' quando quer dizer 1:150.000; o parâmetro scale existe mas nunca é lido pelo compositor.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa do Piauí",
+      "page": "A4 paisagem",
+      "scale": 150000
+    }
+  },
+  {
+    "id": "dead-style-profile-ignorado",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "style_profile é um parâmetro aceito (KNOWN_PARAMETERS) mas nunca usado no código.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "style_profile": "daltonico_estrito"
+    }
+  },
+  {
+    "id": "page-tipo-numero-vira-a4-silencioso",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Iniciante confunde escala com formato de página; manda page como número puro.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "page": 150000
+    }
+  },
+  {
+    "id": "page-tipo-lista-vira-a4-silencioso",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "IA manda page como lista em vez de string.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "page": [
+        "A4",
+        "landscape"
+      ]
+    }
+  },
+  {
+    "id": "page-dict-nome-desconhecido-vira-a4",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "page dict com name inexistente (A9); resolve_page só valida em modo estrito quando page é string.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "page": {
+        "name": "A9"
+      }
+    }
+  },
+  {
+    "id": "page-dict-sem-height-vira-a4",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Iniciante esquece height_mm no page customizado; cai em A4 sem aviso.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "page": {
+        "width_mm": 500
+      }
+    }
+  },
+  {
+    "id": "bool-include-legend-string-false",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "include_legend:'false' (string) deveria desligar a legenda; bool('false') é True em Python.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "include_legend": "false"
+    }
+  },
+  {
+    "id": "bool-include-north-string-nao",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "include_north_arrow:'não' deveria desligar a seta norte.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "include_north_arrow": "não"
+    }
+  },
+  {
+    "id": "bool-include-grid-string-zero",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "include_grid:'0' (string) deveria desligar a grade; bool('0') é True.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "include_grid": "0"
+    }
+  },
+  {
+    "id": "bool-round-scale-string-false",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "round_scale:'false' deveria desligar o arredondamento de escala.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "round_scale": "false"
+    }
+  },
+  {
+    "id": "safety-confirm-overwrite-bool-false",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Sobrescrita SEM confirmação (bool real False); deve recusar. Teste de controle.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "output_path": "/tmp/img_erros/_preexistente_bool.png",
+      "format": "png",
+      "confirm_overwrite": false
+    }
+  },
+  {
+    "id": "safety-confirm-overwrite-string-false",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "confirm_overwrite:'false' (STRING) deveria recusar como o bool False, mas bool('false') é True: risco de sobrescrita silenciosa.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "output_path": "/tmp/img_erros/_preexistente_string.png",
+      "format": "png",
+      "confirm_overwrite": "false"
+    }
+  },
+  {
+    "id": "null-title-vira-none-literal",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "title:null deveria equivaler a omitir; em vez disso aparece o texto 'None' no mapa.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": null,
+      "page": "A4"
+    }
+  },
+  {
+    "id": "null-include-legend-desliga-por-engano",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "include_legend:null deveria manter o padrão (True), mas bool(None) é False.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "include_legend": null
+    }
+  },
+  {
+    "id": "null-map-crs-mensagem-confusa",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "map_crs:null deveria equivaler a omitir; em vez disso é tratado como a string 'None' e recusado com mensagem confusa.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "map_crs": null
+    }
+  },
+  {
+    "id": "null-format-mensagem-enganosa",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "format:null; a mensagem de recusa culpa a extensão do output_path (que é válida) em vez do format nulo.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "format": null
+    }
+  },
+  {
+    "id": "null-data-source-autor-vira-none",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "data_source e map_author nulos viram o texto 'None' na linha de crédito.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "data_source": null,
+      "map_author": null,
+      "organization": null
+    }
+  },
+  {
+    "id": "file-overwrite-sem-confirmar-generico",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Escrever por cima de arquivo existente sem confirm_overwrite algum (usa o default do compose_map, não o do runner).",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "output_path": "/tmp/img_erros/_preexistente_default.png",
+      "format": "png"
+    }
+  },
+  {
+    "id": "file-extensao-nao-bate-com-format",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "output_path termina em .png mas format pede pdf; qual vence, e a ferramenta avisa da inconsistência?",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "output_path": "/tmp/img_erros/mapa_mas_e_pdf.png",
+      "format": "pdf"
+    }
+  },
+  {
+    "id": "file-extensao-maiuscula-legit",
+    "lang": "pt",
+    "intent": "legitimo",
+    "note": "Extensão em maiúscula (.PNG) sem format; deve funcionar (case-insensitive).",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "output_path": "/tmp/img_erros/relatorio_MAIUSCULO.PNG"
+    }
+  },
+  {
+    "id": "file-caminho-relativo",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "output_path relativo, sem pasta existente; deve recusar com clareza.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "output_path": "saida_relativa_sigmai/mapa.png"
+    }
+  },
+  {
+    "id": "file-caminho-dotdot",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "output_path com .. subindo diretórios.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "output_path": "/tmp/img_erros/../mapa_dotdot_sigmai.png",
+      "confirm_overwrite": true
+    }
+  },
+  {
+    "id": "file-caminho-windows",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Iniciante cola um caminho do Windows num servidor Linux.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "output_path": "C:\\Users\\Fulano\\Documentos\\mapa.png"
+    }
+  },
+  {
+    "id": "file-caminho-espaco-acento-legit",
+    "lang": "pt",
+    "intent": "legitimo",
+    "note": "Caminho com espaço e acentuação; deve funcionar.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "output_path": "/tmp/img_erros/mapa do usuário (teste)ção.png"
+    }
+  },
+  {
+    "id": "file-caminho-e-pasta",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "output_path aponta para uma pasta existente, não um arquivo.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "output_path": "/tmp/img_erros"
+    }
+  },
+  {
+    "id": "file-caminho-sem-permissao-proc",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "output_path dentro de /proc, sem permissão real de escrita.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "output_path": "/proc/mapa_sigmai_teste.png"
+    }
+  },
+  {
+    "id": "file-sem-extensao-sem-format",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "output_path sem extensão e sem format; deve recusar de forma acionável.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "output_path": "/tmp/img_erros/mapa_sem_extensao"
+    }
+  },
+  {
+    "id": "file-format-lista",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "format como lista em vez de string.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "format": [
+        "pdf"
+      ]
+    }
+  },
+  {
+    "id": "extremo-dpi-1",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "dpi extremamente baixo (1); a imagem resultante é utilizável?",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa DPI baixíssimo",
+      "dpi": 1
+    }
+  },
+  {
+    "id": "extremo-dpi-zero",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "dpi=0; deveria recusar antes de tentar exportar.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa DPI zero",
+      "dpi": 0
+    }
+  },
+  {
+    "id": "extremo-dpi-negativo",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "dpi negativo.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa DPI negativo",
+      "dpi": -5
+    }
+  },
+  {
+    "id": "extremo-dpi-fracionario",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "dpi como número decimal (1.5); int() trunca sem avisar.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa DPI fracionário",
+      "dpi": 1.5
+    }
+  },
+  {
+    "id": "extremo-margin-percent-negativo",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "margin_percent negativo; deveria recusar, mas é só grampeado a 0 em silêncio.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa margem negativa",
+      "margin_percent": -10
+    }
+  },
+  {
+    "id": "extremo-margin-percent-95",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "margin_percent=95; o mapa fica quase todo margem?",
+    "params": {
+      "layer_ids": [
+        "@trilha"
+      ],
+      "title": "Mapa margem 95",
+      "margin_percent": 95
+    }
+  },
+  {
+    "id": "extremo-label-font-size-900",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "label_font_size gigante (900); o layout aguenta?",
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "subject_layer_id": "@municipios",
+      "title": "Mapa fonte gigante",
+      "label_field": "NM_MUN",
+      "label_font_size": 900
+    }
+  },
+  {
+    "id": "extremo-label-font-size-negativo",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "label_font_size negativo.",
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "subject_layer_id": "@municipios",
+      "title": "Mapa fonte negativa",
+      "label_field": "NM_MUN",
+      "label_font_size": -5
+    }
+  },
+  {
+    "id": "extremo-titulo-5000-chars",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Título com 5000 caracteres.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+      "page": "A4"
+    }
+  },
+  {
+    "id": "extremo-layer-ids-repetidos",
+    "lang": "pt",
+    "intent": "legitimo",
+    "note": "layer_ids com o mesmo id repetido 60 vezes; não deve travar nem duplicar a legenda de forma absurda.",
+    "params": {
+      "layer_ids": [
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf",
+        "@uf"
+      ],
+      "title": "Mapa repetido"
+    }
+  },
+  {
+    "id": "extremo-layer-ids-200",
+    "lang": "pt",
+    "intent": "legitimo",
+    "note": "layer_ids com 200 entradas (poucas camadas reais, muita repetição).",
+    "params": {
+      "layer_ids": [
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios",
+        "@parque",
+        "@uf",
+        "@municipios"
+      ],
+      "title": "Mapa 200 ids"
+    }
+  },
+  {
+    "id": "extremo-layer-ids-id-vazio",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "layer_ids contém uma string vazia misturada com um id válido.",
+    "params": {
+      "layer_ids": [
+        "@uf",
+        ""
+      ],
+      "title": "Mapa id vazio"
+    }
+  },
+  {
+    "id": "typo-page-paisgaem",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Erro de digitação clássico: 'paisgaem'. A sugestão do difflib só compara contra tamanhos de página, nunca contra palavras de orientação.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "page": "A4 paisgaem"
+    }
+  },
+  {
+    "id": "typo-page-retratto",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Erro de digitação em 'retrato' -> 'retratto'.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "page": "A4 retratto"
+    }
+  },
+  {
+    "id": "typo-page-landscpae",
+    "lang": "en",
+    "intent": "invalido",
+    "note": "Typo in 'landscape' -> 'landscpae'.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Map",
+      "page": "A4 landscpae"
+    }
+  },
+  {
+    "id": "typo-template-cientifco",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Erro de digitação no nome do template: 'cientifco'.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "template": "cientifco"
+    }
+  },
+  {
+    "id": "typo-template-maiusculo",
+    "lang": "pt",
+    "intent": "legitimo",
+    "note": "Nome de template correto mas em maiúsculas; page/orientation toleram, template deveria tolerar também.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "template": "CIENTIFICO"
+    }
+  },
+  {
+    "id": "typo-label-field-nm-mu",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Campo de rótulo com erro de digitação (falta letra): NM_MU em vez de NM_MUN.",
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "subject_layer_id": "@municipios",
+      "title": "Mapa",
+      "label_field": "NM_MU"
+    }
+  },
+  {
+    "id": "conceito-camada-por-nome-arquivo",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Iniciante usa o nome do arquivo shapefile como se fosse o id/nome da camada.",
+    "params": {
+      "layer_ids": [
+        "PI_UF_2024.shp"
+      ],
+      "title": "Mapa"
+    }
+  },
+  {
+    "id": "conceito-template-como-nome-saida",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Iniciante acha que 'template' é o nome do arquivo de saída.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "template": "meu_mapa_final.png"
+    }
+  },
+  {
+    "id": "conceito-kml-campo-vazio",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Rotular pelo campo 'Name' do KML, que existe mas está vazio em todas as feições (armadilha conhecida de KML).",
+    "params": {
+      "layer_ids": [
+        "@parque"
+      ],
+      "title": "Mapa do parque",
+      "label_field": "Name"
+    }
+  },
+  {
+    "id": "conceito-escala-impossivel",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Pedido de escala grande demais (1:1.000) para a extensão inteira do estado — não é o que o usuário quer de verdade, mas ilustra que 'scale' é ignorado silenciosamente.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa do Piauí inteiro em 1:1.000",
+      "scale": 1000,
+      "page": "A4"
+    }
+  },
+  {
+    "id": "beginner-sem-layer-ids",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Iniciante esquece completamente de informar camadas.",
+    "params": {
+      "title": "Mapa sem camadas",
+      "page": "A4"
+    }
+  },
+  {
+    "id": "beginner-repete-pedido-1",
+    "lang": "pt",
+    "intent": "legitimo",
+    "note": "Iniciante repete o mesmo pedido (1a vez).",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa Repetido Teste",
+      "page": "A4"
+    }
+  },
+  {
+    "id": "beginner-repete-pedido-2",
+    "lang": "pt",
+    "intent": "legitimo",
+    "note": "Iniciante repete o mesmo pedido (2a vez, idêntico).",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa Repetido Teste",
+      "page": "A4"
+    }
+  },
+  {
+    "id": "beginner-repete-pedido-3",
+    "lang": "pt",
+    "intent": "legitimo",
+    "note": "Iniciante repete o mesmo pedido (3a vez, idêntico).",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa Repetido Teste",
+      "page": "A4"
+    }
+  },
+  {
+    "id": "beginner-impossivel-brasil-1-1000",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Pedido fisicamente impossível: extensão grande numa escala de detalhe altíssimo, sem ajustar página.",
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "title": "Todo o Piauí em detalhe de rua",
+      "margin_percent": 0,
+      "round_scale": false,
+      "page": {
+        "width_mm": 50,
+        "height_mm": 50
+      }
+    }
+  },
+  {
+    "id": "es-page-orizontal",
+    "lang": "es",
+    "intent": "invalido",
+    "note": "Usuário espanhol tenta 'horizontal' incompleto/mal escrito.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa de Piauí",
+      "page": "A4 orizontal"
+    }
+  },
+  {
+    "id": "ja-title-japones",
+    "lang": "ja",
+    "intent": "legitimo",
+    "note": "Título em japonês; deve funcionar normalmente (apenas texto).",
+    "params": {
+      "layer_ids": [
+        "@trilha"
+      ],
+      "title": "イタグアレの登山道",
+      "page": "A4 paisagem"
+    }
+  },
+  {
+    "id": "de-page-hochformat",
+    "lang": "de",
+    "intent": "invalido",
+    "note": "Usuário alemão tenta orientação em alemão (não suportado, sem sugestão útil).",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Karte",
+      "page": "A4 Hochformat"
+    }
+  },
+  {
+    "id": "layer-nome-com-numero-scale-confuso",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Iniciante confunde 'escala 1:150.000' com passar o número 150000 na página.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "page": "150000"
+    }
+  },
+  {
+    "id": "second-map-tipo-errado",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "second_map como string em vez de objeto; deve recusar com clareza (teste de robustez já esperada).",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "second_map": "@municipios"
+    }
+  },
+  {
+    "id": "subject-layer-id-lista",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "subject_layer_id como lista em vez de string.",
+    "params": {
+      "layer_ids": [
+        "@uf",
+        "@municipios"
+      ],
+      "title": "Mapa",
+      "subject_layer_id": [
+        "@uf"
+      ]
+    }
+  },
+  {
+    "id": "title-lista-em-vez-de-string",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "title como lista em vez de string.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": [
+        "Meu",
+        "Mapa"
+      ]
+    }
+  },
+  {
+    "id": "output-path-numero",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "output_path como número puro, sem extensão.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "output_path": "12345"
+    }
+  },
+  {
+    "id": "unknown-param-typo",
+    "lang": "pt",
+    "intent": "invalido",
+    "note": "Parâmetro desconhecido por erro de digitação (deve sugerir o nome certo).",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa",
+      "titel": "Mapa Errado"
+    }
+  },
+  {
+    "id": "unknown-param-multiplo",
+    "lang": "en",
+    "intent": "invalido",
+    "note": "Vários parâmetros desconhecidos ao mesmo tempo.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "map_title": "My Map",
+      "dpi_value": 300,
+      "outputfile": "/tmp/x.png"
+    }
+  }
+]

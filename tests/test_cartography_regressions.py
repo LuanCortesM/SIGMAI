@@ -12,6 +12,7 @@ import unittest
 
 from sigmai.cartography.layoutgrid import solve_layout
 from sigmai.cartography.pagespec import PAGE_SIZES, resolve_page
+from sigmai.cartography.compose import _equalisation_cost_advice
 from sigmai.cartography.rulebook import (
     SCALEBAR_MIN_LENGTH_MM,
     _check_scalebar_proportion,
@@ -338,3 +339,31 @@ class HelpTabStrings(unittest.TestCase):
         self.assertGreaterEqual(exemplos.count("•"), 5)
         for termo in ("EPSG", "CRS", "layer_ids", "compose_map"):
             self.assertNotIn(termo, exemplos)
+
+
+class EqualisationCost(unittest.TestCase):
+    """Igualar as escalas é honesto, mas pode esvaziar um dos painéis."""
+
+    def test_ordens_de_grandeza_distantes_geram_aviso(self) -> None:
+        # Parque de 10.000 ha (1:250.000) contra um estado inteiro
+        # (1:5.000.000): depois de igualar, o parque ocupa 0,25% do quadro.
+        notas = _equalisation_cost_advice((250_000, 5_000_000), 5_000_000)
+        self.assertEqual(len(notas), 1)
+        self.assertIn("painel 1", notas[0])
+        self.assertIn("comparison_same_scale=false", notas[0])
+        self.assertIn("include_inset", notas[0])
+
+    def test_escalas_proximas_nao_geram_aviso(self) -> None:
+        # 1:200.000 contra 1:250.000: o assunto ainda ocupa 64% do quadro.
+        self.assertEqual(_equalisation_cost_advice((200_000, 250_000), 250_000), [])
+
+    def test_o_limiar_e_medido_em_area_e_nao_em_escala(self) -> None:
+        # A área cai com o quadrado da razão: 1:100.000 -> 1:1.000.000 deixa 1%.
+        self.assertEqual(len(_equalisation_cost_advice((100_000, 1_000_000), 1_000_000)), 1)
+        # Já 1:100.000 -> 1:600.000 deixa 2,8%, acima do limiar.
+        self.assertEqual(_equalisation_cost_advice((100_000, 600_000), 600_000), [])
+
+    def test_valores_degenerados_nao_estouram(self) -> None:
+        for antes in ((0, 100), (100, 0), (-5, 100)):
+            with self.subTest(antes=antes):
+                _equalisation_cost_advice(antes, 100)

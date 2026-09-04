@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .params import ParameterError
+
 #: Paleta qualitativa segura para daltônicos (Okabe & Ito), adaptada.
 OKABE_ITO = (
     "#0072B2",  # azul
@@ -71,12 +73,30 @@ def has_default_symbology(layer: Any) -> bool:
     return type(renderer).__name__ in RESTYLABLE_RENDERERS
 
 
+#: Únicos valores que ``apply_style`` entende. Fora daqui era tratado como
+#: sinônimo de ``"all"`` — o pior dos três, porque força a reestilização de
+#: TODAS as camadas, inclusive as que o usuário já classificou. Um erro de
+#: digitação ("tout", "todo", "sólido") não podia ter esse efeito colateral.
+APPLY_STYLE_MODES: tuple[str, ...] = ("missing", "all", "none")
+
+
 def apply_default_symbology(layers: list[Any], mode: str = "missing") -> list[dict[str, Any]]:
     """Aplica a paleta padrão às camadas elegíveis.
 
     ``mode`` aceita ``"missing"`` (só camadas com símbolo único), ``"all"``
-    (força em todas) e ``"none"`` (não faz nada).
+    (força em todas) e ``"none"`` (não faz nada). Qualquer outro valor é
+    recusado explicitamente — a validação vem antes de qualquer import do
+    PyQGIS para que continue possível testá-la em CI puro.
     """
+    if mode not in APPLY_STYLE_MODES:
+        import difflib
+
+        near = difflib.get_close_matches(str(mode), APPLY_STYLE_MODES, n=1, cutoff=0.4)
+        suggestion = f" Você quis dizer {near[0]!r}?" if near else ""
+        raise ParameterError(
+            f"apply_style desconhecido: {mode!r}.{suggestion} "
+            f"Valores aceitos: {', '.join(APPLY_STYLE_MODES)}."
+        )
     if mode == "none":
         return []
     from .qtcompat import geometry_type

@@ -327,6 +327,17 @@ TOOLS: list[dict[str, Any]] = [
             "layer_ids": {**_SA, "description": "Camadas a exibir, na ordem de desenho."},
             "title": {**_S, "description": "Título do mapa."},
             "subtitle": _S,
+            "map_language": {**_S, "description": (
+                "Língua dos textos que o PRÓPRIO compositor escreve na moldura — 'Fonte:'/"
+                "'Elaboração:', título padrão quando 'title' é omitido, 'Legenda', 'Painel A/B' e o "
+                "crédito da ferramenta. NÃO afeta title/subtitle/legend_title/data_source/map_author, "
+                "que já saem na língua em que você os escreveu. Padrão 'pt-BR'. Aceita 'pt-BR', 'en', "
+                "'es', 'fr', 'de', 'it', 'ja', 'zh-Hans', 'zh-Hant', 'ko', 'ru', 'ar', 'he', 'el', 'th' "
+                "(e variantes tolerantes como 'pt', 'zh-CN', 'PT-br'). Uma língua desconhecida cai em "
+                "pt-BR sem recusar. Use a mesma língua em que o usuário está conversando — não pergunte, "
+                "escolha pela língua da conversa; um mapa não deve sair com metade do texto em "
+                "português quando o pedido foi feito noutra língua."
+            )},
             "output_path": {**_S, "description": (
                 "Caminho absoluto do ARQUIVO de saída, com nome e extensão — não a pasta. "
                 "A extensão define o formato quando 'format' não é informado."
@@ -339,7 +350,13 @@ TOOLS: list[dict[str, Any]] = [
             "template": {"type": "string", "enum": ["cientifico", "publicacao", "relatorio_ambiental", "minimalista"]},
             "map_crs": _S,
             "margin_percent": _N,
-            "dpi": _N,
+            "scale": {**_N, "description": (
+                "Denominador da escala impressa, quando ela é imposta (norma da dissertação, "
+                "folha de uma série). Ex.: 25000 para 1:25.000. Omita para o SIGMAI escolher na "
+                "série cartográfica. Uma escala que cortaria os dados é recusada, dizendo qual é "
+                "a maior que ainda os contém."
+            )},
+            "dpi": {**_N, "description": "Entre 50 e 1200. Padrão 300."},
             "data_source": {**_S, "description": "Fonte dos dados, obrigatória para o mapa ser citável."},
             "map_author": {**_S, "description": "Autoria do mapa. NÃO é o autor do plugin."},
             "organization": _S,

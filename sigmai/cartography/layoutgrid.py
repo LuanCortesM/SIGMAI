@@ -125,6 +125,13 @@ MIN_FOOTER_MM = 5.0
 MIN_NORTH_MM = 11.0
 MIN_SCALEBAR_MM = 7.0
 
+#: Menor lado que o quadro do mapa pode ter para mostrar alguma coisa. Título,
+#: subtítulo e rodapé já usam ``max(MIN_*, ...)`` acima, ou seja, já estão no
+#: piso deles quando a página é pequena — não sobra margem para "comprimir"
+#: mais nada. Um pedido cujas margens não deixam pelo menos isso para o mapa
+#: tem de ser recusado, não maquiado com um quadro que existe só no papel.
+MIN_MAP_MM = 20.0
+
 
 @dataclass(frozen=True)
 class LayoutPlan:
@@ -203,12 +210,22 @@ def solve_layout(
 
     body_y = cursor
     body_h = footer_y - gutter - body_y
-    if body_h <= 20.0:
-        # Página pequena demais para as bandas pedidas: comprime tudo para que
-        # o mapa ainda exista, e avisa em vez de gerar itens fora da página.
-        notes.append("Página pequena para o template; bandas de título e rodapé comprimidas.")
-        body_h = max(20.0, content_h * 0.55)
-        body_y = content_y + content_h - footer_h - gutter - body_h
+    # ``title_h``/``subtitle_h``/``footer_h`` já são ``max(MIN_*, proporção)``:
+    # numa página pequena eles já estão no piso de legibilidade, não há mais
+    # nada para "comprimir". Um ``body_h`` insuficiente aqui significa que as
+    # margens pedidas não deixam área para um mapa com este template — e isso
+    # é recusa, não um floor que finge que 20 mm de mapa cabem onde só sobram
+    # 5 mm (o defeito original: com include_grid desligado o mesmo pedido
+    # ainda estourava mais adiante em scaling.py, então o floor não evitava a
+    # falha, só a escondia quando por acaso ninguém reparava no resultado).
+    if body_h < MIN_MAP_MM:
+        required = title_h + subtitle_h + footer_h + gutter * 2 + MIN_MAP_MM
+        raise ValueError(
+            f"A página {spec.name} ({spec.width_mm:g}x{spec.height_mm:g} mm) com as margens pedidas "
+            f"deixa {content_h:.1f} mm de altura útil; título, rodapé e um mapa mínimo exigem pelo "
+            f"menos {required:.1f} mm no template '{template_key}'. Reduza as margens, use uma página "
+            "maior ou o template 'minimalista'."
+        )
 
     needs_support = include_legend or include_scale_bar or include_scale_text or include_north_arrow or include_logo or include_inset
     arrangement = "coluna_lateral" if (spec.aspect >= SIDE_COLUMN_MIN_ASPECT and needs_support) else "faixa_inferior"
@@ -220,6 +237,13 @@ def solve_layout(
     elif arrangement == "coluna_lateral":
         side_w = content_w * float(config["side_column_fraction"])
         map_w = content_w - side_w - gutter
+        if map_w < MIN_MAP_MM:
+            raise ValueError(
+                f"A página {spec.name} ({spec.width_mm:g}x{spec.height_mm:g} mm) não deixa largura "
+                f"suficiente para o mapa depois da coluna de apoio: sobrariam {map_w:.1f} mm; é preciso "
+                f"pelo menos {MIN_MAP_MM:g} mm. Reduza as margens, use uma página maior, ou desative "
+                "legenda/escala/norte para não precisar da coluna."
+            )
         map_h = body_h
         # Numa coluna estreita a barra de escala não alcança o comprimento
         # mínimo legível. Levá-la para uma faixa sob o mapa — placement clássico
@@ -295,13 +319,35 @@ def solve_layout(
             if key not in slots:
                 continue
             raw = slots[key]
+            # Sem piso aqui de propósito: um ``max(20.0, ...)`` faria o mesmo
+            # que o antigo piso de body_h fazia — fingir que sobrou quadro
+            # quando o recuo da grade comeu tudo. A checagem final abaixo é
+            # quem decide se o que sobrou ainda é um mapa.
             slots[key] = Rect(
                 raw.x + annotation_gutter,
                 raw.y + annotation_gutter,
-                max(20.0, raw.width - 2 * annotation_gutter),
-                max(20.0, raw.height - 2 * annotation_gutter),
+                raw.width - 2 * annotation_gutter,
+                raw.height - 2 * annotation_gutter,
             )
         notes.append(f"Quadro do mapa recuado {annotation_gutter:g} mm para acomodar os rótulos da grade.")
+
+    # Checagem final e única: depois de painéis e recuo de grade, o quadro do
+    # mapa (e o do segundo painel, se houver) precisa mesmo existir. Fazer essa
+    # verificação aqui — depois de tudo, não em cada ramo de arranjo — é o que
+    # garante que o pedido falhe do mesmo jeito não importa por qual caminho
+    # (coluna lateral, faixa inferior, com ou sem grade) ele passou.
+    for key in ("map", "map_2"):
+        rect = slots.get(key)
+        if rect is None:
+            continue
+        if rect.width < MIN_MAP_MM or rect.height < MIN_MAP_MM:
+            raise ValueError(
+                f"A página {spec.name} ({spec.width_mm:g}x{spec.height_mm:g} mm) com as margens e o "
+                f"template '{template_key}' pedidos deixa só {max(rect.width, 0):.1f}x"
+                f"{max(rect.height, 0):.1f} mm para o mapa; é preciso pelo menos {MIN_MAP_MM:g}x"
+                f"{MIN_MAP_MM:g} mm. Reduza as margens, use uma página maior, ou desative itens de "
+                "apoio (legenda, escala, norte) que estejam disputando espaço."
+            )
 
     fonts = {
         "title": float(config["title_font_pt"]),
