@@ -20,9 +20,19 @@ class AuthorshipRulesTests(unittest.TestCase):
         self.assertIn("MACIEL, L. S. C.", readme)
         self.assertIn("herpetomantiqueira@gmail.com", readme)
 
-    def test_hud_keeps_plugin_author(self):
-        plugin_py = (ROOT / "sigmai" / "plugin.py").read_text(encoding="utf-8")
-        self.assertIn("Plugin author: MACIEL, L. S. C.", plugin_py)
+    def test_ui_keeps_plugin_author(self):
+        # A autoria do plugin saiu do cabeçalho do painel e passou para a
+        # seção "Sobre", em Avançado: o cabeçalho responde "como conecto?",
+        # não "quem escreveu isto?". A informação continua visível e é o
+        # arquivo de textos da interface que a carrega, nos dois idiomas.
+        strings = (ROOT / "sigmai" / "ui" / "strings.py").read_text(encoding="utf-8")
+        self.assertEqual(strings.count("Plugin author: MACIEL, L. S. C."), 2)
+        self.assertIn("herpetomantiqueira@gmail.com", strings)
+
+    def test_ui_separates_plugin_authorship_from_map_authorship(self):
+        strings = (ROOT / "sigmai" / "ui" / "strings.py").read_text(encoding="utf-8")
+        self.assertIn("about_map_authorship", strings)
+        self.assertIn("map_author", strings)
 
     def test_public_map_credit_does_not_default_to_plugin_author(self):
         context = {"user_profile": {"default_map_author": "", "default_map_author_email": "", "default_organization": "", "default_credit_line": "", "use_plugin_author_as_map_author_in_dev": True}}
