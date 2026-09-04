@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from ..cartography.qtcompat import distance_unit, geometry_type as _geometry_type, layout_unit_mm
 from ..security import ensure_parent_exists, normalize_output_path, reject_existing_path_without_confirmation
 from ..validators import ValidationError, require_param
 from .common import crs_authid, extent_to_dict, layer_type_name, project
@@ -98,6 +99,7 @@ def _imports() -> dict[str, Any]:
         from qgis.PyQt.QtCore import Qt  # type: ignore
         from qgis.PyQt.QtGui import QColor, QFont, QImage  # type: ignore
         from qgis.core import (  # type: ignore
+            Qgis,
             QgsFillSymbol,
             QgsLayoutItemLabel,
             QgsLayoutItemLegend,
@@ -120,6 +122,7 @@ def _imports() -> dict[str, Any]:
     except Exception as exc:
         raise RuntimeError("PyQGIS is only available inside QGIS.") from exc
     return {
+        "Qgis": Qgis,
         "Qt": Qt,
         "QColor": QColor,
         "QFont": QFont,
@@ -187,7 +190,9 @@ def _map_item(layout: Any, item_id: str):
 
 def _position_item(item: Any, x: float, y: float, width: float, height: float) -> None:
     imports = _imports()
-    unit = imports["QgsUnitTypes"].LayoutMillimeters
+    # QgsUnitTypes.LayoutMillimeters é apelido depreciado desde o QGIS 3.30
+    # e desaparece no QGIS 4/Qt6.
+    unit = layout_unit_mm(imports["Qgis"], imports["QgsUnitTypes"])
     item.attemptMove(imports["QgsLayoutPoint"](float(x), float(y), unit))
     item.attemptResize(imports["QgsLayoutSize"](float(width), float(height), unit))
 
@@ -528,14 +533,14 @@ def add_layout_scale_bar(params: dict[str, Any], context: dict[str, Any]):
                 units = "deg"
             warnings.append("Scale bar is linked to a geographic CRS map, so SIGMAI used degree units instead of a silent 0 km metric scale. Reproject to a projected CRS for publication metric scale accuracy.")
         elif units == "km":
-            bar.setUnits(imports["QgsUnitTypes"].DistanceKilometers)
+            bar.setUnits(distance_unit(imports["Qgis"], imports["QgsUnitTypes"], "Kilometers"))
             bar.setUnitLabel("km")
             try:
                 bar.setUnitsPerSegment(float(params.get("units_per_segment", 10)))
             except Exception:
                 pass
         elif units in {"m", "meter", "meters"}:
-            bar.setUnits(imports["QgsUnitTypes"].DistanceMeters)
+            bar.setUnits(distance_unit(imports["Qgis"], imports["QgsUnitTypes"], "Meters"))
             bar.setUnitLabel("m")
             try:
                 bar.setUnitsPerSegment(float(params.get("units_per_segment", 1000)))
@@ -630,9 +635,9 @@ def set_layer_style(params: dict[str, Any], context: dict[str, Any]):
         }
     imports = _imports()
     geometry_type = layer.geometryType()
-    if geometry_type == imports["QgsWkbTypes"].PointGeometry:
+    if geometry_type == _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Point"):
         symbol = imports["QgsMarkerSymbol"].createSimple({"color": fill, "outline_color": stroke, "outline_width": str(stroke_width)})
-    elif geometry_type == imports["QgsWkbTypes"].LineGeometry:
+    elif geometry_type == _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Line"):
         symbol = imports["QgsLineSymbol"].createSimple({"color": stroke, "line_width": str(stroke_width)})
     else:
         style = "no" if outline_only else "solid"
@@ -640,7 +645,7 @@ def set_layer_style(params: dict[str, Any], context: dict[str, Any]):
         _apply_symbol_layer_color(symbol, fill, stroke, fill_opacity, stroke_opacity, stroke_width, outline_only)
     layer.setRenderer(imports["QgsSingleSymbolRenderer"](symbol))
     try:
-        layer.setOpacity(opacity if geometry_type != imports["QgsWkbTypes"].PolygonGeometry else 1.0)
+        layer.setOpacity(opacity if geometry_type != _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Polygon") else 1.0)
     except Exception:
         pass
     layer.triggerRepaint()

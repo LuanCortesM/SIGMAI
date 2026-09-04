@@ -272,7 +272,12 @@ class SIGMAIPlugin:
             return
         parent = self.panel or self.iface.mainWindow()
         QMessageBox.warning(parent, self._tr("dev_dialog_title"), self._tr("dev_warning"))
-        text, accepted = QInputDialog.getText(parent, self._tr("dev_dialog_title"), self._tr("dev_dialog_prompt"), QLineEdit.EchoMode.Normal if hasattr(QLineEdit, "EchoMode") else QLineEdit.Normal, "")
+        from .cartography.qtcompat import qt_enum
+
+        echo_normal = qt_enum(QLineEdit, "EchoMode", "Normal")
+        text, accepted = QInputDialog.getText(
+            parent, self._tr("dev_dialog_title"), self._tr("dev_dialog_prompt"), echo_normal, ""
+        )
         if accepted and str(text).strip().upper() == "SIM":
             self.server.set_unsafe_developer_mode(True)
             self._message(self._tr("dev_on"), level="critical")
@@ -389,13 +394,15 @@ class SIGMAIPlugin:
 
         box = QMessageBox(self.panel or self.iface.mainWindow())
         box.setWindowTitle(translate(self.language, "consent_dialog_title"))
-        box.setIcon(QMessageBox.Icon.Question if hasattr(QMessageBox, "Icon") else QMessageBox.Question)
+        from .cartography.qtcompat import qt_enum
+
+        box.setIcon(qt_enum(QMessageBox, "Icon", "Question"))
         box.setText(f"<b>{request.category}</b> — {request.category_description}")
         box.setInformativeText(request.summary())
         remember = QCheckBox(translate(self.language, "consent_allow_category"))
         box.setCheckBox(remember)
-        allow = box.addButton(translate(self.language, "consent_allow"), QMessageBox.ButtonRole.AcceptRole if hasattr(QMessageBox, "ButtonRole") else QMessageBox.AcceptRole)
-        box.addButton(translate(self.language, "consent_deny"), QMessageBox.ButtonRole.RejectRole if hasattr(QMessageBox, "ButtonRole") else QMessageBox.RejectRole)
+        allow = box.addButton(translate(self.language, "consent_allow"), qt_enum(QMessageBox, "ButtonRole", "AcceptRole"))
+        box.addButton(translate(self.language, "consent_deny"), qt_enum(QMessageBox, "ButtonRole", "RejectRole"))
         box.exec() if hasattr(box, "exec") else box.exec_()
         allowed = box.clickedButton() is allow
         self._refresh_panel()

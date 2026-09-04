@@ -6,6 +6,8 @@ from typing import Any
 
 from ..security import normalize_output_path, reject_existing_path_without_confirmation
 from ..validators import ValidationError, require_param
+from ..cartography.qtcompat import qt_enum
+from .processing_bootstrap import resolve_algorithm, run_algorithm
 from .common import crs_authid, layer_type_name, project, qgis_imports
 
 
@@ -69,14 +71,8 @@ def _processing_run(algorithm: str, parameters: dict[str, Any]) -> dict[str, Any
     if algorithm not in PROCESSING_ALLOWLIST:
         raise ValidationError("PROCESSING_ALGORITHM_BLOCKED", "Algorithm is not in the SIGMAI Processing allowlist.", {"algorithm": algorithm})
     imports = qgis_imports()
-    registry = imports["QgsApplication"].processingRegistry()
-    if registry.algorithmById(algorithm) is None:
-        raise ValidationError("PROCESSING_ALGORITHM_NOT_FOUND", "Processing algorithm was not found.", {"algorithm": algorithm})
-    try:
-        import processing  # type: ignore
-    except Exception as exc:
-        raise ValidationError("PROCESSING_NOT_AVAILABLE", "QGIS Processing is not available.", {}) from exc
-    return processing.run(algorithm, parameters)
+    resolve_algorithm(algorithm)
+    return run_algorithm(algorithm, parameters)
 
 
 def _serialize_processing_result(result: dict[str, Any]) -> dict[str, Any]:
@@ -321,7 +317,7 @@ def export_layer(params: dict[str, Any], context: dict[str, Any]):
     options.fileEncoding = "UTF-8"
     result = QgsVectorFileWriter.writeAsVectorFormatV3(layer, output_path, QgsCoordinateTransformContext(), options)
     error_code = result[0] if isinstance(result, tuple) else result
-    if error_code != QgsVectorFileWriter.NoError:
+    if error_code != qt_enum(QgsVectorFileWriter, "WriterError", "NoError"):
         raise ValidationError("EXPORT_FAILED", "QGIS failed to export layer.", {"result": str(result)})
     return {"layer_id": layer.id(), "output_path": output_path, "format": fmt, "driver": driver}
 

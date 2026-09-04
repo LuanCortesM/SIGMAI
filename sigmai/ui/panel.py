@@ -104,6 +104,12 @@ ECHO_PASSWORD = qt_enum(QLineEdit, "EchoMode", "Password")
 ECHO_NORMAL = qt_enum(QLineEdit, "EchoMode", "Normal")
 NO_EDIT = qt_enum(QAbstractItemView, "EditTrigger", "NoEditTriggers")
 STRETCH = qt_enum(QHeaderView, "ResizeMode", "Stretch")
+# No PyQt6 os enums só existem no escopo qualificado: QSizePolicy.Fixed
+# some e vira QSizePolicy.Policy.Fixed. Era o que impedia o painel de abrir
+# no QGIS 4.
+SIZE_FIXED = qt_enum(QSizePolicy, "Policy", "Fixed")
+SIZE_PREFERRED = qt_enum(QSizePolicy, "Policy", "Preferred")
+SIZE_EXPANDING = qt_enum(QSizePolicy, "Policy", "Expanding")
 RESIZE_CONTENTS = qt_enum(QHeaderView, "ResizeMode", "ResizeToContents")
 
 
@@ -186,7 +192,7 @@ class SigmaiPanel(QWidget):
         if not pixmap.isNull():
             logo.setPixmap(pixmap.scaledToHeight(46, SMOOTH))
             logo.setAlignment(ALIGN_CENTER)
-            logo.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            logo.setSizePolicy(SIZE_FIXED, SIZE_FIXED)
             layout.addWidget(logo)
 
         titles = QVBoxLayout()

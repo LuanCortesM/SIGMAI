@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from ..cartography.qtcompat import geometry_type as _geometry_type
 from ..security import ensure_parent_exists, normalize_output_path, reject_existing_path_without_confirmation
 from ..validators import ValidationError, require_param
 from .common import layer_type_name, project
@@ -13,6 +14,7 @@ def _imports() -> dict[str, Any]:
         from qgis.PyQt.QtCore import Qt  # type: ignore
         from qgis.PyQt.QtGui import QColor, QFont  # type: ignore
         from qgis.core import (  # type: ignore
+            Qgis,
             QgsCategorizedSymbolRenderer,
             QgsFillSymbol,
             QgsGraduatedSymbolRenderer,
@@ -30,6 +32,7 @@ def _imports() -> dict[str, Any]:
     except Exception as exc:
         raise RuntimeError("PyQGIS is only available inside QGIS.") from exc
     return {
+        "Qgis": Qgis,
         "Qt": Qt,
         "QColor": QColor,
         "QFont": QFont,
@@ -117,9 +120,9 @@ def _symbol_for_layer(
 ):
     imports = _imports()
     geometry_type = layer.geometryType()
-    if geometry_type == imports["QgsWkbTypes"].PointGeometry:
+    if geometry_type == _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Point"):
         return imports["QgsMarkerSymbol"].createSimple({"color": fill, "outline_color": stroke, "outline_width": str(stroke_width)})
-    if geometry_type == imports["QgsWkbTypes"].LineGeometry:
+    if geometry_type == _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Line"):
         return imports["QgsLineSymbol"].createSimple({"color": stroke, "line_width": str(stroke_width)})
     style = "no" if outline_only else "solid"
     symbol = imports["QgsFillSymbol"].createSimple({"color": fill, "style": style, "outline_color": stroke, "outline_width": str(stroke_width)})
@@ -158,7 +161,7 @@ def apply_single_symbol(params: dict[str, Any], context: dict[str, Any]):
     imports = _imports()
     symbol = _symbol_for_layer(layer, fill, stroke, stroke_width, fill_opacity, stroke_opacity, outline_only)
     layer.setRenderer(imports["QgsSingleSymbolRenderer"](symbol))
-    _set_opacity(layer, opacity if layer.geometryType() != imports["QgsWkbTypes"].PolygonGeometry else 1.0)
+    _set_opacity(layer, opacity if layer.geometryType() != _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Polygon") else 1.0)
     layer.triggerRepaint()
     return {
         "layer_id": layer.id(),
@@ -273,9 +276,9 @@ def recommend_style_for_layer(params: dict[str, Any], context: dict[str, Any]):
     layer = _layer(require_param(params, "layer_id", str))
     geometry = layer.geometryType()
     profile = "scientific_soft"
-    if geometry == _imports()["QgsWkbTypes"].LineGeometry:
+    if geometry == _geometry_type(_imports()["Qgis"], _imports()["QgsWkbTypes"], "Line"):
         profile = "technical_blue"
-    elif geometry == _imports()["QgsWkbTypes"].PointGeometry:
+    elif geometry == _geometry_type(_imports()["Qgis"], _imports()["QgsWkbTypes"], "Point"):
         profile = "contrast_highlight"
     return {"layer_id": layer.id(), "layer_name": layer.name(), "recommended_profile": profile, "reason": "Based on vector geometry type and publication-safe defaults."}
 

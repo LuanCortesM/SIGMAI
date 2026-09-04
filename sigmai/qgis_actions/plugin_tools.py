@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from ..cartography.qtcompat import qt_enum
 from ..security import normalize_output_path
 from ..validators import ValidationError, require_param
 
@@ -562,7 +563,7 @@ def _processing_parameter_is_optional(definition: Any) -> bool:
     try:
         from qgis.core import QgsProcessingParameterDefinition  # type: ignore
 
-        return bool(definition.flags() & QgsProcessingParameterDefinition.FlagOptional)
+        return bool(definition.flags() & qt_enum(QgsProcessingParameterDefinition, "Flag", "FlagOptional"))
     except Exception:
         try:
             flags = int(definition.flags()) if hasattr(definition, "flags") else 0

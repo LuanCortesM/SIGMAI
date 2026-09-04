@@ -169,7 +169,15 @@ def _map_units_per_metre(crs: Any, extent: Any, imports: dict[str, Any]) -> floa
 
 
 #: Limite em graus para cada estratégia de projeção automática.
-UTM_MAX_SPAN_DEGREES = 12.0
+#:
+#: Uma zona UTM tem 6° de largura e o fator de escala só fica dentro de 1/1000
+#: até cerca de 3° do meridiano central. Um recorte que ultrapasse ~4,5° de
+#: longitude já projeta terreno a mais de 300 km do meridiano, onde a distorção
+#: passa de meio por cento e as coordenadas saem da faixa válida da zona — foi o
+#: que aconteceu ao mapear o Piauí inteiro em UTM 23S, com eastings de
+#: 1.250.000 numa zona que vai até 834.000.
+UTM_MAX_LONGITUDE_SPAN_DEGREES = 4.5
+UTM_MAX_LATITUDE_SPAN_DEGREES = 12.0
 REGIONAL_MAX_SPAN_DEGREES = 40.0
 
 #: Caixa aproximada do território brasileiro, para escolher a Policônica.
@@ -182,10 +190,10 @@ def _suggest_projected_crs(extent: Any, source_crs: Any, imports: dict[str, Any]
     centre_lat = (extent.yMinimum() + extent.yMaximum()) / 2.0
     span = max(extent.width(), extent.height())
 
-    # Acima de uma zona UTM e meia, o UTM deixa de ser adequado: a distorção
-    # cresce com o afastamento do meridiano central. Um estado brasileiro
-    # inteiro cai nesta faixa.
-    if span > UTM_MAX_SPAN_DEGREES:
+    # O UTM é julgado pelo alcance em longitude, não pelo maior dos dois eixos:
+    # é o afastamento do meridiano central que gera distorção. Um recorte alto
+    # e estreito continua servido pelo UTM; um largo, não.
+    if extent.width() > UTM_MAX_LONGITUDE_SPAN_DEGREES or extent.height() > UTM_MAX_LATITUDE_SPAN_DEGREES:
         return _suggest_regional_crs(extent, centre_lon, centre_lat, span, imports)
 
     zone = int((centre_lon + 180.0) / 6.0) + 1
@@ -941,7 +949,38 @@ def _quiet(action: Any) -> Any:
         return None
 
 
+def _assert_render_thread(imports: dict[str, Any]) -> None:
+    """Recusa renderizar fora da thread principal do Qt.
+
+    O QGIS desenha layouts com QPainter, que só funciona na thread onde vive a
+    aplicação. Numa thread de trabalho, ``exportToImage`` devolve *sucesso* e
+    grava um PNG do tamanho certo com todos os pixels transparentes. Nenhum
+    código de retorno acusa nada.
+
+    A ponte normalmente evita isso enfileirando os comandos para a thread da
+    interface do QGIS. Mas se a fila não estiver ativa — QTimer indisponível,
+    QGIS iniciado de um jeito incomum — o comando cai no caminho direto e roda
+    na thread do servidor HTTP. Melhor um erro explícito do que um mapa vazio
+    com nota A.
+    """
+    try:
+        from qgis.PyQt.QtCore import QCoreApplication, QThread  # type: ignore
+
+        application = QCoreApplication.instance()
+        if application is None:
+            return
+        if QThread.currentThread() is not application.thread():
+            raise CompositionError(
+                "A composição do mapa foi chamada fora da thread principal do QGIS, onde o Qt não "
+                "desenha nada e a exportação sairia vazia sem acusar erro. Isso indica que a fila de "
+                "comandos da ponte não está ativa; reinicie a ponte pelo painel do SIGMAI."
+            )
+    except ImportError:
+        return
+
+
 def _export(layout: Any, output_path: Path, export_format: str, params: dict[str, Any], imports: dict[str, Any]) -> dict[str, Any]:
+    _assert_render_thread(imports)
     exporter = imports["QgsLayoutExporter"](layout)
     dpi = int(params.get("dpi", 300))
     if export_format == "png":
@@ -956,7 +995,9 @@ def _export(layout: Any, output_path: Path, export_format: str, params: dict[str
         settings = imports["QgsLayoutExporter"].PdfExportSettings()
         settings.dpi = dpi
         result = exporter.exportToPdf(str(output_path), settings)
-    success = result == imports["QgsLayoutExporter"].Success
+    # QgsLayoutExporter.Success vira QgsLayoutExporter.ExportResult.Success
+    # no Qt6; sem a forma qualificada, toda exportação quebra no QGIS 4.
+    success = result == qt_enum(imports["QgsLayoutExporter"], "ExportResult", "Success")
     return {
         "exported": bool(success),
         "result_code": int(result),
