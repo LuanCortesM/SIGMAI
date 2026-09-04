@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from .permissions import READ_ONLY, SCHEMA_VERSION, UNSAFE_DEVELOPER, allowed_actions, permission_for
+from .permissions import (
+    DANGEROUS_PLUGIN_WRITE,
+    PLUGIN_WRITE,
+    READ_ONLY,
+    SCHEMA_VERSION,
+    UNSAFE_DEVELOPER,
+    allowed_actions,
+    permission_for,
+)
 from .security import contains_blocked_token
 
 
@@ -89,10 +97,24 @@ def validate_command(command: Any, unsafe_developer_mode: bool = False) -> dict[
             )
         )
         if not confirmed:
+            # Dizer "passe uma flag de confirmação" sem nomear quais obriga quem
+            # chama a adivinhar entre cinco nomes. É o mesmo defeito que o
+            # compositor já não comete: a recusa tem de trazer a saída junto.
+            aceitas = ["confirm", "confirm_action", f"confirm_{action}"]
+            if metadata.permission_level in (PLUGIN_WRITE, DANGEROUS_PLUGIN_WRITE):
+                aceitas.append("confirm_plugin_write")
             raise ValidationError(
                 "CONFIRMATION_REQUIRED",
-                "This action requires explicit confirmation. Run dry_run first, then pass a confirmation flag.",
-                {"action": action, "permission_level": metadata.permission_level},
+                "This action changes the QGIS installation or the project and needs explicit "
+                "confirmation. Run it with dry_run first to see what it would do, then repeat it "
+                "with one of these set to true: " + ", ".join(aceitas) + ". "
+                "Some actions need a second, specific flag as well (for example confirm_network "
+                "for anything that reaches the plugin repository); the action's own error names it.",
+                {
+                    "action": action,
+                    "permission_level": metadata.permission_level,
+                    "accepted_confirmation_flags": aceitas,
+                },
             )
 
     # Fora do Modo DEV, nenhum campo de código deve chegar à bridge.

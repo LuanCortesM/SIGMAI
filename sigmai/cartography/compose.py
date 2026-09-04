@@ -575,15 +575,107 @@ def _format_scale(denominator: int) -> str:
     return f"1:{denominator:,}".replace(",", ".")
 
 
-def _credit_line(params: dict[str, Any], crs_label: str, date_label: str, map_language: str = "pt-BR") -> str:
+#: Resolução do nível 0 do esquema Web Mercator, em metros por pixel no
+#: equador. É a constante que liga escala impressa a nível de zoom de tiles.
+WEB_MERCATOR_RESOLUTION_Z0 = 156543.03392
+
+
+def _required_tile_zoom(scale_denominator: float, latitude_degrees: float) -> int:
+    """Nível de zoom de tiles que a escala impressa exige nesta latitude."""
+    import math as _math
+
+    if scale_denominator <= 0:
+        return 0
+    # 0,00028 m é o tamanho de pixel de referência da OGC (~90,7 dpi), que é o
+    # que as bibliotecas de tiles usam para converter escala em nível.
+    resolucao_alvo = scale_denominator * 0.00028
+    latitude = max(-85.0, min(85.0, latitude_degrees))
+    resolucao_z0 = WEB_MERCATOR_RESOLUTION_Z0 * _math.cos(_math.radians(latitude))
+    if resolucao_alvo <= 0 or resolucao_z0 <= 0:
+        return 0
+    return max(0, int(round(_math.log2(resolucao_z0 / resolucao_alvo))))
+
+
+def _basemap_zoom_advice(layers: list[Any], fitted: Any, map_crs: Any, imports: dict[str, Any]) -> list[str]:
+    """Avisa quando o mapa de base não tem tile na escala pedida.
+
+    Uma camada XYZ com zmax 7 num mapa a 1:32.000 desenha um quadro em branco,
+    aparece na legenda e passa na auditoria — o mesmo defeito de "está na
+    legenda e não no mapa", só que por resolução em vez de por recorte.
+    """
+    import re as _re
+
+    notes: list[str] = []
+    try:
+        centro_y = (fitted.ymin + fitted.ymax) / 2.0
+        centro_x = (fitted.xmin + fitted.xmax) / 2.0
+        geografico = imports["QgsCoordinateReferenceSystem"]("EPSG:4326")
+        if map_crs.isValid() and geografico.isValid() and map_crs.authid() != "EPSG:4326":
+            transform = imports["QgsCoordinateTransform"](map_crs, geografico, imports["QgsProject"].instance())
+            ponto = transform.transform(imports["QgsPointXY"](centro_x, centro_y))
+            latitude = ponto.y()
+        else:
+            latitude = centro_y
+    except Exception:
+        latitude = 0.0
+
+    exigido = _required_tile_zoom(float(fitted.scale_denominator), latitude)
+    for layer in layers:
+        try:
+            fonte = str(layer.source() or "")
+        except Exception:
+            continue
+        if "type=xyz" not in fonte:
+            continue
+        achado = _re.search(r"zmax=(\d+)", fonte)
+        if not achado:
+            continue
+        zmax = int(achado.group(1))
+        if zmax < exigido:
+            notes.append(
+                f"O mapa de base {layer.name()!r} só tem tiles até o zoom {zmax}, e a escala "
+                f"{_format_scale(int(fitted.scale_denominator))} exige o zoom {exigido}: nesta "
+                "escala ele aparece na legenda e não desenha nada. Use uma fonte com mais níveis, "
+                "ou componha numa escala mais aberta."
+            )
+    return notes
+
+
+def _basemap_attributions(layers: list[Any]) -> list[str]:
+    """Créditos de licença das camadas de base presentes no mapa.
+
+    Um mapa de base é dado de terceiro sob licença, e quase toda licença de
+    tiles exige o crédito na peça publicada. Depender de o usuário lembrar de
+    repetir isso em data_source é como perder a procedência: o crédito existe
+    na camada, então ele entra sozinho na linha de crédito.
+    """
+    creditos: list[str] = []
+    for layer in layers:
+        try:
+            texto = str(layer.attribution() or "").strip()
+        except Exception:
+            continue
+        if texto and texto not in creditos and "sem atribuição declarada" not in texto:
+            creditos.append(texto)
+    return creditos
+
+
+def _credit_line(params: dict[str, Any], crs_label: str, date_label: str, map_language: str = "pt-BR",
+                 basemap_credits: list[str] | None = None) -> str:
     # as_text: data_source/map_author/organization nulos viravam o texto
     # "None" na linha de crédito (str(None) == "None"), porque None é
     # truthy... não, mas str(None).strip() == "None" é não-vazio e passava no
     # "if source:" abaixo mesmo sem o usuário ter pedido nada.
     pieces = []
     source = as_text(params, "data_source", default="", label="data_source").strip()
-    if source:
-        pieces.append(f"{maptext(map_language, 'fonte')}{source}")
+    # O crédito do mapa de base entra junto com a fonte declarada: é fonte de
+    # dado como qualquer outra, e a licença o exige na peça publicada.
+    partes_fonte = [source] if source else []
+    for credito in (basemap_credits or []):
+        if credito not in partes_fonte:
+            partes_fonte.append(credito)
+    if partes_fonte:
+        pieces.append(f"{maptext(map_language, 'fonte')}{'; '.join(partes_fonte)}")
     author = as_text(params, "map_author", default="", label="map_author").strip()
     if author:
         pieces.append(f"{maptext(map_language, 'elaboracao')}{author}")
@@ -927,6 +1019,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     notes.extend(fit_notes)
 
     notes.extend(_empty_in_frame_advice(layers, extent_layers, fitted, map_crs, imports))
+    notes.extend(_basemap_zoom_advice(layers, fitted, map_crs, imports))
 
     if not include_inset:
         notes.extend(_locator_advice(extent, layers, extent_layers, map_crs, imports))
@@ -1182,7 +1275,8 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         or _datetime.date.today().strftime("%d/%m/%Y")
     )
     _add_label(
-        layout, "source", _credit_line(params, crs_label, date_label, map_language),
+        layout, "source", _credit_line(params, crs_label, date_label, map_language,
+                                       _basemap_attributions(layers)),
         plan.slots["footer"], plan.fonts["footer"], imports, mm,
         align=("right" if map_language_rtl else "left"),
     )

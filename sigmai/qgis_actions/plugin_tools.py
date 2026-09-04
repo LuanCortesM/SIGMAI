@@ -275,9 +275,16 @@ def _safe_extract_plugin_zip(zip_path: Path, target_root: Path) -> Path:
         if not members:
             raise ValidationError("BAD_PLUGIN_ZIP", "Plugin ZIP is empty.", {"zip_path": str(zip_path)})
         roots = {Path(member.filename).parts[0] for member in members if member.filename and not member.filename.startswith(("/", "\\"))}
+        # Comparar caminhos por prefixo de string aceita a pasta irmã: com
+        # destino /x/plugins, o caminho /x/plugins_maligno também "começa com"
+        # /x/plugins. Hoje quem contém a extração é o extractall do CPython,
+        # que neutraliza os "..", mas depender de um detalhe de implementação
+        # do interpretador para não gravar fora da pasta do usuário não é
+        # garantia — a verificação tem de valer por si.
+        raiz = target_root.resolve()
         for member in members:
             destination = (target_root / member.filename).resolve()
-            if not str(destination).startswith(str(target_root.resolve())):
+            if destination != raiz and raiz not in destination.parents:
                 raise ValidationError("BAD_PLUGIN_ZIP", "Plugin ZIP contains an unsafe path.", {"member": member.filename})
         archive.extractall(target_root)
     candidates = [target_root / root for root in roots if (target_root / root).is_dir() and (target_root / root / "metadata.txt").exists()]

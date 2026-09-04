@@ -29,6 +29,10 @@ changelog=0.2.2
     - Corrigido: estilo embutido em KML/KMZ não gerava amostra na legenda; passa a receber a paleta padrão, com nota de como preservar o original.
     - Corrigido: dois polígonos saíam com o mesmo preenchimento, e o inserto vinha na cor aleatória do QGIS competindo com o retângulo do recorte.
     - Corrigido: numa folha de comparação a legenda ignorava o segundo painel, e CART021 acusava de fantasma uma camada visível nele.
+    - Corrigido: WMS, WFS, XYZ e ArcGIS REST eram esqueletos que recusavam com 'network-enabled workflow' — nenhum mapa de base podia ser carregado. Agora carregam, exigem atribuição de licença e o crédito entra sozinho na linha de fonte.
+    - Novo: aviso quando o mapa de base não tem tile na escala pedida (zmax 7 num mapa a 1:32.000 desenha um quadro em branco e passava com nota A).
+    - Corrigido: a recusa por confirmação não dizia quais flags aceita, entre cinco nomes possíveis.
+    - Corrigido: o guarda de extração de ZIP de plugin comparava caminhos por prefixo de string.
     - Novo: map_language traduz para 15 línguas tudo que o compositor escreve sozinho (Escala, Fonte, Elaboração, Legenda); antes um mapa em japonês saía bilíngue.
     - Novo: vocabulário de orientação de página em 15 línguas — 'A4 paysage', 'A4 Querformat', 'A4 横', 'A3 أفقي' eram todos recusados.
     - Novo: scale fixa a escala impressa, e uma escala que cortaria os dados é recusada dizendo qual é a maior que ainda os contém.

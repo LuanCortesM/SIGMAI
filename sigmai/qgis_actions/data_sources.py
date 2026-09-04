@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 import xml.etree.ElementTree as ET
 
 from ..security import normalize_output_path
@@ -83,27 +83,223 @@ def list_ogc_connections(params: dict[str, Any], context: dict[str, Any]):
     return {"connections": [], "note": "QGIS stored OGC connection inventory is planned; no credentials are exposed."}
 
 
-def load_wms_layer(params: dict[str, Any], context: dict[str, Any]):
-    return _network_load_blocked(params, context, "WMS")
+#: Atribuição obrigatória de fontes de tiles conhecidas. Um mapa de base é
+#: dado de terceiro sob licença: publicar a imagem sem o crédito viola a
+#: licença e, na prática, torna o mapa não citável — o mesmo motivo pelo qual a
+#: regra CART007 exige fonte declarada.
+KNOWN_TILE_ATTRIBUTION: dict[str, str] = {
+    "tile.openstreetmap.org": "© OpenStreetMap contributors (ODbL)",
+    "a.tile.openstreetmap.org": "© OpenStreetMap contributors (ODbL)",
+    "b.tile.openstreetmap.org": "© OpenStreetMap contributors (ODbL)",
+    "c.tile.openstreetmap.org": "© OpenStreetMap contributors (ODbL)",
+    "tile.opentopomap.org": "© OpenTopoMap, © OpenStreetMap contributors (CC-BY-SA)",
+}
+
+#: Um XYZ pode apontar para um cache local — o caso de campo, sem sinal. Ler
+#: tile do disco não é acesso de rede e não exige confirm_network.
+_LOCAL_TILE_SCHEMES = {"file"}
 
 
-def load_wfs_layer(params: dict[str, Any], context: dict[str, Any]):
-    return _network_load_blocked(params, context, "WFS")
+def _tile_source_kind(url: str) -> str:
+    scheme = urlparse(url.replace("{z}", "0").replace("{x}", "0").replace("{y}", "0")).scheme
+    return "local" if scheme in _LOCAL_TILE_SCHEMES else "rede"
+
+
+def _resolve_attribution(params: dict[str, Any], url: str, service_type: str) -> str:
+    """A atribuição é obrigatória e não é adivinhada quando não se conhece a fonte."""
+    declarada = str(params.get("attribution", "")).strip()
+    if declarada:
+        return declarada
+    host = (urlparse(url).hostname or "").lower()
+    conhecida = KNOWN_TILE_ATTRIBUTION.get(host)
+    if conhecida:
+        return conhecida
+    if _tile_source_kind(url) == "local":
+        return str(params.get("attribution", "")).strip() or "Fonte local (sem atribuição declarada)"
+    raise ValidationError(
+        "ATTRIBUTION_REQUIRED",
+        f"Informe attribution para esta fonte {service_type}: o mapa de base é dado de terceiro "
+        "sob licença, e publicar a imagem sem o crédito viola a licença e deixa o mapa sem "
+        "procedência. Ex.: attribution=\"© OpenStreetMap contributors (ODbL)\".",
+        {"host": host, "service_type": service_type},
+    )
+
+
+def _require_network_ok(params: dict[str, Any], url: str, service_type: str) -> None:
+    if _tile_source_kind(url) == "local":
+        return
+    if not bool(params.get("confirm_network")):
+        raise ValidationError(
+            "NETWORK_CONFIRMATION_REQUIRED",
+            f"Carregar {service_type} busca dados num servidor externo. Repita com "
+            "confirm_network=true para autorizar essa saída de rede.",
+            {"service_type": service_type, "url_host": urlparse(url).hostname or ""},
+        )
+
+
+def _finish_network_layer(layer: Any, name: str, service_type: str, url: str,
+                          attribution: str, extra: dict[str, Any] | None = None):
+    """Valida, credita e entrega a camada ao projeto.
+
+    Uma camada inválida NÃO entra no projeto: antes o assistente recebia
+    sucesso e o usuário via uma entrada morta na árvore de camadas, sem saber
+    se o problema era a URL, o nome da camada ou a falta de rede.
+    """
+    if not layer.isValid():
+        raise ValidationError(
+            f"{service_type}_LAYER_INVALID",
+            f"O QGIS não conseguiu abrir esta fonte {service_type}. As causas usuais são, nesta "
+            "ordem: o servidor não respondeu (sem rede, ou fora do ar), o nome da camada não "
+            "existe nesse serviço, ou o CRS pedido não é oferecido por ele. Confira com "
+            "inspect_ogc_service antes de repetir.",
+            {"url": url, "service_type": service_type, "error": str(layer.error().summary() or "")[:400]},
+        )
+    try:
+        layer.setAttribution(attribution)
+    except Exception:
+        pass
+    project().addMapLayer(layer)
+    payload = {
+        "layer_id": layer.id(),
+        "name": layer.name(),
+        "service_type": service_type,
+        "url": url,
+        "attribution": attribution,
+        "source_kind": _tile_source_kind(url),
+        "crs": crs_authid(layer.crs()),
+        "valid": True,
+    }
+    payload.update(extra or {})
+    return payload
 
 
 def load_xyz_tile_layer(params: dict[str, Any], context: dict[str, Any]):
-    return _network_load_blocked(params, context, "XYZ")
+    """Mapa de base de tiles XYZ — o elemento que dá contexto visual ao mapa.
+
+    Aceita qualquer template ``{z}/{x}/{y}``, inclusive ``file://`` apontando
+    para um cache de tiles no disco, que é o caso de campo sem sinal.
+    """
+    from qgis.core import QgsRasterLayer  # type: ignore
+
+    url = require_param(params, "url", str)
+    name = str(params.get("name", "") or "Mapa de base")
+    if "{z}" not in url or "{x}" not in url or "{y}" not in url:
+        raise ValidationError(
+            "BAD_REQUEST",
+            "Um endereço XYZ precisa dos três marcadores {z}, {x} e {y} — por exemplo "
+            "https://tile.openstreetmap.org/{z}/{x}/{y}.png.",
+            {"url": url},
+        )
+    if _tile_source_kind(url) == "rede":
+        _safe_url(url.replace("{z}", "0").replace("{x}", "0").replace("{y}", "0"))
+    attribution = _resolve_attribution(params, url, "XYZ")
+    _require_network_ok(params, url, "XYZ")
+
+    zoom_min = int(params.get("zoom_min", 0))
+    zoom_max = int(params.get("zoom_max", 19))
+    if not 0 <= zoom_min <= zoom_max <= 25:
+        raise ValidationError(
+            "BAD_REQUEST",
+            "Os níveis de zoom precisam obedecer 0 <= zoom_min <= zoom_max <= 25.",
+            {"zoom_min": zoom_min, "zoom_max": zoom_max},
+        )
+
+    if context.get("dry_run"):
+        return {"dry_run": True, "service_type": "XYZ", "url": url, "name": name,
+                "attribution": attribution, "network_request_made": False}
+
+    uri = f"type=xyz&url={quote(url, safe='')}&zmin={zoom_min}&zmax={zoom_max}"
+    layer = QgsRasterLayer(uri, name, "wms")
+    return _finish_network_layer(layer, name, "XYZ", url, attribution,
+                                 {"zoom_min": zoom_min, "zoom_max": zoom_max})
+
+
+def load_wms_layer(params: dict[str, Any], context: dict[str, Any]):
+    """Camada WMS — o formato em que órgãos públicos publicam mapa pronto."""
+    from qgis.core import QgsRasterLayer  # type: ignore
+
+    url = require_param(params, "url", str)
+    _safe_url(url)
+    camadas = params.get("layers")
+    if isinstance(camadas, str):
+        camadas = [camadas]
+    if not camadas or not all(isinstance(item, str) and item.strip() for item in camadas):
+        raise ValidationError(
+            "BAD_REQUEST",
+            "Informe layers com o nome de ao menos uma camada do serviço WMS. "
+            "inspect_ogc_service lista os nomes oferecidos pelo servidor.",
+            {"received": camadas},
+        )
+    name = str(params.get("name", "") or camadas[0])
+    crs = str(params.get("crs", "EPSG:4326"))
+    image_format = str(params.get("format", "image/png"))
+    attribution = _resolve_attribution(params, url, "WMS")
+    _require_network_ok(params, url, "WMS")
+
+    if context.get("dry_run"):
+        return {"dry_run": True, "service_type": "WMS", "url": url, "layers": camadas,
+                "name": name, "attribution": attribution, "network_request_made": False}
+
+    uri = "&".join([
+        f"crs={quote(crs, safe='')}",
+        f"format={quote(image_format, safe='')}",
+        "layers=" + "&layers=".join(quote(item, safe="") for item in camadas),
+        "styles=",
+        f"url={quote(url, safe='')}",
+    ])
+    layer = QgsRasterLayer(uri, name, "wms")
+    return _finish_network_layer(layer, name, "WMS", url, attribution, {"layers": camadas, "crs_requested": crs})
+
+
+def load_wfs_layer(params: dict[str, Any], context: dict[str, Any]):
+    """Camada WFS — feições vetoriais servidas pela rede, com geometria real."""
+    from qgis.core import QgsVectorLayer  # type: ignore
+
+    url = require_param(params, "url", str)
+    _safe_url(url)
+    typename = str(params.get("typename", "") or params.get("layer", "")).strip()
+    if not typename:
+        raise ValidationError(
+            "BAD_REQUEST",
+            "Informe typename com o nome do tipo de feição do serviço WFS "
+            "(inspect_ogc_service lista os disponíveis).",
+            {},
+        )
+    name = str(params.get("name", "") or typename)
+    crs = str(params.get("crs", "EPSG:4326"))
+    attribution = _resolve_attribution(params, url, "WFS")
+    _require_network_ok(params, url, "WFS")
+
+    if context.get("dry_run"):
+        return {"dry_run": True, "service_type": "WFS", "url": url, "typename": typename,
+                "name": name, "attribution": attribution, "network_request_made": False}
+
+    uri = (
+        f"{url}?service=WFS&version=2.0.0&request=GetFeature"
+        f"&typename={quote(typename, safe='')}&srsname={quote(crs, safe='')}"
+    )
+    layer = QgsVectorLayer(uri, name, "WFS")
+    return _finish_network_layer(layer, name, "WFS", url, attribution, {"typename": typename})
 
 
 def load_arcgis_rest_layer(params: dict[str, Any], context: dict[str, Any]):
-    return _network_load_blocked(params, context, "ArcGIS REST")
+    """Serviço ArcGIS REST — comum em prefeituras e órgãos estaduais."""
+    from qgis.core import QgsRasterLayer  # type: ignore
 
+    url = require_param(params, "url", str)
+    _safe_url(url)
+    name = str(params.get("name", "") or "ArcGIS REST")
+    crs = str(params.get("crs", "EPSG:4326"))
+    attribution = _resolve_attribution(params, url, "ArcGIS REST")
+    _require_network_ok(params, url, "ArcGIS REST")
 
-def _network_load_blocked(params: dict[str, Any], context: dict[str, Any], service_type: str):
-    validate_service_url(params, context)
     if context.get("dry_run"):
-        return {"dry_run": True, "service_type": service_type, "network_request_made": False}
-    raise ValidationError("NETWORK_LOAD_NOT_ENABLED", f"{service_type} loading requires an explicit future network-enabled workflow.", {"service_type": service_type})
+        return {"dry_run": True, "service_type": "ArcGIS REST", "url": url, "name": name,
+                "attribution": attribution, "network_request_made": False}
+
+    uri = f"crs={quote(crs, safe='')}&format=png&layer=0&url={quote(url, safe='')}"
+    layer = QgsRasterLayer(uri, name, "arcgismapserver")
+    return _finish_network_layer(layer, name, "ArcGIS REST", url, attribution, {"crs_requested": crs})
 
 
 def load_gpx(params: dict[str, Any], context: dict[str, Any]):
