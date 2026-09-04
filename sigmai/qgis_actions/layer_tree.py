@@ -4,6 +4,7 @@ from typing import Any
 
 from ..validators import ValidationError, require_param
 from .common import layer_type_name, project
+from .project_overview import redact_layer_source
 
 
 def _root():
@@ -18,10 +19,15 @@ def _layer(layer_id: str):
 
 
 def _layer_record(layer: Any) -> dict[str, Any]:
+    # _layer_record alimenta toda listagem/remoção deste módulo (camada
+    # duplicada, remoção por nome/caminho, limpeza de temporárias, projeto
+    # limpo) — redigir aqui cobre todas de uma vez. A comparação/filtragem
+    # interna de source continua usando layer.source() cru; só a saída
+    # devolvida à IA passa por redact_layer_source.
     return {
         "layer_id": layer.id(),
         "name": layer.name(),
-        "source": layer.source(),
+        "source": redact_layer_source(layer),
         "layer_type": layer_type_name(layer),
         "valid": bool(layer.isValid()),
     }

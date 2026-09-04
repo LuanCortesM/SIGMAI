@@ -59,7 +59,7 @@ Step 3 of the panel runs a self-test across the whole path — bridge, authentic
 
 ## What the assistant can do
 
-Ten MCP tools, deliberately few, each with a validated input schema:
+Eleven MCP tools, deliberately few, each with a validated input schema:
 
 | Tool | Reads | Writes | Purpose |
 |---|:--:|:--:|---|
@@ -74,7 +74,7 @@ Ten MCP tools, deliberately few, each with a validated input schema:
 | `sigmai_capabilities` | ✓ | | Full command catalogue with permission levels |
 | `sigmai_run_command` | ✓ | ✓ | Any catalogued command: vector, raster, Processing, symbology, workflows |
 
-Behind them sit 218 catalogued commands. `sigmai_run_command` reaches all of them; the dedicated tools exist because a typed schema produces fewer wrong calls than a free-form escape hatch.
+Behind them sit 221 catalogued commands. `sigmai_run_command` reaches all of them; the dedicated tools exist because a typed schema produces fewer wrong calls than a free-form escape hatch.
 
 ## Access control
 
@@ -104,7 +104,7 @@ Then it audits what it produced and returns the report.
 
 ## The cartographic rulebook
 
-26 rules across nine categories — elements, scale, orientation, provenance, grid, geometry, typography, projection, data. Each carries its severity, the reason it exists, its reference, and the command that satisfies it. `sigmai_cartographic_rulebook` returns the whole thing as data, so an assistant can read the rules before composing rather than discovering them by failing.
+28 rules across nine categories — elements, scale, orientation, provenance, grid, geometry, typography, projection, data. Each carries its severity, the reason it exists, its reference, and the command that satisfies it. `sigmai_cartographic_rulebook` returns the whole thing as data, so an assistant can read the rules before composing rather than discovering them by failing.
 
 A worked example of why this matters is in [docs/CARTOGRAPHIC_QUALITY_MODEL.md](docs/CARTOGRAPHIC_QUALITY_MODEL.md): the same map that the 0.1.1 evaluator graded *"A — Professional map"* with zero warnings scores **E — invalid** under the rulebook, with three blocking errors that a reader would have spotted immediately.
 
@@ -137,13 +137,13 @@ The split between `cartography` and the rest is deliberate: `pagespec`, `scaling
 ```bash
 git clone https://github.com/LuanCortesM/SIGMAI.git
 cd SIGMAI
-python -m pytest tests -q          # 166 tests, no QGIS required
+python -m pytest tests -q          # 438 tests, no QGIS required
 python tools/package_qgis_plugin_zip.py
 ```
 
 Tests that need a live QGIS live in `tools/run_sigmai_*.py` and are run against a real instance. Everything in `tests/` runs on plain Python.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for how to propose changes, report a problem or ask for help, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the internals.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to propose changes, report a problem or ask for help, and [docs/ARCHITECTURE.md](docs/MCP_SERVER.md) for the internals.
 
 ## Security model
 
@@ -154,7 +154,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to propose changes, report a prob
 - Existing files are never overwritten without `confirm_overwrite`.
 - Logs and audit records never contain tokens, passwords or credentials.
 
-Full model: [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md) · [docs/MCP_SECURITY_MODEL.md](docs/MCP_SECURITY_MODEL.md).
+Full model: [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md) · [docs/MCP_SECURITY_MODEL.md](docs/SECURITY_MODEL.md).
 
 ## Authorship
 
@@ -169,7 +169,7 @@ Developed by Luan da Silva Cortes Maciel as a research product associated with H
 @software{maciel_sigmai,
   author  = {Maciel, Luan da Silva Cortes},
   title   = {{SIGMAI}: Secure {GIS}-{AI} Interface},
-  version = {0.2.0},
+  version = {0.2.2},
   url     = {https://github.com/LuanCortesM/SIGMAI},
   license = {GPL-3.0-or-later}
 }

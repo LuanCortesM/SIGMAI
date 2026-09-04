@@ -758,9 +758,15 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # disso caía no ramo que força restilo em TODAS as camadas em silêncio —
     # symbology.apply_default_symbology recusa isso explicitamente.
     apply_style_value = as_text(params, "apply_style", default="missing", label="apply_style").strip().lower()
-    styling = apply_default_symbology(styling_targets, apply_style_value)
+    # dry_run precisa chegar aqui, ANTES de qualquer mutação: era esta chamada
+    # — feita cedo demais, sem olhar para context["dry_run"] — que fazia uma
+    # simulação de compose_map reestilizar de verdade as camadas do projeto
+    # aberto na tela do usuário, mesmo com o SIGMAI em Somente leitura.
+    composing_dry_run = bool(context.get("dry_run"))
+    styling = apply_default_symbology(styling_targets, apply_style_value, dry_run=composing_dry_run)
+    styling_verb = "seria reestilizada" if composing_dry_run else "foi reestilizada"
     styling_notes = [
-        f"A camada {entry['layer']!r} foi reestilizada: {entry['note']}."
+        f"A camada {entry['layer']!r} {styling_verb}: {entry['note']}."
         for entry in styling if entry.get("note")
     ]
     # ``strict=True``: se o assistente pediu um formato que não existe, é melhor
@@ -1097,6 +1103,10 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
             "extent": fitted.to_dict(),
             "scale": _format_scale(fitted.scale_denominator),
             "layers": [{"id": layer.id(), "name": layer.name()} for layer in layers],
+            # O que a composição faria à simbologia, sem tê-la feito: quais
+            # camadas seriam reestilizadas e com que cor. Nenhum layer.setRenderer
+            # foi chamado para gerar esta lista — ver apply_default_symbology.
+            "styling_preview": styling,
             "output_path": str(output_path) if output_path else "",
             "format": export_format,
             "notes": notes,

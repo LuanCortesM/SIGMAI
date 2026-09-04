@@ -95,7 +95,12 @@ def _read_metadata(path: Path) -> dict[str, str]:
     metadata_path = path / "metadata.txt"
     if not metadata_path.exists():
         return {}
-    parser = configparser.ConfigParser()
+    # interpolation=None: com a interpolação padrão do ConfigParser, um "%"
+    # cru em qualquer valor (ex.: "...25%..." num changelog) é lido como
+    # início de substituição printf-style e derruba InterpolationSyntaxError.
+    # O próprio metadata.txt do SIGMAI tem "%" no changelog, e qualquer
+    # plugin de terceiro pode ter o mesmo — não é um caso de borda.
+    parser = configparser.ConfigParser(interpolation=None)
     parser.read(metadata_path, encoding="utf-8")
     if not parser.has_section("general"):
         return {}
@@ -189,9 +194,22 @@ def _assert_official_https_url(url: str) -> None:
         raise ValidationError("PLUGIN_NETWORK_URL_BLOCKED", "Credentials in plugin repository URLs are blocked.", {})
 
 
+def _self_plugin_version() -> str:
+    """Versão do próprio SIGMAI para o User-Agent das requisições HTTP.
+
+    Não importa de ``sigmai.bridge_server`` (que tem a mesma leitura em
+    ``plugin_version()``) porque esse módulo importa ``qgis_actions``, que
+    importa este arquivo — um import no topo do módulo criaria um ciclo real
+    (ImportError na inicialização, verificado). Em vez disso relê o
+    metadata.txt aqui, com ``_read_metadata`` — que já existe neste arquivo.
+    """
+    metadata = _read_metadata(_current_plugin_path())
+    return str(metadata.get("version") or "0.0.0")
+
+
 def _fetch_url_bytes(url: str, timeout: int = 45, max_bytes: int = 120_000_000) -> bytes:
     _assert_official_https_url(url)
-    request = urllib.request.Request(url, headers={"User-Agent": "SIGMAI/0.1 QGIS-plugin-manager"}, method="GET")
+    request = urllib.request.Request(url, headers={"User-Agent": f"SIGMAI/{_self_plugin_version()} QGIS-plugin-manager"}, method="GET")
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310 - URL is restricted to HTTPS plugins.qgis.org by _assert_official_https_url.
             status = getattr(response, "status", 200)
@@ -1416,15 +1434,15 @@ def _install_or_update_from_folder(params: dict[str, Any], context: dict[str, An
 
 
 def enable_plugin(params: dict[str, Any], context: dict[str, Any]):
-    return _plugin_runtime_operation(params, "enable")
+    return _plugin_runtime_operation(params, context, "enable")
 
 
 def disable_plugin(params: dict[str, Any], context: dict[str, Any]):
-    return _plugin_runtime_operation(params, "disable")
+    return _plugin_runtime_operation(params, context, "disable")
 
 
 def reload_plugin(params: dict[str, Any], context: dict[str, Any]):
-    return _plugin_runtime_operation(params, "reload")
+    return _plugin_runtime_operation(params, context, "reload")
 
 
 def uninstall_plugin(params: dict[str, Any], context: dict[str, Any]):
@@ -1439,11 +1457,39 @@ def uninstall_plugin(params: dict[str, Any], context: dict[str, Any]):
     return {"plugin_name": plugin_name, "removed_path": str(plugin_path), "backup_path": str(backup), "restart_required": True}
 
 
-def _plugin_runtime_operation(params: dict[str, Any], operation: str):
+#: Chamadas de qgis.utils que cada operação faria de verdade — usada tanto
+#: para descrever a simulação em dry_run quanto (documentando) para o bloco
+#: de execução real logo abaixo.
+_PLUGIN_RUNTIME_CALLS = {
+    "enable": ["loadPlugin", "startPlugin"],
+    "disable": ["unloadPlugin"],
+    "reload": ["unloadPlugin", "loadPlugin", "startPlugin"],
+}
+
+
+def _plugin_runtime_operation(params: dict[str, Any], context: dict[str, Any], operation: str):
     plugin_name = require_param(params, "plugin_name", str)
     plugin_path = _find_plugin_path(plugin_name)
+    dry_run = bool(context.get("dry_run"))
     if _is_self_plugin(plugin_name, plugin_path):
-        return {"plugin_name": plugin_name, "operation": operation, "applied": False, "restart_required": True, "warnings": ["Runtime changes to the running Bridge are intentionally not applied. Restart QGIS after staged self-management changes."]}
+        return {"plugin_name": plugin_name, "operation": operation, "applied": False, "dry_run": dry_run, "restart_required": True, "warnings": ["Runtime changes to the running Bridge are intentionally not applied. Restart QGIS after staged self-management changes."]}
+    if dry_run:
+        # A ponte dispensa o controle de acesso quando dry_run é verdadeiro
+        # (é o que permite mostrar o que a ação faria antes de pedir
+        # permissão) — então, sem este corte, uma requisição HTTP com
+        # dry_run:true, em modo somente-leitura e sem confirmação nenhuma,
+        # chegava direto em qgis.utils.loadPlugin/unloadPlugin/startPlugin e
+        # ligava, desligava ou recarregava qualquer plugin de verdade. A
+        # simulação tem de parar antes de tocar o QGIS, e a resposta tem de
+        # deixar claro — pelo campo "dry_run" — que nada foi aplicado.
+        return {
+            "plugin_name": plugin_name,
+            "operation": operation,
+            "applied": False,
+            "dry_run": True,
+            "would_call": list(_PLUGIN_RUNTIME_CALLS[operation]),
+            "restart_required": operation == "reload",
+        }
     try:
         import qgis.utils  # type: ignore
 
@@ -1459,9 +1505,9 @@ def _plugin_runtime_operation(params: dict[str, Any], operation: str):
             result = qgis.utils.loadPlugin(plugin_name)
             if result:
                 qgis.utils.startPlugin(plugin_name)
-        return {"plugin_name": plugin_name, "operation": operation, "applied": bool(result), "restart_required": operation == "reload"}
+        return {"plugin_name": plugin_name, "operation": operation, "applied": bool(result), "dry_run": False, "restart_required": operation == "reload"}
     except Exception as exc:
-        return {"plugin_name": plugin_name, "operation": operation, "applied": False, "warnings": [str(exc)], "restart_required": True}
+        return {"plugin_name": plugin_name, "operation": operation, "applied": False, "dry_run": False, "warnings": [str(exc)], "restart_required": True}
 
 
 def self_inspect(params: dict[str, Any], context: dict[str, Any]):
@@ -1596,8 +1642,12 @@ def self_rollback(params: dict[str, Any], context: dict[str, Any]):
     if context.get("dry_run"):
         return {"dry_run": True, "would_restore": str(backup_path), "restart_required": True}
     plugin_path = _current_plugin_path()
-    with zipfile.ZipFile(backup_path, "r") as archive:
-        archive.extractall(plugin_path.parent)
+    # _safe_extract_plugin_zip, não zipfile.extractall cru: backup_path só
+    # passou por _safe_output_path (resolve para absoluto, não restringe a
+    # pasta) e pelas checagens de existir/terminar em .zip — nada impede que
+    # aponte para um ZIP malicioso. É o mesmo guarda contra escape de
+    # caminho que o fluxo de instalação usa; reaproveitado como está.
+    _safe_extract_plugin_zip(backup_path, plugin_path.parent)
     return {"restored_from": str(backup_path), "plugin_path": str(plugin_path), "restart_required": True}
 
 

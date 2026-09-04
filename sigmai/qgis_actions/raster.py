@@ -7,6 +7,7 @@ from ..security import normalize_output_path, reject_existing_path_without_confi
 from ..validators import ValidationError, require_param
 from .common import crs_authid, extent_to_dict, layer_type_name, project
 from .gis_tools import PROCESSING_ALLOWLIST, _processing_run, _serialize_processing_result
+from .project_overview import redact_layer_source
 
 
 ALLOWED_RASTER_EXTENSIONS = {".tif", ".tiff", ".vrt", ".asc", ".img", ".jp2"}
@@ -100,7 +101,10 @@ def raster_info(params: dict[str, Any], context: dict[str, Any]):
     return {
         "layer_id": layer.id(),
         "name": layer.name(),
-        "source": layer.source(),
+        # Uma camada raster também pode vir de um provedor autenticado
+        # (ex.: WMS institucional com apikey na URL) — mesma razão de
+        # redigir de get_layer_info.
+        "source": redact_layer_source(layer),
         "provider": provider.name() if provider else "",
         "crs": crs_authid(layer.crs()),
         "extent": extent,

@@ -80,13 +80,22 @@ def has_default_symbology(layer: Any) -> bool:
 APPLY_STYLE_MODES: tuple[str, ...] = ("missing", "all", "none")
 
 
-def apply_default_symbology(layers: list[Any], mode: str = "missing") -> list[dict[str, Any]]:
+def apply_default_symbology(layers: list[Any], mode: str = "missing", dry_run: bool = False) -> list[dict[str, Any]]:
     """Aplica a paleta padrão às camadas elegíveis.
 
     ``mode`` aceita ``"missing"`` (só camadas com símbolo único), ``"all"``
     (força em todas) e ``"none"`` (não faz nada). Qualquer outro valor é
     recusado explicitamente — a validação vem antes de qualquer import do
     PyQGIS para que continue possível testá-la em CI puro.
+
+    ``dry_run=True`` calcula e devolve exatamente o mesmo relatório — quais
+    camadas seriam reestilizadas, com que geometria e cor — mas nunca chama
+    ``layer.setRenderer(...)``. Existe porque ``compose_map`` chamava esta
+    função incondicionalmente antes de checar seu próprio ``dry_run``: uma
+    simulação anotada como somente leitura reestilizava de verdade as
+    camadas do projeto aberto na tela do usuário. A causa era aqui, não em
+    ``compose_map`` — por isso a correção também é aqui: quem decide se algo
+    é mutado é quem de fato muta.
     """
     if mode not in APPLY_STYLE_MODES:
         import difflib
@@ -135,14 +144,33 @@ def apply_default_symbology(layers: list[Any], mode: str = "missing") -> list[di
             # para todos, duas camadas de polígono ficavam da mesma cor e só o
             # traço as distinguia — no papel, nada as distinguia.
             style["fill"] = _tint(accent, 0.82)
+        # Cor que de fato aparece no mapa: o preenchimento para polígono, o
+        # próprio matiz para linha e ponto. Reportada em ambos os modos —
+        # é o que permite a uma simulação dizer "com que cor" sem aplicá-la.
+        display_color = style.get("fill", accent)
+        origem = type(layer.renderer()).__name__ if hasattr(layer, "renderer") else ""
+
+        if dry_run:
+            # Só relata o que SERIA feito. Nenhuma chamada a _build_symbol,
+            # setRenderer ou triggerRepaint aqui: é a garantia de que uma
+            # simulação não deixa a camada do usuário com uma cor diferente
+            # da que tinha.
+            registro = {"layer": layer.name(), "action": "seria_estilizada", "geometry": kind, "accent": accent, "color": display_color}
+            if origem == "QgsEmbeddedSymbolRenderer":
+                registro["note"] = (
+                    "o estilo vem embutido no arquivo (KML/KMZ) e não gera amostra na legenda; "
+                    "passe apply_style='none' para mantê-lo"
+                )
+            applied.append(registro)
+            continue
+
         symbol = _build_symbol(kind, style, accent, imports)
         if symbol is None:
             continue
-        origem = type(layer.renderer()).__name__ if hasattr(layer, "renderer") else ""
         try:
             layer.setRenderer(imports["QgsSingleSymbolRenderer"](symbol))
             layer.triggerRepaint()
-            registro = {"layer": layer.name(), "action": "estilizada", "geometry": kind, "accent": accent}
+            registro = {"layer": layer.name(), "action": "estilizada", "geometry": kind, "accent": accent, "color": display_color}
             if origem == "QgsEmbeddedSymbolRenderer":
                 registro["note"] = (
                     "o estilo vinha embutido no arquivo (KML/KMZ) e não gerava amostra na legenda; "
