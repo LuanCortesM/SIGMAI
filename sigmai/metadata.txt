@@ -29,6 +29,8 @@ changelog=0.2.2
     - Corrigido: estilo embutido em KML/KMZ não gerava amostra na legenda; passa a receber a paleta padrão, com nota de como preservar o original.
     - Corrigido: dois polígonos saíam com o mesmo preenchimento, e o inserto vinha na cor aleatória do QGIS competindo com o retângulo do recorte.
     - Corrigido: numa folha de comparação a legenda ignorava o segundo painel, e CART021 acusava de fantasma uma camada visível nele.
+    - Novo: sigmai_brief_plugin devolve numa chamada o contrato de outro plugin — identidade, saúde do provedor, cada algoritmo com parâmetros e risco, a superfície de interface que NÃO é acionável, e um plano de teste em ordem segura. Nenhum código-fonte sai da máquina.
+    - Novo: diagnóstico de provedor de Processing mal registrado (id vazio por referência solta em addProvider, ou registrado sem nenhum algoritmo).
     - Corrigido: executar algoritmo de plugin de terceiro falhava com PROCESSING_NOT_AVAILABLE porque o executor genérico fazia import processing cru em vez de usar o bootstrap.
     - Corrigido: a recusa do adaptador dedicado não dizia que run_plugin_algorithm_generic_safe executa qualquer plugin; e o caminho chamado 'safe' era o único sem classificação de risco.
     - Corrigido: WMS, WFS, XYZ e ArcGIS REST eram esqueletos que recusavam com 'network-enabled workflow' — nenhum mapa de base podia ser carregado. Agora carregam, exigem atribuição de licença e o crédito entra sozinho na linha de fonte.

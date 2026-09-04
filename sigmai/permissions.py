@@ -192,6 +192,7 @@ COMMAND_PERMISSIONS: dict[str, CommandPermission] = {
     "list_plugin_processing_algorithms": CommandPermission("list_plugin_processing_algorithms", "plugin_orchestration", READ_ONLY),
     "get_plugin_algorithm_info": CommandPermission("get_plugin_algorithm_info", "plugin_orchestration", READ_ONLY),
     "build_plugin_capability_manifest": CommandPermission("build_plugin_capability_manifest", "plugin_orchestration", READ_ONLY),
+    "brief_plugin": CommandPermission("brief_plugin", "plugin_orchestration", READ_ONLY),
     "dry_run_plugin_algorithm_generic": CommandPermission("dry_run_plugin_algorithm_generic", "plugin_orchestration", READ_ONLY),
     "run_plugin_algorithm_generic_safe": CommandPermission("run_plugin_algorithm_generic_safe", "plugin_orchestration", SAFE_WRITE, supports_dry_run=True),
     "run_plugin_algorithm_safe": CommandPermission("run_plugin_algorithm_safe", "plugin_orchestration", SAFE_WRITE, supports_dry_run=True),

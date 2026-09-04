@@ -80,6 +80,17 @@ def exercitar(runner: Runner, trilha_id: str, saida: Path) -> None:
     runner.check("inspeciona o plugin", "inspect_plugin", {"plugin_name": PLUGIN})
     runner.check("valida o metadata.txt dele", "validate_metadata_txt", {"plugin_name": PLUGIN})
 
+    print("\n== 1b. o briefing que a IA lê antes de qualquer coisa ==")
+    resposta = runner.check("briefing numa chamada", "brief_plugin", {"plugin_name": PLUGIN})
+    briefing = resposta.get("data") or {}
+    print(f"     dirigível: {briefing.get('dirigivel_por_programa', {}).get('algorithm_count')} algoritmo(s)"
+          f" | interface: {briefing.get('nao_dirigivel_por_programa', {}).get('superficie_de_interface')}")
+    print(f"     provedor: {json.dumps(briefing.get('provedor_processing'), ensure_ascii=False)[:150]}")
+    for passo in briefing.get("plano_de_teste_sugerido", []):
+        print(f"       {passo['passo']}. {passo['acao']}")
+    runner.check("briefing de plugin inexistente é recusado", "brief_plugin",
+                 {"plugin_name": "plugin_que_nao_existe"}, espera="qualquer")
+
     print("\n== 2. auditoria de estrutura, como um revisor faria ==")
     for rotulo, acao in (
         ("estrutura de arquivos", "check_plugin_structure"),

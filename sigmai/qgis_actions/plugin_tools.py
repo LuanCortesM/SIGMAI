@@ -715,6 +715,175 @@ def build_plugin_capability_manifest(params: dict[str, Any], context: dict[str, 
     }
 
 
+#: Quantos algoritmos vêm com o contrato inteiro no briefing. Acima disso a
+#: lista continua completa, mas só com id, nome e risco: um plugin com cem
+#: algoritmos encheria o contexto da IA com parâmetros que ela não vai usar, e
+#: contexto gasto é resposta pior.
+BRIEFING_FULL_CONTRACT_LIMIT = 12
+
+
+def _provider_health(plugin_name: str, display_name: str) -> dict[str, Any]:
+    """Diagnostica o registro do provedor de Processing daquele plugin.
+
+    Dizer "este plugin não tem algoritmos" quando o provedor existe mas está
+    mal registrado leva quem está depurando o próprio plugin para o caminho
+    errado. Os dois modos de falha que aparecem na prática:
+
+    * provedor com ``id()`` vazio — o objeto Python foi coletado depois de
+      ``addProvider`` (a referência não foi guardada em ``self``), e o que
+      sobrou no registro não responde mais aos métodos virtuais;
+    * provedor registrado e com zero algoritmos — ``loadAlgorithms`` não
+      chamou ``addAlgorithm``, ou levantou exceção silenciosa.
+    """
+    saude: dict[str, Any] = {"registered": False, "algorithm_count": 0, "warnings": []}
+    try:
+        from qgis.core import QgsApplication  # type: ignore
+
+        registry = QgsApplication.processingRegistry()
+        providers = list(registry.providers() or [])
+    except Exception as exc:
+        saude["warnings"].append(f"Não foi possível ler o registro do Processing: {exc}")
+        return saude
+
+    anonimos = [item for item in providers if not str(_safe_call(item.id) or "").strip()]
+    if anonimos:
+        saude["warnings"].append(
+            f"Há {len(anonimos)} provedor(es) no registro do Processing sem id. Isso costuma "
+            "significar que o objeto do provedor foi coletado pelo Python depois de "
+            "addProvider(): guarde-o num atributo do plugin (self.provider = ...) em initGui, "
+            "senão o registro fica com um objeto que não responde mais."
+        )
+    for item in providers:
+        identificador = str(_safe_call(item.id) or "")
+        nome = str(_safe_call(item.name) or "")
+        if not _matches_plugin_provider(plugin_name, display_name, identificador, nome):
+            continue
+        saude["registered"] = True
+        saude["provider_id"] = identificador
+        saude["provider_name"] = nome
+        try:
+            algoritmos = list(item.algorithms() or [])
+        except Exception:
+            algoritmos = []
+        saude["algorithm_count"] = len(algoritmos)
+        if not algoritmos:
+            saude["warnings"].append(
+                f"O provedor {identificador!r} está registrado e não expõe nenhum algoritmo. "
+                "Confira se loadAlgorithms() chama addAlgorithm() e se createInstance() do "
+                "algoritmo devolve uma instância nova."
+            )
+    return saude
+
+
+def _safe_call(metodo: Any) -> Any:
+    try:
+        return metodo()
+    except Exception:
+        return None
+
+
+def _briefing_test_plan(plugin_name: str, algoritmos: list[dict[str, Any]],
+                        entrypoints: dict[str, Any]) -> list[dict[str, str]]:
+    """A ordem de passos que não quebra nada, montada a partir do que existe."""
+    plano: list[dict[str, str]] = [
+        {"passo": "1", "acao": "check_plugin_structure",
+         "porque": "confirma que o pacote está montado como o QGIS espera antes de qualquer execução"},
+        {"passo": "2", "acao": "check_plugin_imports",
+         "porque": "um import que falha é a causa mais comum de plugin que não carrega"},
+    ]
+    if algoritmos:
+        primeiro = algoritmos[0]["id"]
+        plano.append({"passo": "3", "acao": f"dry_run_plugin_algorithm_generic ({primeiro})",
+                      "porque": "simula sem tocar em nada e devolve a classificação de risco e os parâmetros faltando"})
+        plano.append({"passo": "4", "acao": f"run_plugin_algorithm_generic_safe ({primeiro})",
+                      "porque": "executa de verdade, depois que a simulação passou, com as confirmações que o risco exigir"})
+    else:
+        plano.append({"passo": "3", "acao": "list_plugin_processing_algorithms",
+                      "porque": "nenhum algoritmo foi encontrado; repita depois de ativar o plugin no gerenciador do QGIS"})
+    if entrypoints.get("menu_actions") or entrypoints.get("dialogs") or entrypoints.get("dock_widgets"):
+        plano.append({"passo": str(len(plano) + 1), "acao": "(nada — parte deste plugin é só de interface)",
+                      "porque": "menus, botões e janelas não são acionáveis pela ponte; peça ao usuário para clicar e confira o resultado lendo o projeto"})
+    return plano
+
+
+def brief_plugin(params: dict[str, Any], context: dict[str, Any]):
+    """Tudo que um assistente precisa para dirigir OUTRO plugin, numa chamada.
+
+    Existe porque a alternativa é o assistente descobrir o plugin por
+    tentativa e erro, e errar do jeito mais caro: prometer ao usuário uma ação
+    que o plugin não expõe. O briefing separa, sem rodeio, o que é dirigível
+    por programa (algoritmo de Processing, com contrato declarado) do que não é
+    (menu, botão, janela), e traz o contrato dos algoritmos junto.
+
+    Não é um índice nem um resumo gerado: é o contrato que o próprio plugin
+    declara ao QGIS, lido do registro do Processing e da estrutura do pacote.
+    Nenhum código-fonte sai da máquina.
+    """
+    plugin_name = require_param(params, "plugin_name", str).strip()
+    limite = max(1, min(int(params.get("full_contract_limit", BRIEFING_FULL_CONTRACT_LIMIT)), 100))
+
+    capacidades = inspect_plugin_capabilities({"plugin_name": plugin_name}, context)
+    metadados = capacidades.get("metadata", {}) or {}
+    display_name = str(metadados.get("name", plugin_name))
+    entrypoints = capacidades.get("static_entrypoints", {}) or {}
+    saude = _provider_health(plugin_name, display_name)
+
+    referencias = list_plugin_processing_algorithms({"plugin_name": plugin_name}, context).get("algorithms", [])
+    detalhados = [_algorithm_manifest(item["id"]) for item in referencias[:limite]]
+    resumidos = [
+        {"id": item["id"], "name": item.get("name", ""), "contract": "chame get_plugin_algorithm_info"}
+        for item in referencias[limite:]
+    ]
+
+    interface = {
+        chave: entrypoints.get(chave, False)
+        for chave in ("menu_actions", "toolbar_actions", "dock_widgets", "dialogs")
+    }
+    rotulos = entrypoints.get("detected_action_labels", []) or []
+
+    return {
+        "briefing_version": "1.0",
+        "plugin": {
+            "name": plugin_name,
+            "display_name": display_name,
+            "version": metadados.get("version", ""),
+            "author": metadados.get("author", ""),
+            "description": str(metadados.get("description", ""))[:400],
+            "path": capacidades.get("path", ""),
+        },
+        "estado": {
+            "installed": (capacidades.get("runtime", {}) or {}).get("installed", False),
+            "loaded": (capacidades.get("runtime", {}) or {}).get("loaded", False),
+            "active": (capacidades.get("runtime", {}) or {}).get("active", False),
+        },
+        "provedor_processing": saude,
+        "dirigivel_por_programa": {
+            "algorithm_count": len(referencias),
+            "com_contrato_completo": detalhados,
+            "restantes": resumidos,
+            "como_executar": "dry_run_plugin_algorithm_generic para simular, "
+                             "run_plugin_algorithm_generic_safe para executar",
+        },
+        "nao_dirigivel_por_programa": {
+            "superficie_de_interface": interface,
+            "rotulos_detectados": rotulos[:40],
+            "por_que": "Menus, botões e janelas do QGIS só respondem a clique. Acioná-los por "
+                       "programa abriria um diálogo modal que congela a ponte esperando alguém "
+                       "clicar. Não prometa ao usuário que você vai apertar esses botões: "
+                       "descreva onde eles estão, peça que ele clique, e confira o resultado "
+                       "lendo o projeto depois.",
+        },
+        "risco_estatico": capacidades.get("static_risk", {}),
+        "plano_de_teste_sugerido": _briefing_test_plan(plugin_name, referencias, entrypoints),
+        "limites_deste_briefing": [
+            "É o contrato que o plugin declara ao QGIS, não uma leitura do código-fonte.",
+            "Um plugin não ativado no gerenciador do QGIS não registra provedor nenhum, e "
+            "aparece aqui sem algoritmos mesmo tendo-os.",
+            "Nenhum código-fonte do plugin sai da máquina.",
+        ],
+    }
+
+
 def dry_run_plugin_algorithm_generic(params: dict[str, Any], context: dict[str, Any]):
     algorithm_id = require_param(params, "algorithm_id", str)
     provided_parameters = params.get("parameters", {})

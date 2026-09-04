@@ -433,6 +433,29 @@ TOOLS: list[dict[str, Any]] = [
         "handler": lambda args: bridge_call("list_layouts"),
     },
     {
+        "name": "sigmai_brief_plugin",
+        "title": "Briefing de outro plugin do QGIS",
+        "description": (
+            "Tudo que você precisa para dirigir OUTRO plugin do QGIS, numa chamada — o caso de "
+            "quem está desenvolvendo um plugin e quer que você o exercite. Devolve: identidade e "
+            "estado (instalado, carregado, ativo); a saúde do provedor de Processing, com "
+            "diagnóstico quando ele está mal registrado; a lista do que é DIRIGÍVEL por programa, "
+            "com o contrato completo de cada algoritmo (parâmetros, tipos, obrigatoriedade, "
+            "padrões, saídas e classificação de risco); a superfície de interface que NÃO é "
+            "dirigível (menus, botões, janelas) e por quê; e um plano de teste em ordem segura. "
+            "Chame isto ANTES de propor qualquer coisa ao usuário sobre outro plugin: sem o "
+            "briefing você não sabe o que aquele plugin expõe, e prometer uma ação que ele não "
+            "tem é o erro mais caro aqui. Não é resumo gerado nem índice: é o contrato que o "
+            "próprio plugin declara ao QGIS. Nenhum código-fonte sai da máquina do usuário."
+        ),
+        "inputSchema": _obj({
+            "plugin_name": {**_S, "description": "Nome do pacote do plugin, como aparece em sigmai_run_command list_installed_plugins."},
+            "full_contract_limit": {**_N, "description": "Quantos algoritmos vêm com o contrato inteiro. Padrão 12; o resto vem só com id e nome."},
+        }, ["plugin_name"]),
+        "annotations": {"title": "Briefing de plugin", **READ_ONLY},
+        "handler": lambda args: bridge_call("brief_plugin", dict(args)),
+    },
+    {
         "name": "sigmai_capabilities",
         "title": "Comandos disponíveis",
         "description": (
@@ -500,7 +523,9 @@ Três parâmetros resolvem a maioria dos pedidos de quem não conhece QGIS:
   é enganoso, e o SIGMAI recusa fazer isso em silêncio.
 
 Auditar e exercitar OUTRO plugin — o caso de quem está desenvolvendo um:
-sigmai_run_command dá acesso ao catálogo inteiro. A sequência que funciona é
+comece por sigmai_brief_plugin, que numa chamada diz o que aquele plugin expõe,
+o contrato de cada algoritmo e o que NÃO é acionável por programa. Depois dele,
+sigmai_run_command dá acesso ao catálogo inteiro:
 inspect_plugin e check_plugin_structure para ver como ele está montado,
 list_plugin_processing_algorithms para descobrir o que ele expõe,
 get_plugin_algorithm_info para os parâmetros de um algoritmo,

@@ -209,6 +209,7 @@ def register_actions(registry):
     registry.register("list_plugin_processing_algorithms", plugin_tools.list_plugin_processing_algorithms)
     registry.register("get_plugin_algorithm_info", plugin_tools.get_plugin_algorithm_info)
     registry.register("build_plugin_capability_manifest", plugin_tools.build_plugin_capability_manifest)
+    registry.register("brief_plugin", plugin_tools.brief_plugin)
     registry.register("dry_run_plugin_algorithm_generic", plugin_tools.dry_run_plugin_algorithm_generic)
     registry.register("run_plugin_algorithm_generic_safe", plugin_tools.run_plugin_algorithm_generic_safe)
     registry.register("run_plugin_algorithm_safe", plugin_tools.run_plugin_algorithm_safe)

@@ -1,0 +1,10 @@
+[general]
+name=BotaoTeste
+qgisMinimumVersion=3.28
+description=Plugin de ensaio que só expõe interface: menu, barra de ferramentas e um diálogo. Não registra nenhum algoritmo de Processing.
+about=Serve para provar que o SIGMAI distingue o que é dirigível por programa do que só responde a clique.
+version=0.1.0
+author=Ensaio
+email=ensaio@exemplo.org
+category=Plugins
+experimental=True
