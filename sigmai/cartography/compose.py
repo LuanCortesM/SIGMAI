@@ -20,6 +20,7 @@ Substitui ``generate_professional_map``. As diferenças que importam:
 from __future__ import annotations
 
 import datetime as _datetime
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -57,6 +58,7 @@ def _imports() -> dict[str, Any]:
             QgsApplication,
             QgsCoordinateReferenceSystem,
             QgsCoordinateTransform,
+            QgsDistanceArea,
             QgsLayoutExporter,
             QgsLayoutItemLabel,
             QgsLayoutItemLegend,
@@ -66,6 +68,7 @@ def _imports() -> dict[str, Any]:
             QgsLayoutItemPicture,
             QgsLayoutItemScaleBar,
             QgsLayoutPoint,
+            QgsPointXY,
             QgsLayoutSize,
             QgsPrintLayout,
             QgsProject,
@@ -134,10 +137,57 @@ def _combined_extent(layers: list[Any], target_crs: Any, imports: dict[str, Any]
     return combined
 
 
+def _map_units_per_metre(crs: Any, extent: Any, imports: dict[str, Any]) -> float:
+    """Quantas unidades do CRS cabem num metro, ao longo da extensão.
+
+    Para CRS projetados métricos é 1. Para CRS geográficos, um grau não tem
+    comprimento constante: ~111 km no equador e zero nos polos. Sem esta
+    conversão, ``scale_from_extent`` trata graus como metros e devolve uma
+    escala sem sentido — o Piauí inteiro saía como 1:65.
+    """
+    if not crs.isGeographic():
+        return 1.0
+    try:
+        calculator = imports["QgsDistanceArea"]()
+        calculator.setSourceCrs(crs, imports["QgsProject"].instance().transformContext())
+        calculator.setEllipsoid(crs.ellipsoidAcronym() or "WGS84")
+        middle_y = (extent.yMinimum() + extent.yMaximum()) / 2.0
+        metres = calculator.measureLine(
+            imports["QgsPointXY"](extent.xMinimum(), middle_y),
+            imports["QgsPointXY"](extent.xMaximum(), middle_y),
+        )
+        if metres > 0:
+            return extent.width() / metres
+    except Exception:
+        pass
+    # Recurso final: comprimento de um grau de longitude na latitude central.
+    import math
+
+    latitude = math.radians((extent.yMinimum() + extent.yMaximum()) / 2.0)
+    metres_per_degree = 111_320.0 * max(0.05, math.cos(latitude))
+    return 1.0 / metres_per_degree
+
+
+#: Limite em graus para cada estratégia de projeção automática.
+UTM_MAX_SPAN_DEGREES = 12.0
+REGIONAL_MAX_SPAN_DEGREES = 40.0
+
+#: Caixa aproximada do território brasileiro, para escolher a Policônica.
+BRAZIL_BOUNDS = (-74.0, -34.0, -34.0, 6.0)
+
+
 def _suggest_projected_crs(extent: Any, source_crs: Any, imports: dict[str, Any]) -> tuple[Any, str]:
     """Escolhe um UTM adequado para uma extensão em coordenadas geográficas."""
     centre_lon = (extent.xMinimum() + extent.xMaximum()) / 2.0
     centre_lat = (extent.yMinimum() + extent.yMaximum()) / 2.0
+    span = max(extent.width(), extent.height())
+
+    # Acima de uma zona UTM e meia, o UTM deixa de ser adequado: a distorção
+    # cresce com o afastamento do meridiano central. Um estado brasileiro
+    # inteiro cai nesta faixa.
+    if span > UTM_MAX_SPAN_DEGREES:
+        return _suggest_regional_crs(extent, centre_lon, centre_lat, span, imports)
+
     zone = int((centre_lon + 180.0) / 6.0) + 1
     zone = max(1, min(60, zone))
     northern = centre_lat >= 0
@@ -157,6 +207,49 @@ def _suggest_projected_crs(extent: Any, source_crs: Any, imports: dict[str, Any]
             hemisphere = "N" if northern else "S"
             return crs, f"{family} zona {zone}{hemisphere} ({authid})"
     return source_crs, ""
+
+
+def _suggest_regional_crs(
+    extent: Any, centre_lon: float, centre_lat: float, span: float, imports: dict[str, Any]
+) -> tuple[Any, str]:
+    """Projeção para extensões grandes demais para uma zona UTM."""
+    if span > REGIONAL_MAX_SPAN_DEGREES:
+        # Escala continental: qualquer projeção plana distorce muito, e a
+        # escolha passa a ser editorial. O compositor não decide por conta.
+        return None, ""
+
+    west, south, east, north = BRAZIL_BOUNDS
+    inside_brazil = (
+        west <= extent.xMinimum() and extent.xMaximum() <= east
+        and south <= extent.yMinimum() and extent.yMaximum() <= north
+    )
+    if inside_brazil:
+        polyconic = imports["QgsCoordinateReferenceSystem"]("EPSG:5880")
+        if polyconic.isValid():
+            return polyconic, "SIRGAS 2000 / Policônica do Brasil (EPSG:5880)"
+
+    # Lambert Azimutal de Áreas Iguais centrada na extensão: é a escolha
+    # convencional para mapas regionais temáticos quando não há um sistema
+    # oficial aplicável.
+    proj = (
+        f"+proj=laea +lat_0={centre_lat:.4f} +lon_0={centre_lon:.4f} "
+        "+x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
+    )
+    laea = imports["QgsCoordinateReferenceSystem"]()
+    try:
+        laea.createFromProj(proj)
+    except Exception:
+        try:
+            laea.createFromProj4(proj)
+        except Exception:
+            return None, ""
+    if laea.isValid():
+        return laea, (
+            f"Lambert Azimutal de Áreas Iguais centrada em "
+            f"{abs(centre_lat):.2f}°{'S' if centre_lat < 0 else 'N'}, "
+            f"{abs(centre_lon):.2f}°{'W' if centre_lon < 0 else 'E'}"
+        )
+    return None, ""
 
 
 def _find_north_arrow_svg(imports: dict[str, Any]) -> str:
@@ -247,24 +340,38 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
     extent = _combined_extent(layers, map_crs, imports)
 
     if map_crs.isGeographic() and bool(params.get("auto_projected_crs", True)):
-        span = max(extent.width(), extent.height())
-        if span <= 8.0:  # ~8 graus; acima disso o UTM deixa de fazer sentido
-            projected, label = _suggest_projected_crs(extent, map_crs, imports)
-            if label:
-                map_crs = projected
-                extent = _combined_extent(layers, map_crs, imports)
-                notes.append(
-                    f"O projeto está em coordenadas geográficas; o mapa foi reprojetado para {label} "
-                    "para que escala, barra e medidas sejam métricas. Passe auto_projected_crs=false para desligar."
-                )
+        projected, label = _suggest_projected_crs(extent, map_crs, imports)
+        if projected is not None and label:
+            map_crs = projected
+            extent = _combined_extent(layers, map_crs, imports)
+            notes.append(
+                f"O projeto está em coordenadas geográficas; o mapa foi reprojetado para {label} "
+                "para que escala, barra e medidas sejam métricas. Passe auto_projected_crs=false para desligar."
+            )
+        elif map_crs.isGeographic():
+            notes.append(
+                "A extensão é grande demais para uma projeção regional automática; o mapa continua em "
+                "coordenadas geográficas. A escala é aproximada e a barra de escala não é confiável — "
+                "escolha uma projeção adequada com map_crs."
+            )
 
     fitted = fit_extent_to_frame(
         extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum(),
         frame.width, frame.height,
         margin_percent=float(params.get("margin_percent", 5.0)),
         snap_to_round_scale=bool(params.get("round_scale", True)),
+        map_units_per_metre=_map_units_per_metre(map_crs, extent, imports),
     )
     notes.extend(fitted.notes)
+
+    notes.extend(
+        _orientation_advice(
+            extent, frame, page, template, gutter=annotation_gutter,
+            include_legend=include_legend, include_scale_bar=include_scale_bar,
+            include_scale_text=include_scale_text, include_north=include_north,
+            include_subtitle=include_subtitle, include_logo=include_logo,
+        )
+    )
 
     layout_name = str(params.get("layout_name") or _unique_layout_name(project, params.get("title", "Mapa SIGMAI")))
     output_path = Path(str(params.get("output_path", ""))).expanduser() if params.get("output_path") else None
@@ -310,8 +417,21 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
     map_item.setCrs(map_crs)
     map_item.setLayers(layers)
     map_item.setExtent(imports["QgsRectangle"](fitted.xmin, fitted.ymin, fitted.xmax, fitted.ymax))
+    # setScale recentraliza a extensão na escala pedida. Se a escala calculada
+    # divergir da que o QGIS deriva da extensão — o que acontece quando o CRS é
+    # geográfico e a conversão para metros é aproximada — aplicá-la encolhe o
+    # quadro e corta os dados. Só se aplica quando as duas concordam.
     try:
-        map_item.setScale(float(fitted.scale_denominator))
+        derived = float(map_item.scale())
+        target = float(fitted.scale_denominator)
+        if derived > 0 and abs(derived - target) / target <= 0.02:
+            map_item.setScale(target)
+        elif derived > 0:
+            notes.append(
+                f"Escala derivada pelo QGIS ({derived:,.0f}) difere da calculada ({target:,.0f}); "
+                "mantida a extensão ajustada para não cortar dados.".replace(",", ".")
+            )
+            fitted = replace(fitted, scale_denominator=int(round(derived)))
     except Exception:
         pass
     map_item.setFrameEnabled(True)
@@ -339,10 +459,12 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
     bar_spec = scalebar_spec(
         fitted.scale_denominator,
         frame.width,
-        max_width_mm=max(12.0, bar_slot_width * 0.88),
+        # 0,70 e não 0,88: o item do QGIS desenha os rótulos ultrapassando as
+        # extremidades da barra, e o excedente precisa caber na faixa.
+        max_width_mm=max(12.0, bar_slot_width * 0.70),
     )
     if include_scale_bar and "scale_bar" in plan.slots:
-        _add_scalebar(layout, map_item, bar_spec, plan, imports, mm)
+        _add_scalebar(layout, map_item, bar_spec, plan, imports, mm, page)
         created["scale_bar"] = "scalebar"
 
     # Escala numérica
@@ -420,6 +542,70 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
         "notes": notes,
         "audit": audit,
     }
+
+
+def _orientation_advice(
+    extent: Any, frame: Any, page: PageSpec, template: str, *, gutter: float, **flags: bool
+) -> list[str]:
+    """Diz se girar a página renderia uma escala maior — e só quando renderia.
+
+    A orientação decide quanto da folha o mapa aproveita: um estado mais alto
+    que largo numa folha em paisagem desperdiça as laterais e sai numa escala
+    menor do que poderia.
+
+    A comparação não pode ser feita pela proporção da *página*: o solucionador
+    põe coluna lateral numa orientação e faixa inferior na outra, então o quadro
+    resultante não acompanha a folha. É preciso resolver o layout alternativo de
+    verdade e comparar os quadros. Sem isso o conselho se inverte — a versão em
+    retrato chegava a recomendar paisagem, que era pior.
+    """
+    if extent.height() <= 0 or frame.height <= 0:
+        return []
+    data_aspect = extent.width() / extent.height()
+
+    def waste(frame_width: float, frame_height: float) -> float:
+        if frame_height <= 0:
+            return float("inf")
+        frame_aspect = frame_width / frame_height
+        return max(data_aspect / frame_aspect, frame_aspect / data_aspect)
+
+    current = waste(frame.width, frame.height)
+    if current < 1.35:
+        return []
+
+    flipped = "portrait" if page.orientation == "landscape" else "landscape"
+    try:
+        alternative = solve_layout(
+            page=resolve_page(page.name, flipped),
+            template=template,
+            include_legend=flags.get("include_legend", True),
+            include_scale_bar=flags.get("include_scale_bar", True),
+            include_scale_text=flags.get("include_scale_text", True),
+            include_north_arrow=flags.get("include_north", True),
+            include_subtitle=flags.get("include_subtitle", True),
+            include_logo=flags.get("include_logo", False),
+            grid_annotation_gutter_mm=gutter,
+        ).map_frame()
+    except Exception:
+        return []
+
+    if waste(alternative.width, alternative.height) >= current * 0.9:
+        return []
+
+    # A escala é ditada pelo eixo mais apertado: terreno dividido por quadro.
+    current_factor = max(extent.width() / frame.width, extent.height() / frame.height)
+    alternative_factor = max(extent.width() / alternative.width, extent.height() / alternative.height)
+    if alternative_factor <= 0:
+        return []
+    gain = current_factor / alternative_factor
+    if gain < 1.12:  # abaixo disso o ganho não paga o ruído do aviso
+        return []
+
+    label = "retrato" if flipped == "portrait" else "paisagem"
+    return [
+        f"Os dados têm proporção {data_aspect:.2f} e o quadro {frame.width / frame.height:.2f}. "
+        f"Em {label} o mapa caberia numa escala cerca de {gain:.1f}x maior, aproveitando melhor a folha."
+    ]
 
 
 def audit_layout(
@@ -570,7 +756,7 @@ def _add_legend(
     return legend
 
 
-def _add_scalebar(layout: Any, map_item: Any, spec: Any, plan: LayoutPlan, imports: dict[str, Any], mm: Any) -> Any:
+def _add_scalebar(layout: Any, map_item: Any, spec: Any, plan: LayoutPlan, imports: dict[str, Any], mm: Any, page: PageSpec | None = None) -> Any:
     bar = imports["QgsLayoutItemScaleBar"](layout)
     bar.setId("scale_bar")
     bar.setLinkedMap(map_item)
@@ -606,11 +792,15 @@ def _add_scalebar(layout: Any, map_item: Any, spec: Any, plan: LayoutPlan, impor
         # reservada, recua para a esquerda em vez de invadir a margem (CART041).
         actual = bar.sizeWithUnits()
         overflow = float(actual.width()) - slot.width
-        if overflow > 0.1:
-            # A barra foi dimensionada para caber (max_width_mm), mas os
-            # rótulos podem transbordar. Centraliza o excedente em vez de
-            # empurrar tudo para um lado e atropelar o vizinho.
-            bar.attemptMove(imports["QgsLayoutPoint"](max(0.0, slot.x - overflow / 2.0), slot.y, mm))
+        if overflow > 0.1 and page is not None:
+            # Se ainda assim transbordar, empurra para a ESQUERDA apenas até o
+            # limite da área útil — nunca para dentro do quadro do mapa, que
+            # fica à esquerda da faixa de apoio. Mover para lá trocava um aviso
+            # de margem por uma sobreposição sobre o mapa, que é pior.
+            right_edge = page.content_x_mm + page.content_width_mm
+            new_x = min(slot.x, right_edge - float(actual.width()))
+            new_x = max(new_x, slot.x - overflow)
+            bar.attemptMove(imports["QgsLayoutPoint"](max(page.content_x_mm, new_x), slot.y, mm))
     except Exception:
         pass
     return bar
@@ -713,7 +903,10 @@ def _apply_grid(map_item: Any, fitted: Any, map_crs: Any, plan: LayoutPlan, impo
     except Exception:
         pass
     horizontal = _quiet(lambda: qt_enum(grid_class, "AnnotationDirection", "Horizontal"))
-    vertical = _quiet(lambda: qt_enum(grid_class, "AnnotationDirection", "VerticalDescending", "Vertical"))
+    # "Vertical" lê de baixo para cima, que é a convenção das folhas
+    # topográficas para os rótulos laterais; "VerticalDescending" inverte a
+    # ordem dos dígitos aos olhos do leitor.
+    vertical = _quiet(lambda: qt_enum(grid_class, "AnnotationDirection", "Vertical"))
     show_all = _quiet(lambda: qt_enum(grid_class, "DisplayMode", "ShowAll"))
 
     for side_name, direction in (("Left", vertical), ("Right", vertical), ("Top", horizontal), ("Bottom", horizontal)):

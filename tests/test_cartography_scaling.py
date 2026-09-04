@@ -83,6 +83,33 @@ class FitExtentTests(unittest.TestCase):
         self.assertLess(fitted.effective_margin_percent, 25.0)
         self.assertTrue(fitted.notes)
 
+    def test_geographic_extent_needs_map_units_per_metre(self):
+        """Graus tratados como metros produzem uma escala sem sentido.
+
+        Regressão de dado real: o Piauí em SIRGAS 2000 geográfico (EPSG:4674)
+        mede ~5,6 x 8,2 graus. Sem converter para metros, a extensão parece ter
+        8 unidades de largura e a escala saía como 1:65 — três ordens de
+        grandeza fora, com o quadro do mapa cortando todos os dados.
+        """
+        piaui = (-45.99, -10.93, -40.37, -2.74)
+        as_if_metres = fit_extent_to_frame(*piaui, 190.0, 140.0, margin_percent=5)
+        self.assertLess(as_if_metres.scale_denominator, 1000)
+
+        # Um grau de longitude a ~7°S mede cerca de 110,5 km.
+        metres_per_degree = 110_500.0
+        corrected = fit_extent_to_frame(
+            *piaui, 190.0, 140.0, margin_percent=5,
+            map_units_per_metre=1.0 / metres_per_degree,
+        )
+        self.assertGreater(corrected.scale_denominator, 3_000_000)
+        self.assertLess(corrected.scale_denominator, 12_000_000)
+
+    def test_scale_bar_for_a_state_sized_map_is_in_kilometres(self):
+        spec = scalebar_spec(7_200_000, 190.0)
+        self.assertEqual(spec.unit, "km")
+        self.assertGreaterEqual(spec.units_per_segment, 10)
+        self.assertEqual(spec.units_per_segment, int(spec.units_per_segment))
+
     def test_rejects_degenerate_extent(self):
         with self.assertRaises(ExtentError):
             fit_extent_to_frame(10, 10, 10, 20, 100, 100)
