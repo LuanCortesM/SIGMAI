@@ -2,6 +2,29 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [0.2.1] — 2026-09-04
+
+Correções encontradas ao testar a 0.2.0 no QGIS 4.1 e ao exercitar o catálogo de comandos contra a malha municipal do IBGE.
+
+### Corrigido — o plugin não abria no QGIS 4
+
+- **`QSizePolicy.Fixed`**, no construtor do painel. O PyQt5 aceita a forma curta do enum; o PyQt6 só aceita a qualificada. O painel morria ao ser construído e clicar no ícone não fazia nada. Como o plugin declara `qgisMaximumVersion=4.99`, era uma promessa quebrada.
+- Mais quinze acessos do mesmo tipo, quatro deles graves: **`QgsLayoutExporter.Success`** (no caminho de exportação — todo `compose_map` quebraria no QGIS 4), `QgsVectorFileWriter.NoError`, `QgsProcessingParameterDefinition.FlagOptional` e os enums de geometria usados pela simbologia.
+- Novo **`tools/check_qt6_compat.py`**: varre o pacote em duas passagens e enxerga também o acesso via dicionário (`imports["QgsUnitTypes"].LayoutMillimeters`), que nenhuma análise de atributos simples encontraria.
+- Novo **`tools/qt6_panel_check.py`**: fabrica um `qgis.PyQt` apontando para o PyQt6 real e constrói o painel inteiro, como o QGIS 4 faz. Ambos viraram teste e job de CI, para que a classe de defeito não volte.
+
+### Corrigido — defeitos achados exercitando o catálogo
+
+- **Rodar um algoritmo do Processing apagava o projeto do usuário.** A transferência de camadas do contexto para o projeto estava na direção contrária, e o primeiro `buffer` levava o projeto junto. O exercitador passou a conferir, após cada bloco, que o número de camadas não diminuiu.
+- **Uma exportação que não desenhou nada recebia nota A.** A regra de quadro em branco olhava só o RGB, e um PNG inteiramente transparente tem RGB zero — era contado como 100% de tinta. Passa a ignorar pixels transparentes e a recusar quadros de cor única.
+- **Renderizar fora da thread principal do Qt produz arquivo vazio em silêncio.** O `QPainter` só desenha na thread da aplicação, e `exportToImage` devolve sucesso mesmo assim. O compositor agora recusa com uma mensagem que explica, em vez de entregar um mapa vazio.
+
+### Melhorado
+
+- O Processing deixa de depender do plugin Processing: executa pela API de núcleo quando ele não está disponível. Sem algoritmos registrados, o erro diz que o problema não é o nome e onde ativar o plugin; com nome errado, sugere os parecidos.
+- Nova regra **CART064**: UTM esticado além da faixa útil da zona. Mapear o Piauí em UTM 23S dava eastings de 1.250.000 numa zona que termina em 834.000. O limiar da projeção automática passou a olhar o alcance em longitude, e recortes estaduais caem na Policônica do Brasil (EPSG:5880).
+- **`tools/exercise_commands.py`** roda 41 comandos contra dados reais; **`tools/end_to_end_mcp_demo.py`** compõe um mapa complexo do handshake MCP ao laudo, sem chamar PyQGIS em lugar nenhum.
+
 ## [0.2.0] — 2026-09-04
 
 Esta versão conserta os dois motivos pelos quais a ferramenta não entregava o que prometia: nenhum cliente de IA conseguia conectar, e os mapas que ela produzia não eram cartograficamente corretos — mas eram reportados como se fossem.
@@ -74,6 +97,7 @@ Esta versão conserta os dois motivos pelos quais a ferramenta não entregava o 
 
 - Primeira versão pública: ponte local com token, registro de comandos, permissões, dry-run e fundações de cartografia, vetor, raster e diagnóstico de plugins.
 
+[0.2.1]: https://github.com/LuanCortesM/SIGMAI/releases/tag/v0.2.1
 [0.2.0]: https://github.com/LuanCortesM/SIGMAI/releases/tag/v0.2.0
 [0.1.1]: https://github.com/LuanCortesM/SIGMAI/releases/tag/v0.1.1
 [0.1.0]: https://github.com/LuanCortesM/SIGMAI/releases/tag/v0.1.0
