@@ -1,0 +1,49 @@
+name: Cartographic rule
+description: Propose a new rule, or dispute an existing one
+labels: ["cartography"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The rulebook is meant to be argued with. A rule that cannot be justified should be removed as readily as a missing one should be added.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: This is
+      options:
+        - A rule that should exist and does not
+        - A rule that is wrong, or too strict
+        - A rule that should not be an error / should be an error
+    validations:
+      required: true
+  - type: input
+    id: rule-id
+    attributes:
+      label: Existing rule id, if any
+      placeholder: "CART022"
+  - type: textarea
+    id: check
+    attributes:
+      label: What should be checked
+      description: Expressed against the map, not the code.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters to the reader of the map
+      description: One sentence on the consequence. "It looks better" is not enough.
+    validations:
+      required: true
+  - type: input
+    id: reference
+    attributes:
+      label: Reference
+      description: A standard, a textbook, the QGIS documentation.
+    validations:
+      required: true
+  - type: input
+    id: fix
+    attributes:
+      label: The command that satisfies it
+      description: This string is what the AI assistant reads and acts on.

@@ -1,24 +1,27 @@
-# Connect With Codex
+# Connecting Codex to QGIS
 
-Preferred order:
+Codex CLI reads MCP servers from `~/.codex/config.toml`. The SIGMAI panel produces the block: step 2, choose **Codex CLI**, press **Copiar configuração**, and append it to the file.
 
-1. Use SIGMAI MCP tools.
-2. Use simple CLI:
+```toml
+[mcp_servers.sigmai]
+command = "/absolute/path/to/python"
+args = ["/absolute/path/to/sigmai/mcp/sigmai_mcp.py"]
 
-```text
-python tools\sigmai.py status
-python tools\sigmai.py capabilities
-python tools\sigmai.py test
+[mcp_servers.sigmai.env]
+PYTHONUNBUFFERED = "1"
+PYTHONUTF8 = "1"
 ```
 
-3. Use Python client:
+Note the TOML section name is `mcp_servers` with an underscore, unlike the JSON clients' `mcpServers`. Everything else — absolute paths, the bridge running first — is the same.
 
-```text
-python codex_plugin\client\sigmai_client.py status
+## Without MCP
+
+If you would rather not configure MCP, the repository ships a direct client:
+
+```bash
+python tools/sigmai.py connect SG-4821-KQ9M
 ```
 
-4. If automatic discovery fails, provide the pairing code from QGIS:
+The pairing code is shown in the SIGMAI panel. This path exists for scripting and debugging; the MCP server is the supported route for AI assistants, because it is the one that carries tool schemas, annotations and the audit report back to the model.
 
-```text
-python tools\sigmai.py connect SG-4821-KQ9M
-```
+See also [DIRECT_CODEX_CONNECTION.md](DIRECT_CODEX_CONNECTION.md) and, for diagnosis, the troubleshooting section of [CONNECT_WITH_CLAUDE.md](CONNECT_WITH_CLAUDE.md#when-it-does-not-connect).

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question or idea
+    url: https://github.com/LuanCortesM/SIGMAI/discussions
+    about: Ask how something works, or float an idea before writing code.

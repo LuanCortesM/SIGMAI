@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+title: "SIGMAI: Secure GIS-AI Interface"
+message: "If you use this software in research, please cite it as below."
+type: software
+authors:
+  - family-names: Maciel
+    given-names: Luan da Silva Cortes
+    email: herpetomantiqueira@gmail.com
+    alias: "MACIEL, L. S. C."
+repository-code: "https://github.com/LuanCortesM/SIGMAI"
+url: "https://plugins.qgis.org/plugins/sigmai/"
+abstract: >-
+  SIGMAI is a QGIS plugin that lets AI assistants operate QGIS through a local,
+  token-protected command interface instead of screen automation. It exposes a
+  standards-compliant Model Context Protocol server, a consent layer that keeps
+  the user in control of every action that changes the project or writes a file,
+  and a cartographic engine that composes page-aware map layouts and audits them
+  against an explicit, machine-readable rulebook.
+keywords:
+  - QGIS
+  - GIS
+  - cartography
+  - Model Context Protocol
+  - artificial intelligence
+  - reproducible research
+  - map quality
+license: GPL-3.0-or-later
+version: 0.2.0
