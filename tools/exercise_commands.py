@@ -104,6 +104,7 @@ def main() -> int:
     QgsApplication.setPrefixPath("/usr", True)
     app = QgsApplication([], False)
     app.initQgis()
+    from tools.qgis_lifecycle import shutdown_qgis
     try:
         layers = load_layers(Path(args.data))
         print(f"Camadas carregadas: {', '.join(layers)}")
@@ -142,7 +143,7 @@ def main() -> int:
         server.stop()
         return runner.summary() or (1 if outcome.get("error") else 0)
     finally:
-        app.exitQgis()
+        shutdown_qgis(app)
 
 
 def exercise(runner: Runner, layers: dict[str, Any]) -> None:

@@ -72,6 +72,7 @@ def observe_layout(
         "legend": None,
         "scalebar": None,
         "north": None,
+        "map_frames": [],
         "output": _observe_output(output_path),
     }
 
@@ -87,8 +88,19 @@ def observe_layout(
         entry = _observe_item(item, item_id)
         observation["items"].append(entry)
         role = entry.get("role")
-        if role == "map" and map_item is None:
-            map_item = item
+        # Num layout de comparação há dois itens de mapa; o laudo se refere ao
+        # principal, identificado pelo id, e não ao primeiro que aparecer na
+        # ordem de desenho.
+        if role == "map":
+            observation["map_frames"].append({
+                "item_id": item_id,
+                "scale": round(float(_safe(item.scale, 0.0) or 0.0), 1),
+            })
+            # Num layout de comparação há dois itens de mapa; o laudo se refere
+            # ao principal, identificado pelo id, e não ao primeiro na ordem de
+            # desenho.
+            if map_item is None or item_id == "main_map":
+                map_item = item
         elif role == "legend" and legend_item is None:
             legend_item = item
         elif role == "scalebar" and scalebar_item is None:

@@ -162,6 +162,8 @@ def solve_layout(
     include_logo: bool = False,
     include_inset: bool = False,
     grid_annotation_gutter_mm: float = 0.0,
+    panels: int = 1,
+    scale_bar_under_map: bool = False,
 ) -> LayoutPlan:
     """Resolve o template escolhido para a página informada."""
     spec = resolve_page(page)
@@ -218,18 +220,32 @@ def solve_layout(
     elif arrangement == "coluna_lateral":
         side_w = content_w * float(config["side_column_fraction"])
         map_w = content_w - side_w - gutter
-        slots["map"] = Rect(content_x, body_y, map_w, body_h)
+        map_h = body_h
+        # Numa coluna estreita a barra de escala não alcança o comprimento
+        # mínimo legível. Levá-la para uma faixa sob o mapa — placement clássico
+        # em cartas publicadas — dá a ela a largura do quadro inteiro.
+        strip_h = 0.0
+        if scale_bar_under_map and include_scale_bar:
+            strip_h = max(MIN_SCALEBAR_MM, body_h * 0.07)
+            map_h = body_h - strip_h - gutter
+        slots["map"] = Rect(content_x, body_y, map_w, map_h)
         _fill_support_column(
             slots,
             Rect(content_x + map_w + gutter, body_y, side_w, body_h),
             gutter=gutter,
             include_legend=include_legend,
-            include_scale_bar=include_scale_bar,
+            include_scale_bar=include_scale_bar and not strip_h,
             include_scale_text=include_scale_text,
             include_north_arrow=include_north_arrow,
             include_logo=include_logo,
             include_inset=include_inset,
         )
+        if strip_h:
+            slots["scale_bar"] = Rect(content_x, body_y + map_h + gutter, map_w, strip_h)
+            notes.append(
+                "Barra de escala movida para uma faixa sob o mapa: a coluna lateral "
+                "é estreita demais para uma barra de comprimento legível."
+            )
     else:
         support_h = min(body_h * 0.30, max(26.0, body_h * 0.22))
         map_h = body_h - support_h - gutter
@@ -246,19 +262,46 @@ def solve_layout(
             include_inset=include_inset,
         )
 
+    # Comparação lado a lado: o corpo se divide em dois quadros de mesmo
+    # tamanho. Divide-se no eixo longo — em paisagem, dois quadros lado a lado;
+    # em retrato, um sobre o outro — para que cada painel fique o mais próximo
+    # possível de um quadrado, que é onde a maioria dos recortes cabe melhor.
+    if panels >= 2 and "map" in slots:
+        base = slots["map"]
+        panel_gutter = gutter * 1.5
+        if base.width >= base.height:
+            half = (base.width - panel_gutter) / 2.0
+            slots["map"] = Rect(base.x, base.y, half, base.height)
+            slots["map_2"] = Rect(base.x + half + panel_gutter, base.y, half, base.height)
+        else:
+            half = (base.height - panel_gutter) / 2.0
+            slots["map"] = Rect(base.x, base.y, base.width, half)
+            slots["map_2"] = Rect(base.x, base.y + half + panel_gutter, base.width, half)
+        # Cada painel precisa de um rótulo próprio: dois mapas sem legenda de
+        # painel deixam o leitor adivinhando qual é qual.
+        caption_h = max(5.0, content_h * 0.028)
+        for key in ("map", "map_2"):
+            panel = slots[key]
+            slots[key + "_caption"] = Rect(panel.x, panel.y, panel.width, caption_h)
+            slots[key] = Rect(panel.x, panel.y + caption_h, panel.width, panel.height - caption_h)
+        notes.append("Corpo dividido em dois quadros de mapa para comparação, com legenda de painel.")
+
     # Os rótulos da grade são desenhados FORA do quadro do mapa e invadem o
     # que estiver ao lado. Encolher o quadro é o que impede a colisão com o
     # subtítulo e com a coluna de apoio.
-    if grid_annotation_gutter_mm > 0 and "map" in slots:
-        gutter = float(grid_annotation_gutter_mm)
-        raw = slots["map"]
-        slots["map"] = Rect(
-            raw.x + gutter,
-            raw.y + gutter,
-            max(20.0, raw.width - 2 * gutter),
-            max(20.0, raw.height - 2 * gutter),
-        )
-        notes.append(f"Quadro do mapa recuado {gutter:g} mm para acomodar os rótulos da grade.")
+    if grid_annotation_gutter_mm > 0:
+        annotation_gutter = float(grid_annotation_gutter_mm)
+        for key in ("map", "map_2"):
+            if key not in slots:
+                continue
+            raw = slots[key]
+            slots[key] = Rect(
+                raw.x + annotation_gutter,
+                raw.y + annotation_gutter,
+                max(20.0, raw.width - 2 * annotation_gutter),
+                max(20.0, raw.height - 2 * annotation_gutter),
+            )
+        notes.append(f"Quadro do mapa recuado {annotation_gutter:g} mm para acomodar os rótulos da grade.")
 
     fonts = {
         "title": float(config["title_font_pt"]),
@@ -352,7 +395,10 @@ def _fill_support_band(
     if include_inset:
         weights.append(("inset", 1.4))
     if include_scale_bar or include_scale_text:
-        weights.append(("scale_block", 1.6))
+        # A barra é o único item cujo comprimento tem significado métrico: os
+        # demais apenas precisam caber. Numa faixa larga (A2, A1, A0) uma fatia
+        # estreita forçava barras de 13% do quadro, que a regra CART022 reprova.
+        weights.append(("scale_block", 2.2))
     if include_north_arrow:
         weights.append(("north", 0.7))
     if include_logo:

@@ -102,6 +102,7 @@ def main() -> int:
     QgsApplication.setPrefixPath("/usr", True)
     app = QgsApplication([], False)
     app.initQgis()
+    from tools.qgis_lifecycle import shutdown_qgis
 
     from sigmai.bridge_server import SIGMAIServer
     from sigmai.consent import MODE_ALLOW_SESSION
@@ -175,7 +176,7 @@ def main() -> int:
     finally:
         client.close()
         server.stop()
-        app.exitQgis()
+        shutdown_qgis(app)
 
 
 def converse(client: "MCPClient", ids_holder: dict[str, Any], args: Any) -> int:

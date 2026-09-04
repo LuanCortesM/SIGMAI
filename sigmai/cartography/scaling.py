@@ -354,13 +354,19 @@ def scalebar_spec(
     for unit_rank, (unit, factor, label) in enumerate(unit_options):
       target_in_unit = target_ground_metres / factor
       for segments in (4, 2, 5, 3):
+        # O QGIS desenha um segmento à esquerda do zero quando há segmentos
+        # suficientes à direita; ele faz parte da barra e conta no comprimento.
+        # Ignorá-lo subestimava a barra em 25% — a barra estourava a faixa
+        # reservada e a fração medida na auditoria não batia com a planejada.
+        segments_left = 1 if segments >= 4 else 0
+        drawn_segments = segments + segments_left
         try:
-            per_segment = nice_number(target_in_unit / segments, "nearest")
+            per_segment = nice_number(target_in_unit / drawn_segments, "nearest")
         except ValueError:
             continue
         if per_segment <= 0:
             continue
-        total_ground = per_segment * segments * factor
+        total_ground = per_segment * drawn_segments * factor
         bar_mm = (total_ground / scale_denominator) * _MM_PER_METRE
         fraction = bar_mm / frame_width_mm
         if not (SCALEBAR_MIN_FRACTION <= fraction <= SCALEBAR_MAX_FRACTION):
@@ -385,7 +391,7 @@ def scalebar_spec(
             unit_label=label,
             units_per_segment=per_segment,
             segments_right=segments,
-            segments_left=1 if segments >= 4 else 0,
+            segments_left=segments_left,
             total_ground_metres=total_ground,
             bar_width_mm=bar_mm,
             frame_fraction=fraction,

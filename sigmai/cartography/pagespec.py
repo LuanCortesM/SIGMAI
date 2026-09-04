@@ -116,12 +116,17 @@ def resolve_page(
     page: str | dict[str, Any] | PageSpec | None = None,
     orientation: str | None = None,
     margin_mm: float | dict[str, float] | None = None,
+    strict: bool = False,
 ) -> PageSpec:
     """Constrói um :class:`PageSpec` a partir de entrada tolerante.
 
     Aceita ``"A3"``, ``"a3 portrait"``, ``{"width_mm": 300, "height_mm": 200}``
     ou um ``PageSpec`` já pronto. Entrada desconhecida cai em A4 paisagem, que
     é o que ``QgsPrintLayout.initializeDefaults()`` cria.
+
+    Com ``strict=True`` a entrada desconhecida vira ``ValueError`` em vez de cair
+    no padrão. É o modo usado quando quem pediu foi um assistente: aceitar em
+    silêncio um formato que não existe entrega uma página diferente da pedida.
     """
     if isinstance(page, PageSpec):
         return page
@@ -142,6 +147,8 @@ def resolve_page(
             margin_mm = page.get("margin_mm", page.get("margins_mm"))
     elif isinstance(page, str) and page.strip():
         tokens = page.replace("-", " ").replace("_", " ").split()
+        unknown_tokens: list[str] = []
+        matched_size = False
         for token in tokens:
             lowered = token.lower()
             if lowered in ORIENTATIONS:
@@ -152,6 +159,25 @@ def resolve_page(
                 resolved_orientation = resolved_orientation or "landscape"
             elif token.upper() in PAGE_SIZES:
                 name = token.upper()
+                matched_size = True
+            else:
+                unknown_tokens.append(token)
+        if strict and (unknown_tokens or not matched_size):
+            import difflib
+
+            offending = unknown_tokens or [page.strip()]
+            sizes = ", ".join(sorted(PAGE_SIZES))
+            hints = []
+            for token in offending:
+                near = difflib.get_close_matches(token.upper(), list(PAGE_SIZES), n=1, cutoff=0.6)
+                if near:
+                    hints.append(f"{token} -> {near[0]}")
+            suggestion = f" Você quis dizer {'; '.join(hints)}?" if hints else ""
+            raise ValueError(
+                f"Formato de página não reconhecido: {', '.join(offending)}."
+                f"{suggestion} Formatos aceitos: {sizes}."
+                " A orientação vai junto, por exemplo \"A3 portrait\" ou \"A4 paisagem\"."
+            )
 
     if width is None or height is None:
         width, height = PAGE_SIZES.get(name.upper(), PAGE_SIZES["A4"])

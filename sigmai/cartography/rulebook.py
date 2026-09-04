@@ -39,6 +39,9 @@ MIN_PRINT_FONT_PT = 6.0
 
 #: Fração do quadro do mapa que a barra de escala deve ocupar.
 SCALEBAR_MIN_FRACTION = 0.15
+#: Comprimento absoluto a partir do qual uma barra é mensurável no papel,
+#: mesmo quando é proporcionalmente curta num formato grande (A2, A1, A0).
+SCALEBAR_MIN_LENGTH_MM = 45.0
 SCALEBAR_MAX_FRACTION = 0.45
 
 #: Fração mínima da área útil que o quadro do mapa deve ocupar para que a peça
@@ -206,11 +209,24 @@ def _check_scalebar_proportion(observation: dict[str, Any]) -> CheckOutcome:
         return _skip("Não foi possível medir a barra em relação ao quadro.")
     if SCALEBAR_MIN_FRACTION <= float(fraction) <= SCALEBAR_MAX_FRACTION:
         return _pass(f"A barra ocupa {float(fraction):.0%} da largura do quadro.")
+    length_mm = bar.get("bar_width_mm")
     if float(fraction) < SCALEBAR_MIN_FRACTION:
+        # A proporção não é o critério completo. Numa A0 ou A2 o quadro tem
+        # 40 cm de largura, e uma barra de 15% teria 60 mm — mas uma de 45 mm
+        # já se mede com a régua e com o olho. O que impede estimar distância é
+        # a barra curta em termos absolutos, não a barra curta em relação a uma
+        # folha grande. Só reprova quando as duas coisas falham.
+        if length_mm is not None and float(length_mm) >= SCALEBAR_MIN_LENGTH_MM:
+            return _pass(
+                f"A barra tem {float(length_mm):.0f} mm ({float(fraction):.0%} do quadro): "
+                "proporcionalmente curta por causa do formato grande, mas legível no papel."
+            )
+        medida = f" ({float(length_mm):.0f} mm no papel)" if length_mm is not None else ""
         return _fail(
-            f"A barra ocupa apenas {float(fraction):.0%} da largura do quadro. "
+            f"A barra ocupa apenas {float(fraction):.0%} da largura do quadro{medida}. "
             "Uma barra curta demais não permite estimar distâncias.",
             frame_fraction=fraction,
+            bar_width_mm=length_mm,
         )
     return _fail(
         f"A barra ocupa {float(fraction):.0%} da largura do quadro e compete com o mapa.",
@@ -504,6 +520,32 @@ def _check_crs_suits_extent(observation: dict[str, Any]) -> CheckOutcome:
     )
 
 
+def _check_comparison_panels(observation: dict[str, Any]) -> CheckOutcome:
+    frames = observation.get("map_frames") or []
+    if len(frames) < 2:
+        return _skip("O layout tem um único quadro de mapa.")
+    scales = [float(frame.get("scale") or 0.0) for frame in frames if frame.get("scale")]
+    if len(scales) < 2:
+        return _skip("Não foi possível medir a escala dos quadros.")
+    if max(scales) / min(scales) <= 1.02:
+        return _pass(f"Os {len(frames)} quadros estão na mesma escala (1:{min(scales):,.0f}).".replace(",", "."))
+
+    has_bar = bool((observation.get("scalebar") or {}).get("item_id"))
+    captions = [
+        str(item.get("text", "")) for item in _items(observation)
+        if item.get("type") == "label" and "1:" in str(item.get("text", ""))
+    ]
+    if not has_bar and len(captions) >= 2:
+        return _pass("Os quadros têm escalas diferentes e cada um anuncia a sua.")
+    return _fail(
+        f"O layout tem {len(frames)} quadros de mapa em escalas diferentes "
+        f"(1:{min(scales):,.0f} a 1:{max(scales):,.0f}) e uma indicação de escala única. "
+        "O leitor vai comparar tamanhos entre os painéis e a comparação não se sustenta."
+        .replace(",", "."),
+        scales=scales,
+    )
+
+
 def _check_extent_contains_data(observation: dict[str, Any]) -> CheckOutcome:
     map_info = _map(observation)
     extent = map_info.get("extent") or {}
@@ -705,6 +747,15 @@ RULES: tuple[Rule, ...] = (
          "Reprojete para o UTM da zona ou para uma projeção equivalente à finalidade do mapa.",
          "Snyder, Map Projections: A Working Manual (USGS PP 1395)",
          _check_projected_crs),
+    Rule("CART066", "escala", SEVERITY_ERROR,
+         "Painéis comparáveis anunciam suas escalas", "Comparison panels declare their scales",
+         "Dois quadros de mapa na mesma folha convidam à comparação visual de tamanhos. Em escalas "
+         "diferentes e com uma indicação de escala única, essa comparação é falsa e o leitor não tem "
+         "como perceber.",
+         "Iguale os painéis com comparison_same_scale=true, ou deixe cada legenda de painel anunciar "
+         "a própria escala — compose_map faz isso automaticamente.",
+         "Brewer, Designing Better Maps — multiple map frames and comparability",
+         _check_comparison_panels),
     Rule("CART064", "projecao", SEVERITY_WARNING,
          "Projeção adequada à extensão", "Projection suits the extent",
          "Uma zona UTM tem 6° de largura e só mantém o fator de escala dentro de 1/1000 perto do "

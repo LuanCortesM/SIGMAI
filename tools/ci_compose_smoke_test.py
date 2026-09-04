@@ -74,6 +74,7 @@ def main() -> int:
     QgsApplication.setPrefixPath("/usr", True)
     app = QgsApplication([], False)
     app.initQgis()
+    from tools.qgis_lifecycle import shutdown_qgis
     try:
         from sigmai.cartography.compose import compose_map
 
@@ -112,6 +113,30 @@ def main() -> int:
                 if not output.exists():
                     failures.append(f"{page}/{template}: arquivo de saída não foi criado")
 
+            # Caminhos de saída inválidos precisam ser recusados com mensagem
+            # acionável, e não produzir um mapa que não existe no disco.
+            base = {
+                "layer_ids": [polygons.id()],
+                "title": "Recusa esperada",
+                "page": "A4 landscape",
+                "template": "cientifico",
+                "data_source": "Dados sintéticos",
+                "map_author": "CI",
+                "confirm_overwrite": True,
+            }
+            for label, output_path in (
+                ("pasta como saída", directory),
+                ("sem extensão", str(Path(directory) / "sem_extensao")),
+                ("extensão desconhecida", str(Path(directory) / "mapa.tiff")),
+                ("pasta inexistente", str(Path(directory) / "nao_existe" / "m.png")),
+            ):
+                try:
+                    compose_map({**base, "output_path": output_path}, {"dry_run": False})
+                except Exception as exc:  # noqa: BLE001 - o teste é sobre recusar
+                    print(f"{label:24} -> recusado: {str(exc)[:80]}")
+                else:
+                    failures.append(f"{label}: deveria ter sido recusado")
+
         if failures:
             print("\nFALHOU:")
             for failure in failures:
@@ -120,7 +145,7 @@ def main() -> int:
         print("\nComposição e auditoria aprovadas em todas as combinações.")
         return 0
     finally:
-        app.exitQgis()
+        shutdown_qgis(app)
 
 
 if __name__ == "__main__":

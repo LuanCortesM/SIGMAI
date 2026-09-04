@@ -298,12 +298,15 @@ TOOLS: list[dict[str, Any]] = [
         ),
         "inputSchema": _obj({
             "layer_ids": {**_SA, "description": "Camadas a exibir, na ordem de desenho (a última fica por cima)."},
+            "subject_layer_id": {**_S, "description": "Camada que define o recorte. As demais entram como contexto. Use para 'mapa DO parque MOSTRANDO os municípios'."},
             "title": _S,
             "subtitle": _S,
             "page": {**_S, "description": "Ex.: 'A4 landscape', 'A3 retrato', 'A5 portrait'. Padrão A4 paisagem."},
             "template": {**_S, "description": "cientifico, publicacao, relatorio_ambiental ou minimalista."},
             "margin_percent": _N,
-            "map_crs": {**_S, "description": "CRS do mapa, ex.: EPSG:31983. Se omitido e o projeto for geográfico, o SIGMAI sugere o UTM da zona."},
+            "map_crs": {**_S, "description": "CRS do mapa, ex.: EPSG:31983. Se omitido e o projeto for geográfico, o SIGMAI escolhe UTM ou Policônica conforme a extensão."},
+            "include_inset": {**_B, "description": "Inserto de localização com o recorte principal marcado."},
+            "label_field": {**_S, "description": "Campo cujos valores viram rótulos das feições."},
         }, ["layer_ids"]),
         "annotations": {"title": "Planejar mapa", **READ_ONLY},
         "handler": lambda args: bridge_call("compose_map", dict(args), dry_run=True),
@@ -324,9 +327,15 @@ TOOLS: list[dict[str, Any]] = [
             "layer_ids": {**_SA, "description": "Camadas a exibir, na ordem de desenho."},
             "title": {**_S, "description": "Título do mapa."},
             "subtitle": _S,
-            "output_path": {**_S, "description": "Caminho absoluto do arquivo de saída."},
+            "output_path": {**_S, "description": (
+                "Caminho absoluto do ARQUIVO de saída, com nome e extensão — não a pasta. "
+                "A extensão define o formato quando 'format' não é informado."
+            )},
             "format": {"type": "string", "enum": ["pdf", "png", "svg"]},
-            "page": {**_S, "description": "Ex.: 'A4 landscape', 'A3 retrato'."},
+            "page": {**_S, "description": (
+                "Formato e orientação, ex.: 'A4 landscape', 'A3 retrato', 'A2 portrait'. "
+                "Formatos: A0-A5, B4, B5, LETTER, LEGAL, TABLOID. Um formato desconhecido é recusado."
+            )},
             "template": {"type": "string", "enum": ["cientifico", "publicacao", "relatorio_ambiental", "minimalista"]},
             "map_crs": _S,
             "margin_percent": _N,
@@ -337,6 +346,42 @@ TOOLS: list[dict[str, Any]] = [
             "legend_title": _S,
             "grid_style": {"type": "string", "enum": ["solid", "cross", "markers", "frame"]},
             "apply_style": {"type": "string", "enum": ["missing", "all", "none"], "description": "'missing' (padrão) só estiliza camadas sem simbologia temática definida."},
+            "subject_layer_id": {**_S, "description": (
+                "Camada que define o recorte; as demais entram como contexto. É assim que se pede "
+                "'mapa DO parque MOSTRANDO os municípios em volta' — sem isso o recorte vira a união "
+                "de todas as camadas e o assunto some."
+            )},
+            "include_inset": {**_B, "description": (
+                "Acrescenta um inserto de localização com o retângulo do recorte principal desenhado "
+                "por cima. É o elemento que responde 'onde fica' — indispensável em escala grande para "
+                "quem não conhece a região."
+            )},
+            "inset_layer_ids": {**_SA, "description": "Camadas do inserto. Use um limite municipal, estadual ou de bacia; sem contexto o inserto não localiza nada."},
+            "inset_zoom_factor": {**_N, "description": "Quantas vezes mais largo que o recorte principal, quando não há camada de contexto. Padrão 12."},
+            "label_field": {**_S, "description": (
+                "Campo cujos valores viram rótulos das feições, com halo branco. Um campo que não "
+                "existe é recusado com a lista dos campos disponíveis — consulte layer_info antes."
+            )},
+            "label_layer_id": {**_S, "description": "Camada a rotular. Se omitido, a primeira que tiver o campo."},
+            "label_font_size": _N,
+            "second_map": {
+                "type": "object",
+                "description": (
+                    "Segundo quadro de mapa na mesma folha, para comparação. Os dois painéis são "
+                    "igualados na escala mais aberta por padrão, porque comparar tamanhos entre "
+                    "painéis de escalas diferentes é falso."
+                ),
+                "properties": {
+                    "layer_ids": _SA,
+                    "subject_layer_id": _S,
+                    "panel_title": {**_S, "description": "Legenda do painel direito/inferior."},
+                    "margin_percent": _N,
+                },
+                "required": ["layer_ids"],
+                "additionalProperties": False,
+            },
+            "comparison_same_scale": {**_B, "description": "Padrão true. Se false, cada painel anuncia a própria escala e a barra única é removida."},
+            "panel_title": {**_S, "description": "Legenda do painel esquerdo/superior num mapa duplo."},
             "include_legend": _B,
             "include_scale_bar": _B,
             "include_north_arrow": _B,
@@ -423,7 +468,32 @@ painel do SIGMAI dentro do QGIS. Uma recusa não é motivo para tentar de novo c
 os mesmos parâmetros.
 
 Autoria: o autor do plugin não é o autor do mapa. Pergunte ao usuário o que deve
-constar em map_author e data_source; sem fonte declarada o mapa não é citável."""
+constar em map_author e data_source; sem fonte declarada o mapa não é citável.
+
+Três parâmetros resolvem a maioria dos pedidos de quem não conhece QGIS:
+
+- subject_layer_id — "mapa DO parque MOSTRANDO os municípios" enquadra o parque
+  e desenha os municípios em volta. Sem ele o recorte vira a união de todas as
+  camadas e o assunto vira um ponto invisível.
+- include_inset — responde "onde fica isso?". Em escala grande, é o elemento
+  que falta com mais frequência. Passe inset_layer_ids com um limite estadual
+  ou municipal, senão o inserto fica vazio.
+- second_map — dois recortes na mesma folha. Por padrão os painéis são
+  igualados na escala mais aberta; comparar tamanhos entre escalas diferentes
+  é enganoso, e o SIGMAI recusa fazer isso em silêncio.
+
+compose_map recusa em vez de improvisar. Toda recusa vem com a lista do que é
+aceito — leia a lista em vez de tentar variações do nome. Ele recusa:
+
+- parâmetro que não conheça (inclusive erro de digitação);
+- formato de página ou template que não exista;
+- label_field que não exista nas camadas do mapa (chame sigmai_layer_info
+  antes para ver os campos);
+- output_path que seja uma pasta, ou sem extensão reconhecida;
+- exportação que não gerou arquivo no disco.
+
+Isso é deliberado: um mapa entregue com um parâmetro ignorado é um mapa
+diferente do que você descreveu ao usuário."""
 
 
 # ---------------------------------------------------------------------------
