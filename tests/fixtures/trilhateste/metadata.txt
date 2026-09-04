@@ -1,0 +1,17 @@
+[general]
+name=TrilhaTeste
+qgisMinimumVersion=3.28
+qgisMaximumVersion=4.99
+description=Plugin de terceiro, com um algoritmo de Processing, para provar a corrente IA -> SIGMAI -> QGIS -> plugin.
+about=Existe apenas como alvo de auditoria. Registra um provedor de Processing com um algoritmo que mede o comprimento de uma trilha.
+version=0.1.0
+author=Ensaio
+email=ensaio@exemplo.org
+category=Analysis
+icon=icone.png
+experimental=True
+deprecated=False
+tags=trilha,teste,processing
+homepage=https://exemplo.org/trilhateste
+repository=https://exemplo.org/trilhateste
+tracker=https://exemplo.org/trilhateste/issues

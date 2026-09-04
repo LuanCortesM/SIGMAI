@@ -771,11 +771,15 @@ def run_plugin_algorithm_generic_safe(params: dict[str, Any], context: dict[str,
             raise ValidationError("OVERWRITE_BLOCKED", "Output path exists. Pass confirm_overwrite=true to replace it.", {"path": str(output_path)})
         if output_path.parent and not output_path.parent.exists():
             raise ValidationError("BAD_REQUEST", "Output directory does not exist.", {"path": str(output_path.parent)})
-    try:
-        import processing  # type: ignore
-    except Exception as exc:
-        raise ValidationError("PROCESSING_NOT_AVAILABLE", "QGIS Processing is not available.", {}) from exc
-    result = processing.run(params["algorithm_id"], params.get("parameters", {}))
+    # ``import processing`` traz o *plugin* Processing. Se o usuário o desativou,
+    # ou se o QGIS roda sem interface, o import falha e a resposta era "QGIS
+    # Processing is not available" — como se o QGIS não tivesse Processing,
+    # quando o núcleo tem tudo. O caminho comum (run_processing) já usa o
+    # bootstrap que contorna isso; este aqui tinha ficado para trás, e o efeito
+    # era não conseguir executar algoritmo de plugin nenhum nesse cenário.
+    from .processing_bootstrap import run_algorithm
+
+    result = run_algorithm(params["algorithm_id"], params.get("parameters", {}))
     return {"algorithm": params["algorithm_id"], "result": {key: str(value) for key, value in result.items()}, "generic_plugin_run": True, "risk": risk}
 
 
@@ -785,14 +789,40 @@ def get_plugin_algorithm_info(params: dict[str, Any], context: dict[str, Any]):
     return get_processing_algorithm_info({"algorithm_id": require_param(params, "algorithm_id", str)}, context)
 
 
-def run_plugin_algorithm_safe(params: dict[str, Any], context: dict[str, Any]):
-    from .run_processing import handle
+#: Adaptadores dedicados: algoritmos de plugin com contrato conhecido, que
+#: podem ser chamados direto. A lista é pequena de propósito — um adaptador
+#: dedicado só se justifica quando alguém verificou aquele algoritmo caso a
+#: caso. Para qualquer outro plugin existe o caminho genérico, que classifica
+#: o risco e exige as confirmações correspondentes.
+DEDICATED_PLUGIN_ADAPTERS = frozenset({"topotrail:topotrail"})
 
+
+def run_plugin_algorithm_safe(params: dict[str, Any], context: dict[str, Any]):
+    """Adaptador dedicado. Para plugin qualquer, use run_plugin_algorithm_generic_safe.
+
+    A recusa daqui apontava só "não está na lista permitida", sem dizer que
+    existe outro caminho — quem estivesse auditando o próprio plugin concluía,
+    com razão, que o SIGMAI não executava plugin de terceiro. Executa, pelo
+    caminho genérico, que aliás é o mais protegido dos dois: este aqui
+    encaminhava direto, sem classificação de risco.
+    """
     algorithm_id = require_param(params, "algorithm_id", str)
-    allowed_plugin_algorithms = {"topotrail:topotrail"}
-    if algorithm_id not in allowed_plugin_algorithms:
-        raise ValidationError("PLUGIN_ALGORITHM_NOT_ALLOWED", "Plugin algorithm is not allowlisted for safe execution.", {"algorithm_id": algorithm_id, "allowed": sorted(allowed_plugin_algorithms)})
-    return handle({"algorithm": algorithm_id, "parameters": params.get("parameters", {}), "confirm_overwrite": bool(params.get("confirm_overwrite", False))}, context)
+    if algorithm_id not in DEDICATED_PLUGIN_ADAPTERS:
+        raise ValidationError(
+            "PLUGIN_ALGORITHM_NOT_ALLOWED",
+            f"{algorithm_id!r} não tem adaptador dedicado no SIGMAI — a lista de adaptadores "
+            f"cobre apenas {sorted(DEDICATED_PLUGIN_ADAPTERS)}. Isso não impede executá-lo: "
+            "chame run_plugin_algorithm_generic_safe com o mesmo algorithm_id e os mesmos "
+            "parameters. Esse caminho serve qualquer plugin, classifica o risco do algoritmo, "
+            "simula antes com dry_run_plugin_algorithm_generic e exige as confirmações "
+            "correspondentes ao que ele faz.",
+            {"algorithm_id": algorithm_id,
+             "dedicated_adapters": sorted(DEDICATED_PLUGIN_ADAPTERS),
+             "use_instead": "run_plugin_algorithm_generic_safe"},
+        )
+    # Mesmo com adaptador dedicado, passa pelo portão de risco: um caminho
+    # chamado "safe" não pode ser o menos protegido dos dois.
+    return run_plugin_algorithm_generic_safe(params, context)
 
 
 def generate_plugin_adapter_report(params: dict[str, Any], context: dict[str, Any]):

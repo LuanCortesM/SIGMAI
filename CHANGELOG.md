@@ -34,6 +34,18 @@ Quatro parâmetros eram aceitos e ignorados em silêncio. O assistente dizia ao 
 - **Quando a coluna lateral é estreita demais para uma barra legível, a barra passa para uma faixa sob o mapa** — colocação clássica em cartas publicadas. A escala só é conhecida depois de ajustar a extensão ao quadro, então o compositor resolve o layout uma segunda vez quando descobre que a barra não cabe.
 - O intervalo da grade aparece como `1.000 km` e não como `1e+06 m`.
 
+### Corrigido — exercitar o plugin de outra pessoa (ou o seu segundo plugin)
+
+O caso é o de quem está desenvolvendo um plugin e quer que a IA o teste: *eu peço → a IA traduz → o SIGMAI dirige o QGIS → o plugin executa*. A corrente inteira existia e parava no último elo.
+
+- **`run_plugin_algorithm_generic_safe` fazia `import processing` cru.** `processing` é o *plugin* Processing: com ele desativado, ou num QGIS sem interface, o import falha e a resposta era `PROCESSING_NOT_AVAILABLE` — "QGIS Processing is not available", como se o QGIS não tivesse Processing, quando o núcleo tem tudo. O caminho comum (`run_processing`) já usava o bootstrap que contorna isso desde a 0.2.1; este tinha ficado para trás, e o efeito era **não executar algoritmo de plugin nenhum** nesse cenário.
+- **`run_plugin_algorithm_safe` recusava sem dizer que havia outro caminho.** Ele tem uma lista fixa de adaptadores dedicados com uma única entrada (`topotrail:topotrail`), e a recusa dizia apenas "não está na lista permitida". Quem estivesse auditando o próprio plugin concluía, com razão, que o SIGMAI não executa plugin de terceiro. A recusa agora aponta `run_plugin_algorithm_generic_safe`, que serve qualquer plugin, e explica o que esse caminho faz a mais.
+- **O caminho chamado "safe" era o menos protegido dos dois.** O adaptador dedicado encaminhava direto para a execução, sem classificação de risco, sem confirmações e sem guarda de sobrescrita — tudo isso só existia no caminho "genérico". Agora o dedicado passa pelo mesmo portão.
+
+As instruções do servidor MCP passam a ensinar a sequência de auditoria — `inspect_plugin` e `check_plugin_structure`, `list_plugin_processing_algorithms`, `get_plugin_algorithm_info`, `dry_run_plugin_algorithm_generic`, `run_plugin_algorithm_generic_safe` — e a dizer o limite: só é alcançável por programa o que o plugin registrar como **algoritmo de Processing**. Botão de barra e janela de diálogo não são chamáveis assim; para esses o SIGMAI audita a estrutura, mas não aperta o botão.
+
+Nova bancada `tools/exercise_third_party_plugin.py`, 23 verificações, e o plugin de ensaio `tests/fixtures/trilhateste` — que registra um provedor de Processing de verdade, com um algoritmo que mede o comprimento de uma trilha. A prova é de ponta a ponta: o algoritmo do plugin de terceiro executou pela ponte e devolveu 8.648,62 m para a trilha do Itaguaré, e 17.297,25 m com o fator de sinuosidade em 2,0.
+
 ### Corrigido — mapas de base e serviços OGC eram esqueleto
 
 `load_wms_layer`, `load_wfs_layer`, `load_xyz_tile_layer` e `load_arcgis_rest_layer` apareciam no catálogo de comandos e no `sigmai_capabilities`, validavam a URL e então recusavam com `NETWORK_LOAD_NOT_ENABLED` — *"requires an explicit future network-enabled workflow"*. A capacidade era anunciada e não existia: nenhum mapa de base, nenhum serviço público de dados, nenhum WMS de órgão ambiental podia ser carregado. É o mesmo defeito de fundo desta versão inteira — o que a ferramenta diz que faz precisa ser o que ela faz.

@@ -499,6 +499,18 @@ Três parâmetros resolvem a maioria dos pedidos de quem não conhece QGIS:
   igualados na escala mais aberta; comparar tamanhos entre escalas diferentes
   é enganoso, e o SIGMAI recusa fazer isso em silêncio.
 
+Auditar e exercitar OUTRO plugin — o caso de quem está desenvolvendo um:
+sigmai_run_command dá acesso ao catálogo inteiro. A sequência que funciona é
+inspect_plugin e check_plugin_structure para ver como ele está montado,
+list_plugin_processing_algorithms para descobrir o que ele expõe,
+get_plugin_algorithm_info para os parâmetros de um algoritmo,
+dry_run_plugin_algorithm_generic para simular e ver a classificação de risco,
+e run_plugin_algorithm_generic_safe para executar de verdade. Esse último
+serve qualquer plugin; run_plugin_algorithm_safe é só para os poucos com
+adaptador dedicado. Só é alcançável assim o que o plugin registrar como
+algoritmo de Processing: botão de barra e janela de diálogo não são chamáveis
+por programa, e para esses o SIGMAI audita a estrutura mas não aperta o botão.
+
 compose_map recusa em vez de improvisar. Toda recusa vem com a lista do que é
 aceito — leia a lista em vez de tentar variações do nome. Ele recusa:
 
