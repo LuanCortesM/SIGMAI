@@ -352,13 +352,31 @@ def measure_ink_fraction(png_path: str | Path, map_rect_mm: dict[str, float], pa
     step_y = max(1, (bottom - top) // steps)
     total = 0
     inked = 0
+    opaque = 0
+    seen: set[int] = set()
     for y in range(top, bottom, step_y):
         for x in range(left, right, step_x):
             total += 1
             pixel = image.pixel(x, y)
+            alpha = (pixel >> 24) & 0xFF
             red, green, blue = (pixel >> 16) & 0xFF, (pixel >> 8) & 0xFF, pixel & 0xFF
+            seen.add(pixel)
+            if alpha < 8:
+                # Pixel transparente não é tinta. Sem esta verificação, uma
+                # exportação que não desenhou nada — todos os pixels em
+                # (0,0,0,0) — era contada como 100% de tinta e passava na regra
+                # de quadro em branco. Foi assim que um mapa inteiramente vazio
+                # recebeu nota A: o arquivo tinha o tamanho certo, o código de
+                # retorno dizia sucesso, e a única checagem visual olhava só o
+                # RGB.
+                continue
+            opaque += 1
             if red < 246 or green < 246 or blue < 246:
                 inked += 1
     if total == 0:
         return None
+    if opaque == 0:
+        return 0.0  # nada opaco foi desenhado: o quadro está vazio
+    if len(seen) <= 1:
+        return 0.0  # cor única em todo o quadro: nada foi renderizado
     return inked / total

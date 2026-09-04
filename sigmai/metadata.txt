@@ -1,7 +1,7 @@
 [general]
 name=SIGMAI
 description=Secure local bridge between AI assistants and QGIS, with cartographic quality control.
-version=0.2.0
+version=0.2.1
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=MACIEL, L. S. C.
@@ -16,7 +16,15 @@ homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=GPL-3.0-or-later
-changelog=0.2.0
+changelog=0.2.1
+    - Corrigido: o plugin não abria no QGIS 4 (Qt6). QSizePolicy.Fixed, QgsLayoutExporter.Success, QgsVectorFileWriter.NoError, QgsProcessingParameterDefinition.FlagOptional e os enums de geometria e unidade só existem no escopo qualificado no Qt6.
+    - Novo verificador tools/check_qt6_compat.py, com teste que constrói o painel contra PyQt6 de verdade, para que a classe inteira de defeito não volte.
+    - Corrigido: um algoritmo do Processing executado pela API de núcleo transferia as camadas na direção errada e esvaziava o projeto do usuário.
+    - Corrigido: a checagem de quadro em branco ignorava a transparência, então uma exportação que não desenhou nada recebia nota A.
+    - A ponte agora recusa renderizar fora da thread principal do Qt, onde o QGIS grava um arquivo vazio e reporta sucesso.
+    - Processing passa a funcionar sem o plugin Processing, com erro que diz o que fazer quando nenhum algoritmo está registrado.
+    - Nova regra CART064: recusa UTM esticado além da faixa útil da zona; recortes estaduais passam a usar a Policônica do Brasil.
+    0.2.0
     - Real MCP server (JSON-RPC 2.0 over stdio). The previous transport was a custom JSON-lines loop that no MCP client could speak, so Claude Desktop, Cursor and Codex never connected.
     - AI actions can now execute. Write commands were previously forced to dry-run, so no map could ever be produced. A consent layer replaces that: read-only by default, ask-every-time, or allow-for-this-session, with output-folder sandboxing, per-session limits and an audit trail.
     - New cartographic engine: page-aware layouts from A5 to A0 in either orientation, extent fitted to the map frame, scale rounded to the cartographic series, scale bar sized to the frame, coordinate grid with a computed interval, legend covering every visible layer, and a real north arrow symbol linked to grid north.

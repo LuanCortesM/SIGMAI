@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from .processing_bootstrap import resolve_algorithm, run_algorithm
 from ..security import normalize_output_path, reject_existing_path_without_confirmation
 from ..validators import ValidationError, require_param
 from .common import qgis_imports
@@ -46,20 +47,10 @@ def handle(params: dict[str, Any], context: dict[str, Any]):
         }
 
     imports = qgis_imports()
-    registry = imports["QgsApplication"].processingRegistry()
-    if registry.algorithmById(algorithm) is None:
-        raise ValidationError(
-            "PROCESSING_ALGORITHM_NOT_FOUND",
-            "Processing algorithm was not found.",
-            {"algorithm": algorithm},
-        )
+    resolve_algorithm(algorithm)
 
-    try:
-        import processing  # type: ignore
-    except Exception as exc:
-        raise ValidationError("PROCESSING_NOT_AVAILABLE", "QGIS Processing is not available.", {}) from exc
 
-    result = processing.run(algorithm, parameters)
+    result = run_algorithm(algorithm, parameters)
     serializable_result = {
         key: str(value) if isinstance(value, Path) else value
         for key, value in result.items()

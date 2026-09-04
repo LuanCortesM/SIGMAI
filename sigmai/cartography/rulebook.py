@@ -479,6 +479,31 @@ def _check_projected_crs(observation: dict[str, Any]) -> CheckOutcome:
     )
 
 
+#: Faixa de coordenada E em que uma zona UTM é utilizável. A zona tem 6° de
+#: largura e falso leste de 500.000; fora de ~[100.000, 900.000] o recorte está
+#: longe demais do meridiano central.
+UTM_EASTING_RANGE = (100_000.0, 900_000.0)
+
+
+def _check_crs_suits_extent(observation: dict[str, Any]) -> CheckOutcome:
+    map_info = _map(observation)
+    description = str(map_info.get("crs_description", "")).lower()
+    extent = map_info.get("extent") or {}
+    if "utm" not in description or not extent:
+        return _skip("O mapa não usa UTM; a regra não se aplica.")
+    xmin, xmax = float(extent.get("xmin", 0)), float(extent.get("xmax", 0))
+    low, high = UTM_EASTING_RANGE
+    if low <= xmin and xmax <= high:
+        return _pass(f"As coordenadas E ({xmin:,.0f} a {xmax:,.0f}) estão dentro da faixa da zona.".replace(",", "."))
+    return _fail(
+        f"O mapa está em UTM mas cobre coordenadas E de {xmin:,.0f} a {xmax:,.0f}, fora da faixa "
+        f"utilizável da zona ({low:,.0f} a {high:,.0f}). A escala impressa não vale para toda a folha. "
+        "Para recortes estaduais ou maiores use uma projeção cônica ou a Policônica do Brasil."
+        .replace(",", "."),
+        easting_range=[xmin, xmax],
+    )
+
+
 def _check_extent_contains_data(observation: dict[str, Any]) -> CheckOutcome:
     map_info = _map(observation)
     extent = map_info.get("extent") or {}
@@ -680,6 +705,16 @@ RULES: tuple[Rule, ...] = (
          "Reprojete para o UTM da zona ou para uma projeção equivalente à finalidade do mapa.",
          "Snyder, Map Projections: A Working Manual (USGS PP 1395)",
          _check_projected_crs),
+    Rule("CART064", "projecao", SEVERITY_WARNING,
+         "Projeção adequada à extensão", "Projection suits the extent",
+         "Uma zona UTM tem 6° de largura e só mantém o fator de escala dentro de 1/1000 perto do "
+         "meridiano central. Esticada sobre um estado inteiro, a distorção nas bordas passa de meio "
+         "por cento e as coordenadas saem da faixa válida da zona — a barra de escala deixa de valer "
+         "para parte da folha.",
+         "Escolha uma projeção cônica ou a Policônica do Brasil (EPSG:5880) para recortes estaduais; "
+         "compose_map faz isso sozinho quando auto_projected_crs está ligado.",
+         "Snyder, Map Projections: A Working Manual (USGS PP 1395) — Transverse Mercator",
+         _check_crs_suits_extent),
     Rule("CART061", "dados", SEVERITY_ERROR,
          "A extensão contém os dados", "Extent contains the data",
          "Extensão que corta os dados produz um mapa que responde a uma pergunta diferente da pedida.",
