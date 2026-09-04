@@ -54,13 +54,21 @@ def _imports() -> dict[str, Any]:
     return resolved
 
 
+#: Renderizadores que não expressam classificação feita pelo usuário no QGIS.
+#: ``QgsEmbeddedSymbolRenderer`` é o que o QGIS usa quando o próprio arquivo traz
+#: o estilo — o caso dos KML de órgãos ambientais, que chegam com um traço fino
+#: sem preenchimento, herdado do Google Earth, e que não produz amostra na
+#: legenda. Preservar isso entrega um mapa com uma entrada de legenda vazia.
+RESTYLABLE_RENDERERS = ("QgsSingleSymbolRenderer", "QgsEmbeddedSymbolRenderer")
+
+
 def has_default_symbology(layer: Any) -> bool:
-    """A camada ainda usa um símbolo único, sem intenção temática declarada?"""
+    """A camada ainda está sem intenção temática declarada no projeto?"""
     try:
         renderer = layer.renderer()
     except Exception:
         return False
-    return type(renderer).__name__ == "QgsSingleSymbolRenderer"
+    return type(renderer).__name__ in RESTYLABLE_RENDERERS
 
 
 def apply_default_symbology(layers: list[Any], mode: str = "missing") -> list[dict[str, Any]]:
@@ -102,17 +110,47 @@ def apply_default_symbology(layers: list[Any], mode: str = "missing") -> list[di
         style = dict(GEOMETRY_DEFAULTS[kind])
         # Camadas de mesmo tipo recebem matizes distintos da paleta segura.
         accent = OKABE_ITO[index % len(OKABE_ITO)]
+        if kind == "Polygon":
+            # Preenchimento derivado do próprio matiz: com um azul-claro fixo
+            # para todos, duas camadas de polígono ficavam da mesma cor e só o
+            # traço as distinguia — no papel, nada as distinguia.
+            style["fill"] = _tint(accent, 0.82)
         symbol = _build_symbol(kind, style, accent, imports)
         if symbol is None:
             continue
+        origem = type(layer.renderer()).__name__ if hasattr(layer, "renderer") else ""
         try:
             layer.setRenderer(imports["QgsSingleSymbolRenderer"](symbol))
             layer.triggerRepaint()
-            applied.append({"layer": layer.name(), "action": "estilizada", "geometry": kind, "accent": accent})
+            registro = {"layer": layer.name(), "action": "estilizada", "geometry": kind, "accent": accent}
+            if origem == "QgsEmbeddedSymbolRenderer":
+                registro["note"] = (
+                    "o estilo vinha embutido no arquivo (KML/KMZ) e não gerava amostra na legenda; "
+                    "passe apply_style='none' para mantê-lo"
+                )
+            applied.append(registro)
         except Exception:
             continue
 
     return applied
+
+
+def _tint(hex_color: str, amount: float) -> str:
+    """Clareia uma cor em direção ao branco, mantendo o matiz.
+
+    ``amount`` 0 devolve a cor original; 1 devolve branco. Serve para tirar do
+    matiz de destaque um preenchimento que não compita com os rótulos.
+    """
+    texto = hex_color.lstrip("#")
+    if len(texto) != 6:
+        return hex_color
+    try:
+        canais = [int(texto[i:i + 2], 16) for i in (0, 2, 4)]
+    except ValueError:
+        return hex_color
+    fator = max(0.0, min(1.0, amount))
+    claros = [round(canal + (255 - canal) * fator) for canal in canais]
+    return "#" + "".join(f"{canal:02X}" for canal in claros)
 
 
 def _build_symbol(kind: str, style: dict[str, Any], accent: str, imports: dict[str, Any]) -> Any:

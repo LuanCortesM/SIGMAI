@@ -95,6 +95,7 @@ def observe_layout(
             observation["map_frames"].append({
                 "item_id": item_id,
                 "scale": round(float(_safe(item.scale, 0.0) or 0.0), 1),
+                "visible_layer_names": _visible_layer_names(item),
             })
             # Num layout de comparação há dois itens de mapa; o laudo se refere
             # ao principal, identificado pelo id, e não ao primeiro na ordem de
@@ -265,6 +266,23 @@ def _observe_legend(legend_item: Any) -> dict[str, Any]:
         "auto_update": bool(_safe(legend_item.autoUpdateModel, True)),
         "column_count": int(_safe(legend_item.columnCount, 1) or 1),
     }
+
+
+def _visible_layer_names(map_item: Any) -> list[str]:
+    """Nomes das camadas que este quadro desenha.
+
+    Num layout de comparação cada quadro tem a sua própria lista, e a legenda
+    responde pelos dois: avaliar só a do quadro principal acusava de fantasma
+    uma camada que aparece, bem visível, no segundo painel.
+    """
+    try:
+        layers = map_item.layers() or []
+        if not layers:
+            project = map_item.layout().project() if hasattr(map_item, "layout") else None
+            layers = list(project.mapLayers().values()) if project is not None else []
+        return [str(layer.name()) for layer in layers]
+    except Exception:
+        return []
 
 
 def _observe_scalebar(scalebar_item: Any, map_item: Any, items: list[dict[str, Any]]) -> dict[str, Any]:

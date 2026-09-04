@@ -34,6 +34,17 @@ Quatro parâmetros eram aceitos e ignorados em silêncio. O assistente dizia ao 
 - **Quando a coluna lateral é estreita demais para uma barra legível, a barra passa para uma faixa sob o mapa** — colocação clássica em cartas publicadas. A escala só é conhecida depois de ajustar a extensão ao quadro, então o compositor resolve o layout uma segunda vez quando descobre que a barra não cabe.
 - O intervalo da grade aparece como `1.000 km` e não como `1e+06 m`.
 
+### Corrigido — defeitos que só apareceram olhando o mapa impresso
+
+A auditoria dava nota A a mapas com problemas visíveis a olho nu. Cada um destes foi encontrado abrindo o PNG exportado e comparando com o que o assistente tinha dito que produziria.
+
+- **Campo de rótulo presente mas vazio.** O KML do CNUC tem um campo `Name` inteiramente nulo — o nome real mora em `Nome_UC`. Rotular por `Name` devolvia `labels` entre os itens criados e um mapa sem um único rótulo. O compositor agora recusa, dizendo que o campo está vazio e listando os campos que têm conteúdo.
+- **Estilo embutido em KML/KMZ não gerava amostra na legenda.** O QGIS usa `QgsEmbeddedSymbolRenderer` quando o arquivo traz o próprio estilo; o traço fino herdado do Google Earth aparecia sem preenchimento, e a entrada da legenda saía em branco. Esse renderizador passa a contar como "sem intenção temática declarada" e recebe a paleta padrão, com nota explicando como preservar o original (`apply_style='none'`).
+- **Dois polígonos com o mesmo preenchimento.** O preenchimento era um azul-claro fixo para toda camada de polígono; só o traço as distinguia, e no papel nada as distinguia. O preenchimento passa a ser derivado do próprio matiz de destaque da paleta Okabe-Ito.
+- **O inserto vinha na cor aleatória do QGIS.** Um localizador existe para que o retângulo vermelho do recorte salte aos olhos; com o estado inteiro em roxo saturado, o retângulo desaparecia. As camadas que só existem no inserto passam a um cinza neutro; as que também estão no mapa principal mantêm a cor, que é como o leitor reconhece a mesma feição nos dois quadros.
+- **A legenda ignorava o segundo painel.** Numa folha de comparação, a legenda listava apenas as camadas do quadro principal, e o leitor via no painel b) uma feição sem identificação. A legenda passa a cobrir os dois quadros, as camadas do segundo painel entram na mesma passada de estilo, e as regras CART020 e CART021 avaliam a união dos quadros — antes CART021 acusava de "fantasma" uma camada bem visível no painel b).
+- **Camada que entra na legenda e não aparece no mapa.** Quando uma camada de contexto não tem nenhuma feição dentro do recorte, o compositor agora avisa: ela apareceria na legenda e não no mapa.
+
 ### Corrigido — ferramentas de teste
 
 - **Encerramento seguro do QGIS em scripts autônomos** (`tools/qgis_lifecycle.py`). Uma camada criada num script e não adicionada ao projeto pertence ao Python: o interpretador a destrói no encerramento, depois de `exitQgis()` já ter derrubado o registro de provedores, e o destrutor em C++ acessa memória liberada. O resultado era uma falha de segmentação *depois* de o script imprimir todos os resultados. Não afeta o plugin dentro do QGIS, onde o ciclo de vida pertence ao QGIS e as camadas pertencem ao projeto.

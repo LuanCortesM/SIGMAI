@@ -25,6 +25,10 @@ changelog=0.2.2
     - Corrigido: quando a coluna lateral é estreita demais para uma barra legível, a barra passa para uma faixa sob o mapa.
     - Corrigido: o CRS escolhido sem código EPSG (Lambert Azimutal) era relatado como vazio.
     - CART022 passa a considerar o comprimento absoluto da barra, não só a proporção: numa A2 uma barra de 50 mm é legível mesmo ocupando 14% do quadro.
+    - Corrigido: campo de rótulo presente mas vazio (o 'Name' nulo dos KML do CNUC) devolvia mapa sem nenhum rótulo; agora recusa e lista os campos com conteúdo.
+    - Corrigido: estilo embutido em KML/KMZ não gerava amostra na legenda; passa a receber a paleta padrão, com nota de como preservar o original.
+    - Corrigido: dois polígonos saíam com o mesmo preenchimento, e o inserto vinha na cor aleatória do QGIS competindo com o retângulo do recorte.
+    - Corrigido: numa folha de comparação a legenda ignorava o segundo painel, e CART021 acusava de fantasma uma camada visível nele.
     - Encerramento seguro do QGIS em scripts autônomos: camada não adicionada ao projeto era destruída depois de exitQgis e derrubava o processo.
     0.2.1
     - Corrigido: o plugin não abria no QGIS 4 (Qt6). QSizePolicy.Fixed, QgsLayoutExporter.Success, QgsVectorFileWriter.NoError, QgsProcessingParameterDefinition.FlagOptional e os enums de geometria e unidade só existem no escopo qualificado no Qt6.

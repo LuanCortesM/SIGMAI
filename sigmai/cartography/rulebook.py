@@ -146,11 +146,26 @@ def _check_legend(observation: dict[str, Any]) -> CheckOutcome:
     return _fail(f"Mapa exibe {len(visible)} camadas e não há legenda.", visible_layers=visible)
 
 
+def _all_visible_layer_names(observation: dict[str, Any]) -> list[str]:
+    """Camadas desenhadas em qualquer quadro da folha.
+
+    Numa folha de comparação a legenda responde pelos dois quadros: avaliá-la
+    só contra o quadro principal acusava de fantasma uma camada bem visível no
+    segundo painel, e deixava passar uma camada do segundo painel sem entrada.
+    """
+    nomes = [str(name) for name in (_map(observation).get("visible_layer_names") or [])]
+    for frame in observation.get("map_frames") or []:
+        for name in frame.get("visible_layer_names") or []:
+            if str(name) not in nomes:
+                nomes.append(str(name))
+    return nomes
+
+
 def _check_legend_covers_visible_layers(observation: dict[str, Any]) -> CheckOutcome:
     legend = observation.get("legend")
     if not legend or not legend.get("item_id"):
         return _skip("Sem legenda para avaliar.")
-    visible = [str(name) for name in (_map(observation).get("visible_layer_names") or [])]
+    visible = _all_visible_layer_names(observation)
     listed = [str(name) for name in (legend.get("layer_names") or [])]
     if not visible:
         return _skip("Não foi possível determinar as camadas visíveis do mapa.")
@@ -170,7 +185,7 @@ def _check_legend_has_no_phantoms(observation: dict[str, Any]) -> CheckOutcome:
     legend = observation.get("legend")
     if not legend or not legend.get("item_id"):
         return _skip("Sem legenda para avaliar.")
-    visible = [str(name) for name in (_map(observation).get("visible_layer_names") or [])]
+    visible = _all_visible_layer_names(observation)
     listed = [str(name) for name in (legend.get("layer_names") or [])]
     if not visible:
         return _skip("Não foi possível determinar as camadas visíveis do mapa.")

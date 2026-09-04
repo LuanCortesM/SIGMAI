@@ -116,6 +116,7 @@ def _imports() -> dict[str, Any]:
             QgsCoordinateReferenceSystem,
             QgsCoordinateTransform,
             QgsDistanceArea,
+            QgsFeatureRequest,
             QgsLayoutExporter,
             QgsLayoutItemLabel,
             QgsLayoutItemLegend,
@@ -478,7 +479,27 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
     project = imports["QgsProject"].instance()
 
     layers = _resolve_layers(params, imports)
-    styling = apply_default_symbology(layers, str(params.get("apply_style", "missing")))
+    second_map_spec = params.get("second_map") or None
+    if second_map_spec is not None and not isinstance(second_map_spec, dict):
+        raise CompositionError("second_map precisa ser um objeto com layer_ids e, opcionalmente, panel_title.")
+
+    # As camadas do segundo painel entram na mesma passada de estilo: estilizar
+    # só as do primeiro deixava o painel b) com a cor aleatória que o QGIS
+    # sorteou, ao lado de um painel a) com a paleta segura.
+    styling_targets = list(layers)
+    if second_map_spec is not None:
+        for layer in _resolve_layer_ids(
+            second_map_spec.get("layer_ids") or second_map_spec.get("layers") or [],
+            imports, "second_map",
+        ):
+            if all(layer.id() != existing.id() for existing in styling_targets):
+                styling_targets.append(layer)
+
+    styling = apply_default_symbology(styling_targets, str(params.get("apply_style", "missing")))
+    styling_notes = [
+        f"A camada {entry['layer']!r} foi reestilizada: {entry['note']}."
+        for entry in styling if entry.get("note")
+    ]
     # ``strict=True``: se o assistente pediu um formato que não existe, é melhor
     # dizer isso do que devolver, em silêncio, uma folha A4 que ninguém pediu.
     try:
@@ -508,10 +529,6 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
     include_subtitle = bool(str(params.get("subtitle", "")).strip())
     include_logo = bool(params.get("include_logo", False))
     include_inset = bool(params.get("include_inset", False))
-    second_map_spec = params.get("second_map") or None
-    if second_map_spec is not None and not isinstance(second_map_spec, dict):
-        raise CompositionError("second_map precisa ser um objeto com layer_ids e, opcionalmente, panel_title.")
-
     # O corredor precisa caber o rótulo mais longo da grade. Coordenadas UTM
     # têm 7 dígitos; escritas na vertical nas laterais, consomem a altura da
     # linha, não a largura do texto.
@@ -537,7 +554,7 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
     frame = plan.map_frame()
 
     # --- sistema de referência ------------------------------------------
-    notes: list[str] = list(plan.notes)
+    notes: list[str] = list(plan.notes) + styling_notes
     requested_crs = str(params.get("map_crs", "")).strip()
     if requested_crs:
         map_crs = imports["QgsCoordinateReferenceSystem"](requested_crs)
@@ -626,6 +643,8 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
         notes.extend(note for note in plan.notes if note not in previous_notes)
 
     notes.extend(fitted.notes)
+
+    notes.extend(_empty_in_frame_advice(layers, extent_layers, fitted, map_crs, imports))
 
     if not include_inset:
         notes.extend(_locator_advice(extent, layers, extent_layers, map_crs, imports))
@@ -778,9 +797,15 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
         _add_label(layout, "subtitle", str(params["subtitle"]).strip(), plan.slots["subtitle"], plan.fonts["subtitle"], imports, mm, align="center")
         created["subtitle"] = "label"
 
-    # Legenda com TODAS as camadas do quadro
+    # Legenda com TODAS as camadas desenhadas — dos dois painéis, quando há
+    # comparação. Uma feição no segundo quadro sem entrada na legenda deixa o
+    # leitor sem saber o que está vendo.
     if include_legend and "legend" in plan.slots:
-        _add_legend(layout, map_item, layers, plan, params, imports, mm)
+        legend_layers = list(layers)
+        for layer in (comparison_plan or {}).get("layers", []):
+            if all(layer.id() != existing.id() for existing in legend_layers):
+                legend_layers.append(layer)
+        _add_legend(layout, map_item, legend_layers, plan, params, imports, mm)
         created["legend"] = "legend"
 
     # Barra de escala dimensionada
@@ -1253,6 +1278,62 @@ def _add_north_arrow(layout: Any, map_item: Any, rect: Rect, imports: dict[str, 
     return "picture"
 
 
+def _empty_in_frame_advice(
+    layers: list[Any], extent_layers: list[Any], fitted: Any, map_crs: Any, imports: dict[str, Any]
+) -> list[str]:
+    """Avisa sobre camadas que entram na legenda mas não aparecem no mapa.
+
+    Pedir "o parque mostrando os municípios em volta" com um recorte apertado no
+    parque pode deixar o município inteiro fora do quadro: a camada continua na
+    legenda, e o leitor procura no mapa uma feição que não existe ali.
+    """
+    notes: list[str] = []
+    subject_ids = {layer.id() for layer in extent_layers}
+    frame = imports["QgsRectangle"](fitted.xmin, fitted.ymin, fitted.xmax, fitted.ymax)
+    for layer in layers:
+        if layer.id() in subject_ids or not hasattr(layer, "getFeatures"):
+            continue
+        try:
+            transform = imports["QgsCoordinateTransform"](
+                map_crs, layer.crs(), imports["QgsProject"].instance()
+            )
+            local_frame = transform.transformBoundingBox(frame)
+            request = imports["QgsFeatureRequest"]().setFilterRect(local_frame).setLimit(1)
+            request.setNoAttributes()
+            if next(layer.getFeatures(request), None) is None:
+                notes.append(
+                    f"A camada {layer.name()!r} não tem nenhuma feição dentro do recorte: "
+                    "ela vai aparecer na legenda e não no mapa. Tire-a de layer_ids, "
+                    "aumente margin_percent ou escolha outra camada de contexto."
+                )
+        except Exception:
+            continue
+    return notes
+
+
+def _field_has_values(layer: Any, field: str) -> bool:
+    """O campo tem ao menos um valor não nulo e não vazio?
+
+    ``uniqueValues`` percorre o provedor e para cedo; é barato mesmo em camadas
+    grandes, e respeita o subsetString aplicado à camada.
+    """
+    try:
+        index = layer.fields().indexFromName(field)
+        if index < 0:
+            return False
+        for value in layer.uniqueValues(index, limit=25):
+            if value is None:
+                continue
+            texto = str(value).strip()
+            if texto and texto.upper() != "NULL":
+                return True
+        return False
+    except Exception:
+        # Provedor sem uniqueValues: na dúvida, deixa passar em vez de recusar
+        # um mapa que talvez estivesse correto.
+        return True
+
+
 def _apply_labels(
     layers: list[Any], params: dict[str, Any], field: str, plan: LayoutPlan,
     imports: dict[str, Any], notes: list[str],
@@ -1308,6 +1389,22 @@ def _apply_labels(
             f"O campo de rótulo {field!r} não existe nas camadas do mapa.{suggestion} "
             f"Campos disponíveis por camada — {detalhe}. "
             "Passe label_field com um destes nomes, ou omita label_field para não rotular."
+        )
+
+    # Existir não basta: um campo presente e inteiramente vazio produz um mapa
+    # sem um único rótulo, enquanto a resposta anuncia rótulos criados. Foi o
+    # que aconteceu com o campo 'Name' de um KML do CNUC, cujo nome real mora
+    # em 'Nome_UC'.
+    if not _field_has_values(target, field):
+        preenchidos = [
+            item.name() for item in target.fields()
+            if item.name() != field and _field_has_values(target, item.name())
+        ]
+        near = difflib.get_close_matches(field, preenchidos, n=3, cutoff=0.0)
+        sugestao = f" Campos com conteúdo nesta camada: {', '.join(near or preenchidos[:6]) or 'nenhum'}."
+        raise CompositionError(
+            f"O campo {field!r} existe em {target.name()!r} mas está vazio em todas as feições; "
+            f"rotular por ele produziria um mapa sem nenhum rótulo.{sugestao}"
         )
 
     settings = QgsPalLayerSettings()
@@ -1489,7 +1586,7 @@ def _add_inset_map(
     # rótulos do mapa principal — dezenas de nomes de município empilhados numa
     # caixa de 4 cm. Um localizador precisa ser limpo: aqui cada camada recebe
     # um estilo sobreposto sem rotulagem, válido só para este item de mapa.
-    overrides = _labelless_style_overrides(inset_layers)
+    overrides = _inset_style_overrides(inset_layers, layers)
     if overrides:
         try:
             # setKeepLayerStyles é o que faz o item respeitar as sobreposições;
@@ -1599,6 +1696,92 @@ def _labelless_style_overrides(layers: list[Any]) -> dict[str, str]:
             overrides[layer.id()] = document.toString()
         except Exception:
             continue
+    return overrides
+
+
+#: Cinza neutro do inserto. Um localizador existe para que o retângulo vermelho
+#: do recorte salte aos olhos; se o contexto vem no matiz aleatório que o QGIS
+#: sorteou ao carregar a camada, o retângulo compete com um estado inteiro em
+#: roxo saturado e deixa de localizar coisa alguma.
+INSET_CONTEXT_FILL = "#E9E9E9"
+INSET_CONTEXT_STROKE = "#9A9A9A"
+
+
+def _neutral_style_override(layer: Any) -> str:
+    """QML da camada com simbologia cinza e sem rótulos, sem alterá-la no projeto.
+
+    O estilo é exportado a partir de um renderizador cinza aplicado por um
+    instante e imediatamente desfeito: o override do item de layout precisa de
+    um QML completo, e montá-lo à mão quebraria a cada versão do QGIS.
+    """
+    from qgis.PyQt.QtXml import QDomDocument  # type: ignore
+    from qgis.core import (  # type: ignore
+        Qgis,
+        QgsFillSymbol,
+        QgsLineSymbol,
+        QgsMarkerSymbol,
+        QgsSingleSymbolRenderer,
+        QgsWkbTypes,
+    )
+    from .qtcompat import geometry_type
+
+    original = layer.renderer()
+    if original is None:
+        return ""
+    clone = original.clone()
+
+    geometry = layer.geometryType()
+    if geometry == geometry_type(Qgis, QgsWkbTypes, "Polygon"):
+        symbol = QgsFillSymbol.createSimple({
+            "color": INSET_CONTEXT_FILL,
+            "outline_color": INSET_CONTEXT_STROKE,
+            "outline_width": "0.25",
+            "style": "solid",
+        })
+    elif geometry == geometry_type(Qgis, QgsWkbTypes, "Line"):
+        symbol = QgsLineSymbol.createSimple({
+            "line_color": INSET_CONTEXT_STROKE, "line_width": "0.25",
+        })
+    else:
+        symbol = QgsMarkerSymbol.createSimple({
+            "color": INSET_CONTEXT_FILL, "outline_color": INSET_CONTEXT_STROKE, "size": "1.4",
+        })
+
+    try:
+        layer.setRenderer(QgsSingleSymbolRenderer(symbol))
+        document = QDomDocument()
+        layer.exportNamedStyle(document)
+        root = document.documentElement()
+        root.setAttribute("labelsEnabled", "0")
+        for tag in ("labeling", "labelling"):
+            nodes = root.elementsByTagName(tag)
+            while nodes.count():
+                root.removeChild(nodes.at(0))
+        return document.toString()
+    finally:
+        # O projeto do usuário não pode ficar cinza por causa de um inserto.
+        layer.setRenderer(clone)
+        layer.triggerRepaint()
+
+
+def _inset_style_overrides(inset_layers: list[Any], main_layers: list[Any]) -> dict[str, str]:
+    """Estilo do inserto: contexto em cinza, camadas do mapa sem rótulos.
+
+    Uma camada que também aparece no mapa principal conserva a sua cor — é assim
+    que o leitor reconhece a mesma feição nos dois quadros. Uma camada que só
+    existe no inserto é pano de fundo e vai para o cinza.
+    """
+    main_ids = {layer.id() for layer in main_layers}
+    overrides = dict(_labelless_style_overrides([l for l in inset_layers if l.id() in main_ids]))
+    for layer in inset_layers:
+        if layer.id() in main_ids or not hasattr(layer, "renderer"):
+            continue
+        try:
+            style = _neutral_style_override(layer)
+        except Exception:
+            continue
+        if style:
+            overrides[layer.id()] = style
     return overrides
 
 

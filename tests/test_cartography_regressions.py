@@ -16,7 +16,16 @@ from sigmai.cartography.rulebook import (
     SCALEBAR_MIN_LENGTH_MM,
     _check_scalebar_proportion,
 )
+from sigmai.cartography.rulebook import (
+    _check_legend_covers_visible_layers,
+    _check_legend_has_no_phantoms,
+)
 from sigmai.cartography.scaling import SCALEBAR_MAX_FRACTION, scalebar_spec
+from sigmai.cartography.symbology import (
+    OKABE_ITO,
+    RESTYLABLE_RENDERERS,
+    _tint,
+)
 
 
 class PageStrictness(unittest.TestCase):
@@ -155,3 +164,78 @@ class ScaleBarUnderMap(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ComparisonLegend(unittest.TestCase):
+    """A legenda de uma folha de comparação responde pelos dois quadros."""
+
+    def _observacao(self, listadas: list[str]) -> dict:
+        return {
+            "map": {"visible_layer_names": ["Municípios", "PE das Carnaúbas"]},
+            "map_frames": [
+                {"item_id": "main_map", "visible_layer_names": ["Municípios", "PE das Carnaúbas"]},
+                {"item_id": "comparison_map", "visible_layer_names": ["Limite estadual", "Municípios"]},
+            ],
+            "legend": {"item_id": "legend", "layer_names": listadas},
+        }
+
+    def test_camada_so_do_segundo_painel_nao_e_fantasma(self) -> None:
+        resultado = _check_legend_has_no_phantoms(
+            self._observacao(["Municípios", "PE das Carnaúbas", "Limite estadual"])
+        )
+        self.assertEqual(resultado.status, "pass")
+
+    def test_camada_ausente_do_segundo_painel_e_cobranca(self) -> None:
+        resultado = _check_legend_covers_visible_layers(
+            self._observacao(["Municípios", "PE das Carnaúbas"])
+        )
+        self.assertEqual(resultado.status, "fail")
+        self.assertIn("Limite estadual", resultado.detail_pt)
+
+    def test_camada_que_nao_esta_em_quadro_nenhum_ainda_e_fantasma(self) -> None:
+        resultado = _check_legend_has_no_phantoms(
+            self._observacao(["Municípios", "PE das Carnaúbas", "Limite estadual", "Hidrografia"])
+        )
+        self.assertEqual(resultado.status, "fail")
+        self.assertIn("Hidrografia", resultado.detail_pt)
+
+    def test_sem_quadros_extras_o_comportamento_e_o_de_antes(self) -> None:
+        observacao = {
+            "map": {"visible_layer_names": ["A", "B"]},
+            "legend": {"item_id": "legend", "layer_names": ["A", "B", "C"]},
+        }
+        self.assertEqual(_check_legend_has_no_phantoms(observacao).status, "fail")
+
+
+class SymbologyPalette(unittest.TestCase):
+    """Duas camadas de polígono não podem sair com o mesmo preenchimento."""
+
+    def test_tint_clareia_mantendo_o_matiz(self) -> None:
+        for cor in OKABE_ITO:
+            with self.subTest(cor=cor):
+                claro = _tint(cor, 0.82)
+                self.assertTrue(claro.startswith("#") and len(claro) == 7)
+                escuros = [int(cor.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)]
+                claros = [int(claro.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)]
+                for antes, depois in zip(escuros, claros):
+                    self.assertGreaterEqual(depois, antes)
+
+    def test_tints_de_matizes_diferentes_sao_diferentes(self) -> None:
+        tints = {_tint(cor, 0.82) for cor in OKABE_ITO[:6]}
+        self.assertEqual(len(tints), 6)
+
+    def test_extremos(self) -> None:
+        self.assertEqual(_tint("#0072B2", 1.0), "#FFFFFF")
+        self.assertEqual(_tint("#0072B2", 0.0), "#0072B2")
+        self.assertEqual(_tint("nao-e-cor", 0.5), "nao-e-cor")
+
+    def test_estilo_embutido_de_kml_e_reestilizavel(self) -> None:
+        # O KML traz o estilo do Google Earth: traço fino, sem preenchimento e
+        # sem amostra na legenda. Preservá-lo entregava uma legenda vazia.
+        self.assertIn("QgsEmbeddedSymbolRenderer", RESTYLABLE_RENDERERS)
+        self.assertIn("QgsSingleSymbolRenderer", RESTYLABLE_RENDERERS)
+
+    def test_renderizador_tematico_nao_e_reestilizavel(self) -> None:
+        for nome in ("QgsCategorizedSymbolRenderer", "QgsGraduatedSymbolRenderer", "QgsRuleBasedRenderer"):
+            with self.subTest(nome=nome):
+                self.assertNotIn(nome, RESTYLABLE_RENDERERS)
