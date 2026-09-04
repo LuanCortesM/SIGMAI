@@ -26,10 +26,36 @@ class ValidatorTests(unittest.TestCase):
             validate_command({"action": "do_anything"})
         self.assertEqual(raised.exception.code, "ACTION_NOT_ALLOWED")
 
-    def test_rejects_dangerous_token(self):
+    def test_rejects_execution_construct_in_a_code_bearing_field(self):
         with self.assertRaises(ValidationError) as raised:
-            validate_command({"action": "status", "params": {"code": "print(1)"}})
+            validate_command({"action": "status", "params": {"code": "exec('1')"}})
         self.assertEqual(raised.exception.code, "DANGEROUS_COMMAND")
+
+    def test_accepts_a_field_literally_named_code(self):
+        # Até a 0.1.1 a varredura de tokens rodava sobre o comando inteiro e
+        # recusava qualquer payload contendo a palavra "code". Campos chamados
+        # "code" são corriqueiros em bases cadastrais brasileiras, e o efeito
+        # era a IA receber DANGEROUS_COMMAND ao consultar dados normais.
+        command = validate_command({"action": "status", "params": {"code": "BR-3106200"}})
+        self.assertEqual(command["params"]["code"], "BR-3106200")
+
+    def test_accepts_layer_and_plugin_names_that_contain_blocked_words(self):
+        for params in (
+            {"plugin_name": "PythonConsole"},
+            {"plugin_name": "processing"},
+        ):
+            with self.subTest(params=params):
+                validate_command({"action": "inspect_plugin", "params": params})
+
+    def test_accepts_free_text_mentioning_execution(self):
+        # Texto livre — títulos, notas, expressões — não é código e não pode
+        # ser varrido: um mapa intitulado "Análise em Python" era recusado.
+        validate_command({"action": "status", "params": {"note": "please exec this", "title": "Análise em Python"}})
+
+    def test_rejects_directory_traversal_in_path_fields(self):
+        with self.assertRaises(ValidationError) as raised:
+            validate_command({"action": "export_layout", "params": {"layout_name": "L", "path": "/tmp/../etc/passwd"}})
+        self.assertEqual(raised.exception.code, "UNSAFE_PATH")
 
     def test_allows_safe_action_name_containing_eval(self):
         command = validate_command(

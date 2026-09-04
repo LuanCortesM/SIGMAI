@@ -8,18 +8,28 @@ from .security import contains_blocked_token
 
 ALLOWED_ACTIONS = allowed_actions()
 
+#: Tokens recusados APENAS dentro de campos que carregam código.
+#:
+#: Até a versão 0.1.1 esta lista era varrida contra o comando inteiro, o que
+#: gerava falsos positivos constantes em uso legítimo: um campo chamado
+#: ``code`` (comuníssimo em bases cadastrais), a expressão ``"code" = 'BR'``,
+#: inspecionar o plugin ``PythonConsole``, um título de mapa que mencionasse
+#: Python — tudo era recusado com DANGEROUS_COMMAND. A varredura também não
+#: acrescentava segurança real: o despacho já é uma allowlist de ações com
+#: manipuladores tipados, e nenhum manipulador avalia strings como código.
+#: A restrição foi então reduzida ao único lugar onde de fato há avaliação de
+#: código: os campos do Modo DEV.
 BLOCKED_TOKENS = {
     "__import__",
-    "cmd",
-    "code",
     "eval",
     "exec",
     "os.system",
     "popen",
-    "python",
-    "shell",
     "subprocess",
 }
+
+#: Chaves cujo valor é tratado como código e, por isso, varrido.
+CODE_BEARING_KEYS = {"code", "script", "python_code", "command", "shell_command", "expression_code"}
 
 
 class ValidationError(ValueError):
@@ -85,10 +95,24 @@ def validate_command(command: Any, unsafe_developer_mode: bool = False) -> dict[
                 {"action": action, "permission_level": metadata.permission_level},
             )
 
-    token_scan_payload = _redact_dev_code_values(command) if metadata and metadata.permission_level == UNSAFE_DEVELOPER and unsafe_developer_mode else command
-    blocked = contains_blocked_token(_redact_path_values(token_scan_payload), BLOCKED_TOKENS)
-    if blocked:
-        raise ValidationError("DANGEROUS_COMMAND", "Command contains a blocked token.", {"token": blocked})
+    # Fora do Modo DEV, nenhum campo de código deve chegar à bridge.
+    if not (metadata and metadata.permission_level == UNSAFE_DEVELOPER and unsafe_developer_mode):
+        blocked = _scan_code_bearing_fields(params)
+        if blocked:
+            raise ValidationError(
+                "DANGEROUS_COMMAND",
+                "Um campo que carrega código contém uma construção bloqueada. "
+                "Execução de Python arbitrário exige o Modo DEV, ativado na interface do QGIS.",
+                {"token": blocked},
+            )
+
+    traversal = _scan_path_traversal(params)
+    if traversal:
+        raise ValidationError(
+            "UNSAFE_PATH",
+            "Caminho com travessia de diretório ('..') não é aceito. Informe um caminho absoluto.",
+            {"path": traversal},
+        )
 
     normalized = dict(command)
     normalized["schema_version"] = schema_version
@@ -96,6 +120,46 @@ def validate_command(command: Any, unsafe_developer_mode: bool = False) -> dict[
     normalized["dry_run"] = dry_run
     normalized["params"] = params
     return normalized
+
+
+def _scan_code_bearing_fields(value: Any, key: str = "") -> str | None:
+    """Procura construções de execução só nos campos que carregam código."""
+    if isinstance(value, dict):
+        for nested_key, nested in value.items():
+            found = _scan_code_bearing_fields(nested, str(nested_key))
+            if found:
+                return found
+        return None
+    if isinstance(value, list):
+        for nested in value:
+            found = _scan_code_bearing_fields(nested, key)
+            if found:
+                return found
+        return None
+    if isinstance(value, str) and key.lower() in CODE_BEARING_KEYS:
+        return contains_blocked_token(value, BLOCKED_TOKENS)
+    return None
+
+
+def _scan_path_traversal(value: Any, key: str = "") -> str | None:
+    """Recusa '..' em campos de caminho, sem tocar em texto livre."""
+    if isinstance(value, dict):
+        for nested_key, nested in value.items():
+            found = _scan_path_traversal(nested, str(nested_key))
+            if found:
+                return found
+        return None
+    if isinstance(value, list):
+        for nested in value:
+            found = _scan_path_traversal(nested, key)
+            if found:
+                return found
+        return None
+    if isinstance(value, str) and _is_path_like_key(key.lower()):
+        normalized = value.replace("\\", "/")
+        if ".." in normalized.split("/"):
+            return value
+    return None
 
 
 def _redact_path_values(value: Any) -> Any:

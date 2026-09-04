@@ -75,9 +75,14 @@ class PermissionTests(unittest.TestCase):
         normalized = validate_command({"action": "execute_workflow", "dry_run": True, "params": {"steps": [{"action": "status"}]}})
         self.assertEqual(normalized["action"], "execute_workflow")
 
-    def test_exec_token_still_blocked_in_free_text(self):
+    def test_exec_token_is_blocked_only_where_code_actually_runs(self):
+        # Varrer texto livre não acrescentava segurança — o despacho já é uma
+        # allowlist de ações com manipuladores tipados, e nenhum deles avalia
+        # strings — e produzia falso positivo em uso legítimo. A varredura
+        # ficou restrita aos campos que carregam código.
+        validate_command({"action": "status", "params": {"note": "please exec this"}})
         with self.assertRaises(ValidationError):
-            validate_command({"action": "status", "params": {"note": "please exec this"}})
+            validate_command({"action": "status", "params": {"script": "__import__('os')"}})
 
     def test_atlas_report_actions_are_capability_wrapped(self):
         payload = capabilities_payload()

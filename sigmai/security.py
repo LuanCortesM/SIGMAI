@@ -10,10 +10,39 @@ from typing import Iterable
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 
+#: Quantas portas tentar a partir da padrão antes de desistir. Sem isso, uma
+#: segunda instância do QGIS — ou qualquer processo que já ocupe a 8765 —
+#: fazia a bridge falhar ao iniciar com um erro de socket que não dizia nada
+#: ao usuário.
+PORT_SCAN_ATTEMPTS = 20
+
 
 def generate_token() -> str:
     """Create a local session token for bearer authentication."""
     return secrets.token_urlsafe(32)
+
+
+def find_available_port(host: str = DEFAULT_HOST, start: int = DEFAULT_PORT, attempts: int = PORT_SCAN_ATTEMPTS) -> int:
+    """Primeira porta livre a partir de ``start``.
+
+    Levanta ``OSError`` se nenhuma das ``attempts`` portas estiver disponível,
+    com uma mensagem que nomeia a faixa tentada.
+    """
+    import socket
+
+    for offset in range(max(1, attempts)):
+        candidate = int(start) + offset
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                probe.bind((host, candidate))
+            except OSError:
+                continue
+            return candidate
+    raise OSError(
+        f"Nenhuma porta livre entre {start} e {start + attempts - 1} em {host}. "
+        "Feche outra instância do QGIS com o SIGMAI ativo ou libere a faixa."
+    )
 
 
 def is_localhost(host: str) -> bool:

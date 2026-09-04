@@ -1176,7 +1176,16 @@ def _install_or_update_from_folder(params: dict[str, Any], context: dict[str, An
     existing = _find_plugin_path(plugin_name)
     if _is_self_plugin(plugin_name, existing):
         raise ValidationError("SELF_UPDATE_REQUIRES_SELF_MANAGEMENT", "This plugin is the running Bridge. Use self_stage_update and self_apply_update with backup.", {"plugin_name": plugin_name})
-    destination_root = _plugin_roots()[-1]
+    roots = _plugin_roots()
+    if not roots:
+        # Sem perfil do QGIS montado — ambiente headless, CI — a lista vem
+        # vazia e o índice [-1] levantava IndexError cru no meio do comando.
+        raise ValidationError(
+            "PLUGIN_ROOT_NOT_FOUND",
+            "Nenhuma pasta de plugins do QGIS foi encontrada neste perfil.",
+            {"plugin_name": plugin_name},
+        )
+    destination_root = roots[-1]
     destination = destination_root / plugin_name
     try:
         resolved_destination = destination.resolve()

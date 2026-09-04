@@ -3,6 +3,7 @@ from . import (
     atlas_reports,
     attributes,
     cartography,
+    cartography_engine,
     data_sources,
     dev_tools,
     diagnostics,
@@ -12,6 +13,7 @@ from . import (
     get_layer_info,
     get_logs,
     get_project_info,
+    project_overview,
     gis_tools,
     jobs,
     layer_tree,
@@ -36,10 +38,17 @@ def register_actions(registry):
     registry.register("get_capabilities", capabilities.handle)
     registry.register("get_qgis_environment", environment.handle)
     registry.register("get_bridge_config", status.bridge_config)
+    registry.register("get_consent_status", status.consent_status)
+    registry.register("get_consent_audit", status.consent_audit)
     registry.register("list_layers", list_layers.handle)
     registry.register("list_project_layers", list_layers.handle)
     registry.register("load_vector_layer", load_layers.handle)
     registry.register("get_project_info", get_project_info.handle)
+    registry.register("get_project_overview", project_overview.handle)
+    registry.register("compose_map", cartography_engine.compose_map)
+    registry.register("audit_map_layout", cartography_engine.audit_map_layout)
+    registry.register("get_cartographic_rulebook", cartography_engine.get_cartographic_rulebook)
+    registry.register("plan_map_layout", cartography_engine.plan_map_layout)
     registry.register("get_project_crs", get_project_info.project_crs)
     registry.register("get_layer_info", get_layer_info.handle)
     registry.register("diagnose_crs", gis_tools.diagnose_crs)

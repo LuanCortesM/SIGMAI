@@ -13,15 +13,38 @@ from pathlib import Path
 from typing import Any
 
 from .capabilities import get_capabilities
+from .consent import ConsentManager, ConsentRequest
 from .command_registry import CommandRegistry, make_response
 from .logging_utils import filter_error_records
 from .qgis_actions import register_actions
-from .security import DEFAULT_HOST, DEFAULT_PORT, is_localhost, validate_bearer_header
+from .permissions import READ_ONLY, permission_for
+from .security import DEFAULT_HOST, DEFAULT_PORT, find_available_port, is_localhost, validate_bearer_header
 from .validators import ValidationError, validate_command
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def plugin_version() -> str:
+    """Versão declarada em metadata.txt.
+
+    Até a 0.1.1 a versão estava escrita à mão em três pontos deste arquivo e em
+    mais um em cartography.py. Publicar uma versão nova exigia lembrar dos
+    quatro, e a divergência já tinha acontecido: o pacote publicado dizia 0.1.1
+    enquanto o repositório dizia 0.1.0.
+    """
+    metadata = Path(__file__).resolve().parent / "metadata.txt"
+    try:
+        for line in metadata.read_text(encoding="utf-8").splitlines():
+            if line.lower().startswith("version="):
+                return line.split("=", 1)[1].strip()
+    except Exception:
+        pass
+    return "0.0.0"
+
+
+PLUGIN_VERSION = plugin_version()
 
 
 class BridgeLogger:
@@ -96,6 +119,7 @@ class SIGMAIServer:
         self._thread: threading.Thread | None = None
         self._timer = None
         self.unsafe_developer_mode = False
+        self.consent = ConsentManager(audit_sink=lambda entry: self.logger.record("consent", **entry))
         self.registry = CommandRegistry(self._context())
         register_actions(self.registry)
         self.started_at = _now()
@@ -110,9 +134,10 @@ class SIGMAIServer:
             "port": self.port,
             "logger": self.logger,
             "qgis_version": self.qgis_version,
-            "plugin_version": "0.1.0",
+            "plugin_version": PLUGIN_VERSION,
             "package_name": __package__.split(".")[0] if __package__ else "sigmai",
             "unsafe_developer_mode": self.unsafe_developer_mode,
+            "consent": self.consent,
         }
 
     def _qgis_version(self) -> str:
@@ -134,7 +159,16 @@ class SIGMAIServer:
             raise ValueError("SIGMAI bridge only supports host 127.0.0.1.")
 
         handler = self._make_handler()
-        self._httpd = ThreadingHTTPServer((self.host, self.port), handler)
+        # Se a porta preferida estiver ocupada — outra instância do QGIS, outro
+        # serviço — procura a próxima livre em vez de falhar com um erro de
+        # socket que não diz nada ao usuário.
+        try:
+            self._httpd = ThreadingHTTPServer((self.host, self.port), handler)
+        except OSError:
+            fallback = find_available_port(self.host, self.port)
+            self.logger.record("bridge_port_fallback", requested=self.port, chosen=fallback)
+            self.port = fallback
+            self._httpd = ThreadingHTTPServer((self.host, self.port), handler)
         self._thread = threading.Thread(target=self._httpd.serve_forever, name="SIGMAIHTTP", daemon=True)
         self._thread.start()
         self._start_qt_timer()
@@ -162,7 +196,7 @@ class SIGMAIServer:
             "log_path": str(self.logger.log_path),
             "started_at": self.started_at,
             "qgis_version": self.qgis_version,
-            "plugin_version": "0.1.0",
+            "plugin_version": PLUGIN_VERSION,
             "package_name": __package__.split(".")[0] if __package__ else "sigmai",
             "registered_command_count": len(self.registry.actions()),
             "queue_size": self.queue.qsize(),
@@ -221,7 +255,7 @@ class SIGMAIServer:
     def process_pending_commands(self) -> None:
         tick_started = time.perf_counter()
         processed = 0
-        while processed < 1 and (time.perf_counter() - tick_started) < 0.05:
+        while processed < 4 and (time.perf_counter() - tick_started) < 0.05:
             try:
                 item = self.queue.get_nowait()
             except queue.Empty:
@@ -283,6 +317,10 @@ class SIGMAIServer:
         except ValidationError as exc:
             self._checkpoint("validation_failed", started, action=action, request_id=request_id, client=client, error=exc.code)
             return make_response(False, action, None, [], [{"code": exc.code, "message": str(exc), "details": exc.details}], started, self._context(), request_id)
+        # A partir daqui trabalha-se com o comando normalizado. Enfileirar o
+        # comando cru significava validar uma coisa e executar outra: valores
+        # ausentes ganhavam default na validação e voltavam a faltar na execução.
+        command = normalized
         if action not in self.registry.actions():
             self._checkpoint("handler_missing", started, action=action, request_id=request_id, client=client)
             return make_response(
@@ -299,6 +337,10 @@ class SIGMAIServer:
         fast_response = self._execute_fast_command(command, client)
         if fast_response is not None:
             return fast_response
+
+        consent_denial = self._check_consent(command, client, started)
+        if consent_denial is not None:
+            return consent_denial
 
         if self._timer is None:
             self.logger.record("command_received", action=command.get("action"), client=client, mode="direct")
@@ -323,11 +365,46 @@ class SIGMAIServer:
             )
         return item.response or {}
 
+    def _check_consent(self, command: dict[str, Any], client: str, started: float) -> dict[str, Any] | None:
+        """Bloqueia ações de escrita que o usuário não autorizou.
+
+        Simulações (``dry_run``) e comandos de leitura passam direto: é o que
+        permite ao agente mostrar o que faria antes de pedir permissão.
+        """
+        action = command.get("action", "")
+        if command.get("dry_run"):
+            return None
+        metadata = permission_for(action)
+        if metadata is None or metadata.permission_level == READ_ONLY:
+            return None
+
+        request = ConsentRequest(
+            action=action,
+            group=metadata.group,
+            permission_level=metadata.permission_level,
+            params=command.get("params", {}) or {},
+            client=client,
+        )
+        decision = self.consent.evaluate(request)
+        if decision.allowed:
+            return None
+        self._checkpoint("consent_denied", started, action=action, client=client)
+        return make_response(
+            False,
+            action,
+            {"consent": self.consent.status(), "request": request.to_dict()},
+            [],
+            [{"code": "CONSENT_REQUIRED", "message": decision.reason, "details": {"action": action, "category": request.category}}],
+            started,
+            self._context(),
+            command.get("request_id", ""),
+        )
+
     def _execute_fast_command(self, command: dict[str, Any], client: str) -> dict[str, Any] | None:
         started = time.perf_counter()
         action = command.get("action", "unknown")
         request_id = command.get("request_id", command.get("id", ""))
-        fast_actions = {"status", "get_capabilities", "get_bridge_config", "get_logs", "get_recent_errors", "get_qgis_environment"}
+        fast_actions = {"status", "get_capabilities", "get_bridge_config", "get_logs", "get_recent_errors", "get_qgis_environment", "get_consent_status", "get_consent_audit"}
         if action not in fast_actions:
             return None
         try:
@@ -345,6 +422,7 @@ class SIGMAIServer:
                     "port": self.port,
                     "qgis_version": self.qgis_version,
                     "project_loaded": None,
+                    "consent": self.consent.status(),
                     **self.status(),
                 }
             elif action == "get_capabilities":
@@ -370,6 +448,11 @@ class SIGMAIServer:
             elif action == "get_recent_errors":
                 tail = max(1, min(int(normalized.get("params", {}).get("tail", 200)), 1000))
                 data = {"errors": filter_error_records(self.logger.tail(tail)), "tail": tail}
+            elif action == "get_consent_status":
+                data = self.consent.status()
+            elif action == "get_consent_audit":
+                tail = max(1, min(int(normalized.get("params", {}).get("tail", 50)), 500))
+                data = {"audit": self.consent.recent_audit(tail), "tail": tail}
             elif action == "get_qgis_environment":
                 data = {
                     "qgis_version": self.qgis_version,
@@ -377,7 +460,7 @@ class SIGMAIServer:
                     "platform": sys.platform,
                     "bridge_fast_path": True,
                     "note": "Fast environment response avoids waiting behind a blocked QGIS command queue.",
-                    "plugin_version": "0.1.0",
+                    "plugin_version": PLUGIN_VERSION,
                     "package_name": __package__.split(".")[0] if __package__ else "sigmai",
                     "log_path": str(self.logger.log_path),
                     "registered_command_count": len(self.registry.actions()),
@@ -400,9 +483,30 @@ class SIGMAIServer:
         bridge = self
 
         class RequestHandler(BaseHTTPRequestHandler):
-            server_version = "SIGMAI/0.1"
+            server_version = f"SIGMAI/{PLUGIN_VERSION}"
+            # HTTP/1.1 mantém a conexão viva entre comandos; com HTTP/1.0 cada
+            # comando abria um socket novo, o que na prática dobra a latência de
+            # um agente que faz dezenas de chamadas seguidas.
+            protocol_version = "HTTP/1.1"
 
             def do_GET(self):
+                # /health responde sem token: um cliente que não achou a sessão
+                # precisa conseguir distinguir "bridge parada" de "token errado".
+                # Não expõe nada além da existência e da versão, e só escuta em
+                # 127.0.0.1.
+                if self.path == "/health":
+                    if not self._is_local():
+                        return
+                    self._send_json(200, {
+                        "ok": True,
+                        "service": "sigmai",
+                        "running": bridge.running,
+                        "plugin_version": PLUGIN_VERSION,
+                        "qgis_version": bridge.qgis_version,
+                        "auth": "bearer",
+                        "consent_mode": bridge.consent.mode,
+                    })
+                    return
                 if self.path != "/status":
                     self._send_json(404, {"ok": False, "error": "Not found."})
                     return
@@ -446,6 +550,13 @@ class SIGMAIServer:
 
             def log_message(self, format, *args):
                 bridge.logger.record("http_access", client=self.client_address[0], message=format % args)
+
+            def _is_local(self) -> bool:
+                client_host = self.client_address[0]
+                if is_localhost(client_host):
+                    return True
+                self._send_json(403, {"ok": False, "error": "Only localhost requests are accepted."})
+                return False
 
             def _is_authorized(self) -> bool:
                 client_host = self.client_address[0]
