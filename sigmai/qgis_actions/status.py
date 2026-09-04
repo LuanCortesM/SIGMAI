@@ -34,3 +34,20 @@ def bridge_config(params, context):
         "subtitle": "Secure GIS-AI Interface",
         "local_only": True,
     }
+
+
+def consent_status(params, context):
+    """Modo de acesso, limites e contadores da sessão."""
+    manager = context.get("consent")
+    if manager is None:
+        return {"available": False, "reason": "Bridge sem gerenciador de consentimento."}
+    return manager.status()
+
+
+def consent_audit(params, context):
+    """Trilha de auditoria das decisões de consentimento."""
+    manager = context.get("consent")
+    if manager is None:
+        return {"available": False, "audit": []}
+    tail = max(1, min(int(params.get("tail", 50)), 500))
+    return {"audit": manager.recent_audit(tail), "tail": tail}
