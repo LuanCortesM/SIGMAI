@@ -1,4 +1,4 @@
-﻿# Cartographic Map Generation Guide for SIGMAI
+# Cartographic Map Generation Guide for SIGMAI
 
 Guia derivado da documentacao local oficial QGIS 3.44, com prioridade no problema observado: o SIGMAI exportou layout, mas o mapa ficou praticamente branco.
 

@@ -33,3 +33,12 @@ env/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Local QGIS/OSGeo4W installation kept beside the repository for testing
+QGIS/
+github.txt
+
+# Dados de teste e camadas de trabalho: pesados e não pertencem ao repositório
+Shapes/
+_sigmai_snapshot.tgz
+_sigmai_v020.tgz

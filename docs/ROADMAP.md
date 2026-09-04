@@ -1,4 +1,4 @@
-﻿# SIGMAI Roadmap
+# SIGMAI Roadmap
 
 Public name: SIGMAI - Secure GIS-AI Interface.
 

@@ -1,4 +1,4 @@
-﻿# SIGMAI Command Mapping from QGIS 3.44 Documentation
+# SIGMAI Command Mapping from QGIS 3.44 Documentation
 
 Este mapeamento traduz as APIs e algoritmos documentados no QGIS 3.44 para comandos seguros do SIGMAI.
 

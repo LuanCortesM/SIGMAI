@@ -1,4 +1,4 @@
-﻿# AI Agent Protocol
+# AI Agent Protocol
 
 Agents must treat SIGMAI as the source of truth for QGIS state.
 

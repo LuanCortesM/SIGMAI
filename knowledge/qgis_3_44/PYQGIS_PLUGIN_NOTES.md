@@ -1,4 +1,4 @@
-﻿# PyQGIS Plugin Notes for SIGMAI
+# PyQGIS Plugin Notes for SIGMAI
 
 Primary sources: `pyqgis_developer_cookbook/plugins/*`, `pyqgis_developer_cookbook/processing`.
 

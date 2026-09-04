@@ -1,4 +1,4 @@
-﻿# PyQGIS Symbology Notes for SIGMAI
+# PyQGIS Symbology Notes for SIGMAI
 
 Fonte local analisada: `local QGIS documentation mirror/qgis_3_44/_sources/docs/pyqgis_developer_cookbook/vector.rst.txt` e `raster.rst.txt`.
 

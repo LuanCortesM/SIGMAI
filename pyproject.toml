@@ -1,4 +1,4 @@
-﻿[project]
+[project]
 name = "sigmai"
 version = "0.1.0"
 description = "Secure GIS-AI Interface for local, auditable AI-QGIS interaction."

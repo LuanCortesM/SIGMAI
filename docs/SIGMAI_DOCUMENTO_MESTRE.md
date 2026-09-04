@@ -1,4 +1,4 @@
-﻿# SIGMAI - Documento Mestre do Projeto
+# SIGMAI - Documento Mestre do Projeto
 
 Status do documento: documento vivo  
 Ultima atualizacao: 2026-05-22  

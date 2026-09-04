@@ -1,0 +1,12 @@
+# Normalize all text files to LF in the repository.
+# Prevents the whole tree from showing as modified when the working copy
+# is edited on Windows and the repository history was created with LF.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.zip binary
+*.gpkg binary
+*.tif binary
+*.tiff binary

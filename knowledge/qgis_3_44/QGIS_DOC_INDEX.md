@@ -1,4 +1,4 @@
-﻿# QGIS 3.44 Documentation Index for SIGMAI
+# QGIS 3.44 Documentation Index for SIGMAI
 
 Source documentation copied locally to `local QGIS documentation mirror/qgis_3_44/` and ignored by Git. This index summarizes only the files relevant to SIGMAI.
 

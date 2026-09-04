@@ -1,4 +1,4 @@
-﻿# PyQGIS CRS Notes for SIGMAI
+# PyQGIS CRS Notes for SIGMAI
 
 Fonte local analisada: `local QGIS documentation mirror/qgis_3_44/_sources/docs/pyqgis_developer_cookbook/crs.rst.txt`.
 

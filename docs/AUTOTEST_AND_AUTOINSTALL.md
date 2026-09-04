@@ -1,4 +1,4 @@
-﻿# Autotest and Autoinstall
+# Autotest and Autoinstall
 
 This workflow automates as much as possible while keeping SIGMAI secure.
 

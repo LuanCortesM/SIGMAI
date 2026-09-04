@@ -1,4 +1,4 @@
-﻿# Test Plan With Shapes
+# Test Plan With Shapes
 
 Test data folder:
 

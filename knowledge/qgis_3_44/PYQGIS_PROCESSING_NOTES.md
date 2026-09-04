@@ -1,4 +1,4 @@
-﻿# PyQGIS Processing Notes for SIGMAI
+# PyQGIS Processing Notes for SIGMAI
 
 Primary sources: `user_manual/processing/console`, `pyqgis_developer_cookbook/processing`, `processing_algs/*`.
 

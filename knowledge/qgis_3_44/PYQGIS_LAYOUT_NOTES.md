@@ -1,4 +1,4 @@
-﻿# PyQGIS Layout Notes for SIGMAI
+# PyQGIS Layout Notes for SIGMAI
 
 Primary source: `pyqgis_developer_cookbook/composer`.
 

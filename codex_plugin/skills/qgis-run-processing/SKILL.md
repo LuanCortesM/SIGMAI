@@ -1,4 +1,4 @@
-﻿# QGIS Run Processing
+# QGIS Run Processing
 
 Use this skill when the user wants to run a QGIS Processing algorithm through SIGMAI.
 

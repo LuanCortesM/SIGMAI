@@ -1,4 +1,4 @@
-﻿# PyQGIS Vector and Raster Notes for SIGMAI
+# PyQGIS Vector and Raster Notes for SIGMAI
 
 Fontes locais analisadas:
 

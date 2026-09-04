@@ -1,4 +1,4 @@
-﻿# Self-Management Mode
+# Self-Management Mode
 
 Self-Management Mode existe para que o SIGMAI consiga cuidar da propria instalacao sem quebrar a Bridge que esta em execucao.
 

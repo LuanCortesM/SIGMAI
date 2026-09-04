@@ -1,4 +1,4 @@
-﻿# QGIS Create Map Layout
+# QGIS Create Map Layout
 
 Use this skill when the user asks for a map layout workflow. Use this skill when the user asks for a safe map layout workflow through SIGMAI.
 
