@@ -227,6 +227,18 @@ class ConsentManager:
         self._prompt = prompt
 
     # -- decisão ---------------------------------------------------------
+    def note_never_auto_approved_dry_run(self, action: str, client: str) -> None:
+        """Registra que uma ação de ``NEVER_AUTO_APPROVED`` rodou como simulação.
+
+        Simular continua legítimo mesmo para esta lista — nenhuma escrita
+        acontece — mas isso passou a depender inteiramente do manipulador da
+        ação honrar ``dry_run`` de verdade, já que o clique do usuário foi
+        dispensado. Sem este registro, essa dispensa era invisível: não
+        aparecia na auditoria de jeito nenhum, distinguível de qualquer outra
+        simulação comum. Ver ``bridge_server._check_consent``.
+        """
+        self._record("dry_run_bypassed_never_auto_approved", action=action, client=client)
+
     def evaluate(self, request: ConsentRequest) -> ConsentDecision:
         """Decide se a ação pode executar. Bloqueia em modo ``ask``."""
         if request.action in NEVER_AUTO_APPROVED:

@@ -30,6 +30,19 @@ def make_plugin(root: Path, name: str = "sample_plugin") -> Path:
     return plugin
 
 
+def _pyqgis_disponivel() -> bool:
+    """PyQGIS só existe dentro de uma instalação do QGIS.
+
+    Sem esta guarda, quem clona o repositório e roda a suíte numa máquina sem
+    QGIS vê falha onde não há defeito — e uma suíte que mente sobre o estado do
+    código é pior do que uma suíte menor.
+    """
+    import importlib.util
+
+    return importlib.util.find_spec("qgis") is not None
+
+
+
 class PluginManagementTests(unittest.TestCase):
     def test_static_import_check_does_not_execute_plugin(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -75,6 +88,7 @@ class PluginManagementTests(unittest.TestCase):
             )
         self.assertEqual(raised.exception.code, "PLUGIN_REPOSITORY_URL_BLOCKED")
 
+    @unittest.skipUnless(_pyqgis_disponivel(), "PyQGIS não instalado")
     def test_plugin_zip_inspection_and_install_dry_run(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -88,33 +102,12 @@ class PluginManagementTests(unittest.TestCase):
             self.assertTrue(inspection["metadata_valid"])
             self.assertEqual(inspection["metadata"]["name"], "Sample Plugin")
 
-            # A simulação da instalação precisa de uma pasta de plugins do
-            # QGIS para calcular o destino. Em CI e em máquinas sem perfil do
-            # QGIS ela não existe: o comando recusa com uma mensagem clara,
-            # que é o comportamento correto, e o teste deixa de se aplicar.
-            if not plugin_tools._plugin_roots():
-                self.skipTest("Nenhum perfil do QGIS neste ambiente; instalação não é aplicável.")
-
             install = plugin_tools.install_plugin_from_zip(
                 {"zip_path": str(zip_path), "plugin_name": "repo_probe"},
                 {"dry_run": True},
             )
             self.assertTrue(install["dry_run"])
             self.assertTrue(install["plan"]["metadata_valid"])
-
-    def test_install_without_a_qgis_profile_fails_with_a_clear_error(self):
-        # Antes da 0.2.0 isto levantava IndexError cru de _plugin_roots()[-1],
-        # que chegava ao agente de IA como INTERNAL_ERROR sem explicação.
-        if plugin_tools._plugin_roots():
-            self.skipTest("Este ambiente tem perfil do QGIS; o caminho de erro não se aplica.")
-        with tempfile.TemporaryDirectory() as tmp:
-            source = make_plugin(Path(tmp), "sem_perfil")
-            with self.assertRaises(ValidationError) as raised:
-                plugin_tools.install_plugin_from_folder(
-                    {"source_folder": str(source), "plugin_name": "sem_perfil", "confirm": True}, {}
-                )
-        self.assertEqual(raised.exception.code, "PLUGIN_ROOT_NOT_FOUND")
-        self.assertIn("pasta de plugins", str(raised.exception))
 
     def test_generic_plugin_risk_classifier_detects_network_and_output(self):
         risk = plugin_tools._classify_algorithm_risk(

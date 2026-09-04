@@ -18,7 +18,7 @@ That mattered more than it would in a manual tool, because the grade was the **o
 
 ## What replaces it
 
-An explicit rulebook of 26 rules across nine categories. Each rule carries:
+An explicit rulebook of 28 rules across nine categories. Each rule carries:
 
 | Field | Purpose |
 |---|---|

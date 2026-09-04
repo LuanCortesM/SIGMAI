@@ -9,6 +9,7 @@ from ..security import normalize_output_path
 from ..validators import ValidationError, require_param
 from .common import crs_authid, extent_to_dict, layer_type_name, project
 from .load_layers import handle as load_vector_layer
+from .project_overview import redact_layer_source, redact_source
 
 MAX_SAFE_GPX_XML_BYTES = 25_000_000
 
@@ -51,7 +52,9 @@ def broken_data_source_report(params: dict[str, Any], context: dict[str, Any]):
     broken = []
     for layer in project().mapLayers().values():
         if not layer.isValid():
-            broken.append({"layer_id": layer.id(), "name": layer.name(), "source": layer.source(), "type": layer_type_name(layer)})
+            # Uma camada quebrada de banco (PostGIS/MSSQL/Oracle) ainda carrega
+            # a senha na string de conexão mesmo inválida — redigir aqui.
+            broken.append({"layer_id": layer.id(), "name": layer.name(), "source": redact_layer_source(layer), "type": layer_type_name(layer)})
     return {"broken_count": len(broken), "broken_layers": broken}
 
 
@@ -137,13 +140,58 @@ def _require_network_ok(params: dict[str, Any], url: str, service_type: str) -> 
         )
 
 
+#: Tipos de serviço cuja camada QGIS não faz NENHUMA checagem síncrona de
+#: conectividade ao ser construída: isValid() volta True mesmo para uma URL
+#: completamente falsa — a checagem real só acontece depois, quando o QGIS
+#: efetivamente busca um tile ou uma imagem para desenhar. Provado por
+#: reprodução real com https://example.test/... : XYZ e ArcGIS REST voltam
+#: valid=true; WMS e WFS fazem GetCapabilities/GetFeature síncrono e
+#: detectam a falha aqui (WFS, aliás, é o provedor do defeito de segfault
+#: logo abaixo — os dois defeitos nascem da mesma causa: nem todo provedor
+#: se comporta como WMS).
+_NO_SYNC_CONNECTIVITY_CHECK = {"XYZ", "ArcGIS REST"}
+
+
+def _safe_layer_error_text(layer: Any) -> str:
+    """Texto de erro da camada, sem chamar ``QgsError.summary()``.
+
+    ``summary()`` crasha nativamente (segfault, não exceção Python) quando o
+    ``QgsError`` do provedor WFS está vazio — reproduzido 2/2 vezes contra um
+    servidor WFS inalcançável. ``isEmpty()`` e ``message()`` são seguros nos
+    mesmos cenários (inclusive quando vazios) e foram checados também contra
+    resposta 404, corpo não-XML e ServiceExceptionReport: em todos, o
+    provedor WFS não populava nada em ``layer.error()`` mesmo — ou seja,
+    ``summary()`` nunca tinha conteúdo útil a mais para dar aqui, só o risco
+    de derrubar o processo. WMS, com erro de fato populado, usa ``message()``
+    igual e continua informativo.
+    """
+    try:
+        error = layer.error()
+    except Exception:
+        return ""
+    try:
+        if error is None or error.isEmpty():
+            return ""
+        return str(error.message() or "")
+    except Exception:
+        return ""
+
+
 def _finish_network_layer(layer: Any, name: str, service_type: str, url: str,
                           attribution: str, extra: dict[str, Any] | None = None):
     """Valida, credita e entrega a camada ao projeto.
 
-    Uma camada inválida NÃO entra no projeto: antes o assistente recebia
+    Uma camada inválida NÃO entra no projeto quando o provedor consegue
+    detectar isso de forma síncrona (WMS, WFS): antes o assistente recebia
     sucesso e o usuário via uma entrada morta na árvore de camadas, sem saber
     se o problema era a URL, o nome da camada ou a falta de rede.
+
+    Para XYZ e ArcGIS REST essa checagem simplesmente não existe no provedor
+    — ``isValid()`` volta True mesmo para uma URL inventada, porque a camada
+    só busca dado de verdade quando o mapa desenha. Aqui isso é explícito na
+    resposta (``connectivity_confirmed=False`` e uma nota) em vez de deixar a
+    IA supor que ``valid: true`` significa "servidor confirmado no ar" — o
+    que só é verdade para WMS e WFS.
     """
     if not layer.isValid():
         raise ValidationError(
@@ -152,23 +200,32 @@ def _finish_network_layer(layer: Any, name: str, service_type: str, url: str,
             "ordem: o servidor não respondeu (sem rede, ou fora do ar), o nome da camada não "
             "existe nesse serviço, ou o CRS pedido não é oferecido por ele. Confira com "
             "inspect_ogc_service antes de repetir.",
-            {"url": url, "service_type": service_type, "error": str(layer.error().summary() or "")[:400]},
+            {"url": redact_source(url), "service_type": service_type, "error": _safe_layer_error_text(layer)[:400]},
         )
     try:
         layer.setAttribution(attribution)
     except Exception:
         pass
     project().addMapLayer(layer)
+    connectivity_confirmed = service_type not in _NO_SYNC_CONNECTIVITY_CHECK
     payload = {
         "layer_id": layer.id(),
         "name": layer.name(),
         "service_type": service_type,
-        "url": url,
+        "url": redact_source(url),
         "attribution": attribution,
         "source_kind": _tile_source_kind(url),
         "crs": crs_authid(layer.crs()),
         "valid": True,
+        "connectivity_confirmed": connectivity_confirmed,
     }
+    if not connectivity_confirmed:
+        alvo = "o servidor" if _tile_source_kind(url) == "rede" else "os arquivos de tile no disco"
+        payload["note"] = (
+            f"O provedor {service_type} não faz checagem síncrona de conectividade: valid=true "
+            f"aqui só confirma que o QGIS aceitou a estrutura da fonte, não que {alvo} responde de "
+            "fato. Um erro só aparece mais tarde, ao desenhar o mapa."
+        )
     payload.update(extra or {})
     return payload
 
@@ -205,7 +262,7 @@ def load_xyz_tile_layer(params: dict[str, Any], context: dict[str, Any]):
         )
 
     if context.get("dry_run"):
-        return {"dry_run": True, "service_type": "XYZ", "url": url, "name": name,
+        return {"dry_run": True, "service_type": "XYZ", "url": redact_source(url), "name": name,
                 "attribution": attribution, "network_request_made": False}
 
     uri = f"type=xyz&url={quote(url, safe='')}&zmin={zoom_min}&zmax={zoom_max}"
@@ -237,7 +294,7 @@ def load_wms_layer(params: dict[str, Any], context: dict[str, Any]):
     _require_network_ok(params, url, "WMS")
 
     if context.get("dry_run"):
-        return {"dry_run": True, "service_type": "WMS", "url": url, "layers": camadas,
+        return {"dry_run": True, "service_type": "WMS", "url": redact_source(url), "layers": camadas,
                 "name": name, "attribution": attribution, "network_request_made": False}
 
     uri = "&".join([
@@ -271,7 +328,7 @@ def load_wfs_layer(params: dict[str, Any], context: dict[str, Any]):
     _require_network_ok(params, url, "WFS")
 
     if context.get("dry_run"):
-        return {"dry_run": True, "service_type": "WFS", "url": url, "typename": typename,
+        return {"dry_run": True, "service_type": "WFS", "url": redact_source(url), "typename": typename,
                 "name": name, "attribution": attribution, "network_request_made": False}
 
     uri = (
@@ -294,7 +351,7 @@ def load_arcgis_rest_layer(params: dict[str, Any], context: dict[str, Any]):
     _require_network_ok(params, url, "ArcGIS REST")
 
     if context.get("dry_run"):
-        return {"dry_run": True, "service_type": "ArcGIS REST", "url": url, "name": name,
+        return {"dry_run": True, "service_type": "ArcGIS REST", "url": redact_source(url), "name": name,
                 "attribution": attribution, "network_request_made": False}
 
     uri = f"crs={quote(crs, safe='')}&format=png&layer=0&url={quote(url, safe='')}"
@@ -310,8 +367,10 @@ def load_gpx(params: dict[str, Any], context: dict[str, Any]):
 
 
 def list_gpx_layers(params: dict[str, Any], context: dict[str, Any]):
+    # A filtragem usa layer.source() cru (GPX nunca carrega credencial); só a
+    # saída devolvida à IA passa por redact_layer_source.
     layers = [layer for layer in project().mapLayers().values() if layer.source().lower().endswith(".gpx") or ".gpx|" in layer.source().lower()]
-    return {"layers": [{"layer_id": layer.id(), "name": layer.name(), "source": layer.source(), "crs": crs_authid(layer.crs()), "extent": extent_to_dict(layer)} for layer in layers], "count": len(layers)}
+    return {"layers": [{"layer_id": layer.id(), "name": layer.name(), "source": redact_layer_source(layer), "crs": crs_authid(layer.crs()), "extent": extent_to_dict(layer)} for layer in layers], "count": len(layers)}
 
 
 def summarize_gpx_track(params: dict[str, Any], context: dict[str, Any]):

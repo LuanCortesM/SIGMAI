@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .capabilities import get_capabilities
-from .consent import ConsentManager, ConsentRequest
+from .consent import NEVER_AUTO_APPROVED, ConsentManager, ConsentRequest
 from .command_registry import CommandRegistry, make_response
 from .logging_utils import filter_error_records
 from .qgis_actions import register_actions
@@ -242,6 +242,92 @@ class SIGMAIServer:
             **payload,
         )
 
+    def _dry_run_project_snapshot(self) -> dict[str, Any] | None:
+        """'Fotografia' leve do projeto QGIS, usada só pela rede de segurança
+        de ``dry_run`` em ``_execute_command``.
+
+        ``QgsProject.isDirty()`` sozinho não serve para isto: comprovado com
+        QGIS real, ``layer.setRenderer(...)`` — a própria mutação do Defeito
+        1 — não marca o projeto como sujo, e o projeto de uma sessão em uso
+        já costuma estar sujo de qualquer forma. Esta fotografia compara o
+        que uma simulação promete não tocar: quais camadas e layouts existem,
+        e o tipo/cor do renderizador de cada camada. ``None`` quando não há
+        QGIS disponível (testes sem PyQGIS) — desliga a checagem em vez de
+        arriscar um falso positivo.
+        """
+        try:
+            from qgis.core import QgsProject  # type: ignore
+        except Exception:
+            return None
+        try:
+            project = QgsProject.instance()
+            layers: dict[str, str] = {}
+            for layer_id, layer in project.mapLayers().items():
+                renderer = None
+                try:
+                    renderer = layer.renderer()
+                except Exception:
+                    renderer = None
+                fingerprint = type(renderer).__name__ if renderer is not None else ""
+                try:
+                    symbol = renderer.symbol() if renderer is not None and hasattr(renderer, "symbol") else None
+                    if symbol is not None:
+                        fingerprint += ":" + symbol.color().name()
+                except Exception:
+                    pass
+                layers[layer_id] = fingerprint
+            layouts = sorted(layout.name() for layout in project.layoutManager().layouts())
+            return {"layers": layers, "layouts": layouts}
+        except Exception:
+            return None
+
+    def _execute_command(self, command: dict[str, Any]) -> dict[str, Any]:
+        """Ponto único de despacho para ``self.registry.execute`` — chamado
+        tanto no caminho direto quanto no caminho enfileirado.
+
+        Para ``dry_run`` — e só para ``dry_run``, para não pesar no caminho
+        comum de escrita real — confere que a promessa da simulação foi
+        cumprida: o projeto não pode sair diferente de uma chamada que disse
+        que não ia mudar nada. Isto não substitui corrigir cada manipulador
+        (o Defeito 1 foi corrigido na origem, em symbology.py); é a rede que
+        pega a classe inteira do defeito quando outro manipulador tiver o
+        mesmo problema, hoje ou no futuro — inclusive um que este agente não
+        tem permissão para editar.
+        """
+        is_dry_run = bool(command.get("dry_run"))
+        before = self._dry_run_project_snapshot() if is_dry_run else None
+        response = self.registry.execute(command)
+        if is_dry_run and before is not None:
+            after = self._dry_run_project_snapshot()
+            if after is not None and after != before:
+                action = command.get("action", "unknown")
+                self.logger.record(
+                    "dry_run_invariant_violated",
+                    action=action,
+                    request_id=command.get("request_id", ""),
+                    before=before,
+                    after=after,
+                )
+                response = make_response(
+                    False,
+                    action,
+                    response.get("data") if isinstance(response, dict) else None,
+                    (response.get("warnings", []) if isinstance(response, dict) else []),
+                    [{
+                        "code": "DRY_RUN_INVARIANT_VIOLATED",
+                        "message": (
+                            f"A simulação de '{action}' alterou o projeto do QGIS aberto (camadas ou "
+                            "layouts mudaram). Isto é um defeito no manipulador da ação — dry_run tem "
+                            "de ser um no-op — não um resultado válido; a resposta foi bloqueada."
+                        ),
+                        "details": {"action": action, "before": before, "after": after},
+                    }],
+                    0.0,
+                    self._context(),
+                    command.get("request_id", ""),
+                )
+        return response
+
     def _start_qt_timer(self) -> None:
         try:
             from qgis.PyQt.QtCore import QTimer  # type: ignore
@@ -282,7 +368,7 @@ class SIGMAIServer:
                 processed += 1
                 self._set_current_command(item)
                 self.logger.record("command_received", action=item.command.get("action"), client=item.client)
-                response = self.registry.execute(item.command)
+                response = self._execute_command(item.command)
                 item.response = response
                 self.logger.record("command_finished", action=response.get("action"), ok=response.get("ok"), client=item.client)
             except Exception as exc:
@@ -344,7 +430,7 @@ class SIGMAIServer:
 
         if self._timer is None:
             self.logger.record("command_received", action=command.get("action"), client=client, mode="direct")
-            response = self.registry.execute(command)
+            response = self._execute_command(command)
             self.logger.record("command_finished", action=response.get("action"), ok=response.get("ok"), client=client, mode="direct")
             return response
 
@@ -369,10 +455,30 @@ class SIGMAIServer:
         """Bloqueia ações de escrita que o usuário não autorizou.
 
         Simulações (``dry_run``) e comandos de leitura passam direto: é o que
-        permite ao agente mostrar o que faria antes de pedir permissão.
+        permite ao agente mostrar o que faria antes de pedir permissão. Mas
+        essa isenção só entra em jogo DEPOIS de saber se a ação está em
+        ``NEVER_AUTO_APPROVED`` — instalar/habilitar/desabilitar/recarregar
+        plugin e executar Python arbitrário. Antes desta correção, ``dry_run``
+        retornava aqui sem nunca consultar essa lista: bastava marcar
+        qualquer comando como simulação para pular consentimento, limites de
+        sessão E a única lista que nunca deveria ser dispensável. Simular uma
+        ação dessa lista continua legítimo — nenhuma escrita acontece —, mas
+        agora fica registrado como o que é, e a responsabilidade de honrar
+        ``dry_run`` de fato passa a ser só do manipulador da ação (ver
+        ``ConsentManager.note_never_auto_approved_dry_run``).
         """
         action = command.get("action", "")
-        if command.get("dry_run"):
+        is_dry_run = bool(command.get("dry_run"))
+
+        if action in NEVER_AUTO_APPROVED:
+            if is_dry_run:
+                self.consent.note_never_auto_approved_dry_run(action, client)
+                return None
+            # Execução real de uma ação desta lista cai no fluxo comum
+            # abaixo, que a nega incondicionalmente — evaluate() confere a
+            # lista antes de olhar para o modo — e deixa auditado o motivo.
+
+        if is_dry_run:
             return None
         metadata = permission_for(action)
         if metadata is None or metadata.permission_level == READ_ONLY:

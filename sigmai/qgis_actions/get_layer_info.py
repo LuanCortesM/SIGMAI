@@ -4,6 +4,7 @@ from typing import Any
 
 from ..validators import ValidationError, require_param
 from .common import crs_authid, extent_to_dict, layer_type_name, project
+from .project_overview import redact_layer_source
 
 
 def handle(params: dict[str, Any], context: dict[str, Any]):
@@ -27,5 +28,9 @@ def handle(params: dict[str, Any], context: dict[str, Any]):
         "extent": extent_to_dict(layer),
         "fields": fields,
         "valid": bool(layer.isValid()),
-        "source": layer.source() if hasattr(layer, "source") else "",
+        # layer.source() de camada PostGIS/MSSQL/Oracle carrega a senha em
+        # texto puro na string de conexão; esta é uma ação somente-leitura,
+        # sem consentimento algum antes de responder à IA. redact_layer_source
+        # mantém caminho de shapefile/GeoPackage legível.
+        "source": redact_layer_source(layer) if hasattr(layer, "source") else "",
     }

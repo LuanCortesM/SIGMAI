@@ -15,7 +15,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "sigmai"
 
-REQUIRED_FIELDS = ("name", "qgisMinimumVersion", "description", "about", "version", "author", "email", "repository")
+# "tracker" entra porque o validador oficial do repositório do QGIS o exige e o
+# nosso não conferia: uma submissão sem ele volta reprovada sem diagnóstico.
+REQUIRED_FIELDS = ("name", "qgisMinimumVersion", "description", "about", "version",
+                   "author", "email", "repository", "tracker")
 REQUIRED_FILES = ("__init__.py", "metadata.txt", "LICENSE")
 FORBIDDEN_NAMES = {"__pycache__", ".git", "__MACOSX"}
 VERSION_PATTERN = re.compile(r"^\d+\.\d+(\.\d+)?$")
@@ -36,6 +39,138 @@ def read_metadata(path: Path) -> dict[str, str]:
             current = key.strip()
             values[current] = value.strip()
     return values
+
+
+# --- verificações acrescentadas depois da auditoria de publicação ----------
+# Todas nasceram de um defeito real que passou batido: número citado na
+# documentação que não bate com o código, link relativo apontando para arquivo
+# que não existe, ícone declarado e ausente, e a versão divergindo entre o
+# metadata e os documentos.
+
+DOC_GLOBS = ("README.md", "CITATION.cff", "sigmai/README.md", "docs/**/*.md")
+MAX_PACKAGE_BYTES = 25 * 1024 * 1024  # teto oficial do repositório do QGIS
+
+
+def _documentos(raiz: Path) -> list[Path]:
+    encontrados: list[Path] = []
+    for padrao in DOC_GLOBS:
+        encontrados.extend(sorted(raiz.glob(padrao)))
+    return [caminho for caminho in encontrados if caminho.is_file()]
+
+
+def checar_versao_nos_documentos(raiz: Path, versao: str) -> list[str]:
+    """A versão do plugin, onde é DECLARADA, tem de ser a do metadata.
+
+    Só olha declarações — `version: x`, `version = {x}`, `SIGMAI x` — e não
+    qualquer número pontuado no texto. Um documento que explica o que a 0.1.1
+    fazia de errado está citando história, não declarando versão, e o
+    validador não pode reprovar por isso. `cff-version` é a versão do formato
+    CITATION, não do plugin.
+    """
+    import re
+
+    declaracoes = (
+        r"(?<!cff-)version:\s*v?(\d+\.\d+\.\d+)",
+        r"version\s*=\s*\{?v?(\d+\.\d+\.\d+)",
+        r"SIGMAI[\s_-]v?(\d+\.\d+\.\d+)",
+    )
+    problemas: list[str] = []
+    for caminho in _documentos(raiz):
+        texto = caminho.read_text(encoding="utf-8", errors="ignore")
+        for padrao in declaracoes:
+            for achado in re.finditer(padrao, texto, re.IGNORECASE):
+                if achado.group(1) == versao:
+                    continue
+                linha = texto[: achado.start()].count("\n") + 1
+                contexto = texto.splitlines()[linha - 1].strip()[:100]
+                problemas.append(f"{caminho}:{linha} declara {achado.group(1)}, mas o plugin está em {versao}: {contexto}")
+    return problemas
+
+
+def checar_links_relativos(raiz: Path) -> list[str]:
+    import re
+
+    problemas: list[str] = []
+    for caminho in _documentos(raiz):
+        if caminho.suffix != ".md":
+            continue
+        texto = caminho.read_text(encoding="utf-8", errors="ignore")
+        for achado in re.finditer(r"\[[^\]]*\]\(([^)#][^)]*)\)", texto):
+            alvo = achado.group(1).split("#")[0].strip()
+            if not alvo or alvo.startswith(("http://", "https://", "mailto:")):
+                continue
+            if not (caminho.parent / alvo).resolve().exists():
+                linha = texto[: achado.start()].count("\n") + 1
+                problemas.append(f"{caminho}:{linha} aponta para {alvo}, que não existe")
+    return problemas
+
+
+def checar_icone(pacote: Path, metadata: dict) -> list[str]:
+    icone = str(metadata.get("icon", "")).strip()
+    if not icone:
+        return ["metadata.txt não declara icon"]
+    if not (pacote / icone).exists():
+        return [f"icon={icone} não existe dentro do pacote"]
+    return []
+
+
+def checar_numeros_da_documentacao(raiz: Path) -> list[str]:
+    """Os números citados nos documentos contra os do código.
+
+    Um README que promete 26 regras num motor que tem 28 é a mesma família de
+    defeito que esta versão inteira combateu: anunciar o que não corresponde.
+    """
+    import re
+    import sys
+
+    sys.path.insert(0, str(raiz))
+    try:
+        from sigmai.cartography.rulebook import RULES
+        from sigmai.permissions import COMMAND_PERMISSIONS
+    except Exception as exc:  # pragma: no cover - só fora de um checkout completo
+        return [f"não foi possível conferir os números contra o código: {exc}"]
+
+    esperado = {
+        r"(\d+)\s+(?:catalogued commands|comandos catalogados)": len(COMMAND_PERMISSIONS),
+        r"(\d+)\s+(?:rules|regras)\b": len(RULES),
+    }
+    problemas: list[str] = []
+    for caminho in _documentos(raiz):
+        texto = caminho.read_text(encoding="utf-8", errors="ignore")
+        for padrao, valor in esperado.items():
+            for achado in re.finditer(padrao, texto):
+                citado = int(achado.group(1))
+                if citado != valor:
+                    linha = texto[: achado.start()].count("\n") + 1
+                    problemas.append(f"{caminho}:{linha} cita {citado}, o código tem {valor}")
+    return problemas
+
+
+def checar_artefato(raiz: Path) -> list[str]:
+    """Valida o zip de verdade, e não só a árvore de trabalho."""
+    import io
+    import zipfile
+
+    pacote = raiz / "sigmai"
+    ignorar = {"__pycache__", ".pytest_cache", ".mypy_cache"}
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as arquivo:
+        for caminho in sorted(pacote.rglob("*")):
+            if any(parte in ignorar for parte in caminho.parts) or caminho.suffix in {".pyc", ".pyo"}:
+                continue
+            if caminho.is_file():
+                arquivo.write(caminho, caminho.relative_to(raiz).as_posix())
+    tamanho = buffer.tell()
+    problemas: list[str] = []
+    if tamanho > MAX_PACKAGE_BYTES:
+        problemas.append(f"o pacote tem {tamanho / 1048576:.1f} MiB, acima do teto de 25 MiB do repositório")
+    with zipfile.ZipFile(buffer) as arquivo:
+        raizes = {nome.split("/")[0] for nome in arquivo.namelist()}
+        if raizes != {"sigmai"}:
+            problemas.append(f"o zip precisa ter uma única pasta raiz chamada sigmai; tem {sorted(raizes)}")
+        if "sigmai/metadata.txt" not in arquivo.namelist():
+            problemas.append("o zip não contém sigmai/metadata.txt")
+    return problemas
 
 
 def main() -> int:
@@ -66,6 +201,18 @@ def main() -> int:
     for name in REQUIRED_FILES:
         if not (PACKAGE / name).exists():
             problems.append(f"pacote: arquivo obrigatório ausente: sigmai/{name}")
+
+    # O aviso de licença não basta: a GPL exige a cópia integral junto do
+    # programa, e o próprio aviso promete que ela está lá.
+    licenca = PACKAGE / "LICENSE"
+    if licenca.exists() and "TERMS AND CONDITIONS" not in licenca.read_text(encoding="utf-8", errors="ignore"):
+        problems.append("pacote: sigmai/LICENSE tem só o aviso; a GPL exige o texto integral da licença.")
+
+    problems.extend(checar_icone(PACKAGE, metadata))
+    problems.extend(checar_versao_nos_documentos(ROOT, version))
+    problems.extend(checar_links_relativos(ROOT))
+    problems.extend(checar_numeros_da_documentacao(ROOT))
+    problems.extend(checar_artefato(ROOT))
 
     if (PACKAGE / "LICENSE").suffix:
         problems.append("pacote: o LICENSE deve ser texto plano sem extensão.")
