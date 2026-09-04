@@ -420,7 +420,8 @@ def add_layout_label(params: dict[str, Any], context: dict[str, Any]):
         try:
             from qgis.PyQt.QtCore import Qt  # type: ignore
 
-            item.setHAlign(Qt.AlignHCenter)
+            align_flag = getattr(getattr(Qt, "AlignmentFlag", Qt), "AlignHCenter")
+            item.setHAlign(align_flag)
         except Exception:
             pass
     _position_item(item, x, y, width, height)
@@ -1052,7 +1053,7 @@ def generate_workflow_report(params: dict[str, Any], context: dict[str, Any]):
             if path.is_file() and path.suffix.lower() in {".pdf", ".png", ".gpkg", ".md", ".json"}:
                 outputs.append({"path": str(path), "size": path.stat().st_size})
     credits = build_product_credit(params, context)
-    summary = {"product": "SIGMAI — Secure GIS-AI Interface", "qgis_version": context.get("qgis_version"), "plugin_version": context.get("plugin_version", "0.1.0"), "host": context.get("host"), "port": context.get("port"), "project_crs": crs_authid(qgs_project.crs()), "layer_count": len(layers), "layout_count": len(layouts), "recent_log_count": len(logs), "output_count": len(outputs), "plugin_author": credits["plugin_author"], "map_author": credits["map_author"] or "not specified"}
+    summary = {"product": "SIGMAI — Secure GIS-AI Interface", "qgis_version": context.get("qgis_version"), "plugin_version": context.get("plugin_version", ""), "host": context.get("host"), "port": context.get("port"), "project_crs": crs_authid(qgs_project.crs()), "layer_count": len(layers), "layout_count": len(layouts), "recent_log_count": len(logs), "output_count": len(outputs), "plugin_author": credits["plugin_author"], "map_author": credits["map_author"] or "not specified"}
     if context.get("dry_run"):
         return {"dry_run": True, "summary": summary, "credits": credits, "would_write": output_value}
     markdown = ["# SIGMAI Workflow Report", "", "## Environment", ""]
