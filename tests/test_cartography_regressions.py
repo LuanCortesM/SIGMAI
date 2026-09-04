@@ -19,8 +19,13 @@ from sigmai.cartography.rulebook import (
 from sigmai.cartography.rulebook import (
     _check_legend_covers_visible_layers,
     _check_legend_has_no_phantoms,
+    _check_source_credit,
 )
-from sigmai.cartography.scaling import SCALEBAR_MAX_FRACTION, scalebar_spec
+from sigmai.cartography.scaling import (
+    SCALEBAR_MAX_FRACTION,
+    choose_publication_scale,
+    scalebar_spec,
+)
 from sigmai.cartography.symbology import (
     OKABE_ITO,
     RESTYLABLE_RENDERERS,
@@ -239,3 +244,97 @@ class SymbologyPalette(unittest.TestCase):
         for nome in ("QgsCategorizedSymbolRenderer", "QgsGraduatedSymbolRenderer", "QgsRuleBasedRenderer"):
             with self.subTest(nome=nome):
                 self.assertNotIn(nome, RESTYLABLE_RENDERERS)
+
+
+class SourceAndAuthorship(unittest.TestCase):
+    """CART007 conferia presença de rodapé, não procedência."""
+
+    def _obs(self, texto: str) -> dict:
+        return {"items": [{"id": "source", "role": "source", "type": "label", "text": texto}]}
+
+    def test_so_a_assinatura_da_ferramenta_reprova(self) -> None:
+        # É exatamente o que o compositor escreve sozinho quando o assistente
+        # não pergunta nada ao usuário.
+        resultado = _check_source_credit(
+            self._obs("SIRGAS 2000 / UTM 23S (EPSG:31983) · 04/09/2026 · Produzido com SIGMAI/QGIS")
+        )
+        self.assertEqual(resultado.status, "fail")
+        self.assertIn("data_source", resultado.detail_pt)
+        self.assertIn("map_author", resultado.detail_pt)
+
+    def test_fonte_sem_autoria_reprova(self) -> None:
+        resultado = _check_source_credit(self._obs("Fonte: IBGE 2024 · 04/09/2026"))
+        self.assertEqual(resultado.status, "fail")
+        self.assertIn("map_author", resultado.detail_pt)
+        self.assertNotIn("data_source", resultado.detail_pt)
+
+    def test_autoria_sem_fonte_reprova(self) -> None:
+        resultado = _check_source_credit(self._obs("Elaboração: MACIEL, L. S. C. · 04/09/2026"))
+        self.assertEqual(resultado.status, "fail")
+        self.assertIn("data_source", resultado.detail_pt)
+
+    def test_fonte_e_autoria_aprovam(self) -> None:
+        resultado = _check_source_credit(
+            self._obs("Fonte: IBGE, Malha Municipal 2024 · Elaboração: MACIEL, L. S. C. · 2026")
+        )
+        self.assertEqual(resultado.status, "pass")
+
+    def test_rodape_vazio_reprova(self) -> None:
+        self.assertEqual(_check_source_credit({"items": []}).status, "fail")
+
+    def test_aceita_os_marcadores_em_ingles(self) -> None:
+        resultado = _check_source_credit(self._obs("Source: IBGE 2024 · Author: L. Maciel · 2026"))
+        self.assertEqual(resultado.status, "pass")
+
+
+class ScaleNeverZero(unittest.TestCase):
+    """Escala arredondada a zero estourava com um ValueError longe da causa."""
+
+    def test_escala_abaixo_de_um_vira_um(self) -> None:
+        # Acontece quando graus são tomados por metros: a extensão da trilha em
+        # EPSG:4326 tem 0,05 "unidades" de largura.
+        for minimo, alvo in ((0.28, 0.296), (0.001, 0.0011), (0.05, 0.06)):
+            with self.subTest(minimo=minimo):
+                escala, _ = choose_publication_scale(minimo, alvo)
+                self.assertGreaterEqual(escala, 1)
+
+    def test_a_barra_aceita_o_que_a_escala_devolve(self) -> None:
+        escala, _ = choose_publication_scale(0.28, 0.296)
+        # Não pode levantar: era aqui que o ValueError cru aparecia.
+        spec = scalebar_spec(escala, 200.0)
+        self.assertGreater(spec.bar_width_mm, 0)
+
+    def test_escalas_normais_seguem_iguais(self) -> None:
+        self.assertEqual(choose_publication_scale(24000, 25000), (25000, "serie_cartografica"))
+
+
+class HelpTabStrings(unittest.TestCase):
+    """A aba de Ajuda existia nas strings e nunca tinha sido construída."""
+
+    def test_toda_chave_de_ajuda_existe_nos_dois_idiomas(self) -> None:
+        from sigmai.ui.strings import STRINGS
+
+        chaves = [
+            "tab_help", "help_title", "help_what_title", "help_what",
+            "help_try_title", "help_try", "help_ask_title", "help_ask",
+            "help_quality_title", "help_quality", "help_refuse_title", "help_refuse",
+            "help_privacy_title", "help_privacy", "help_docs",
+        ]
+        for idioma in ("pt-BR", "en"):
+            for chave in chaves:
+                with self.subTest(idioma=idioma, chave=chave):
+                    self.assertTrue(STRINGS[idioma].get(chave), f"{chave} vazio em {idioma}")
+
+    def test_os_dois_idiomas_tem_o_mesmo_conjunto_de_chaves(self) -> None:
+        from sigmai.ui.strings import STRINGS
+
+        self.assertEqual(set(STRINGS["pt-BR"]), set(STRINGS["en"]))
+
+    def test_as_frases_de_exemplo_sao_pedidos_de_verdade(self) -> None:
+        from sigmai.ui.strings import STRINGS
+
+        # Se as frases de exemplo virarem jargão, a aba perde a razão de existir.
+        exemplos = STRINGS["pt-BR"]["help_try"]
+        self.assertGreaterEqual(exemplos.count("•"), 5)
+        for termo in ("EPSG", "CRS", "layer_ids", "compose_map"):
+            self.assertNotIn(termo, exemplos)

@@ -99,6 +99,8 @@ ALIGN_RIGHT = qt_enum(Qt, "AlignmentFlag", "AlignRight")
 ALIGN_TOP = qt_enum(Qt, "AlignmentFlag", "AlignTop")
 ALIGN_VCENTER = qt_enum(Qt, "AlignmentFlag", "AlignVCenter")
 SMOOTH = qt_enum(Qt, "TransformationMode", "SmoothTransformation")
+# Texto da Ajuda selecionável: a pessoa precisa poder copiar as frases de exemplo.
+TEXT_SELECTABLE = qt_enum(Qt, "TextInteractionFlag", "TextSelectableByMouse")
 NO_FRAME = qt_enum(QFrame, "Shape", "NoFrame")
 ECHO_PASSWORD = qt_enum(QLineEdit, "EchoMode", "Password")
 ECHO_NORMAL = qt_enum(QLineEdit, "EchoMode", "Normal")
@@ -171,6 +173,7 @@ class SigmaiPanel(QWidget):
         self.tabs.addTab(self._scrolled(self._build_access_tab()), self.tr_("tab_access"))
         self.tabs.addTab(self._scrolled(self._build_activity_tab()), self.tr_("tab_activity"))
         self.tabs.addTab(self._scrolled(self._build_advanced_tab()), self.tr_("tab_advanced"))
+        self.tabs.addTab(self._scrolled(self._build_help_tab()), self.tr_("tab_help"))
         outer.addWidget(self.tabs, 1)
 
     def _scrolled(self, widget: QWidget) -> QScrollArea:
@@ -446,6 +449,54 @@ class SigmaiPanel(QWidget):
         buttons.addWidget(self.activity_export_button)
         buttons.addStretch(1)
         layout.addLayout(buttons)
+        return page
+
+    # -- aba 5: ajuda -----------------------------------------------------
+    def _build_help_tab(self) -> QWidget:
+        """A aba que explica a ferramenta a quem nunca usou um SIG.
+
+        As outras abas assumem que a pessoa sabe o que é uma ponte, um token e
+        um layout. Esta não assume nada: diz o que a ferramenta é, o que dizer
+        ao assistente, o que ele vai perguntar de volta e por que às vezes ele
+        recusa.
+        """
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        self.help_title = _label(self.tr_("help_title"), "sectionTitle")
+        layout.addWidget(self.help_title)
+
+        self.help_blocks: list[tuple[QLabel, QLabel, str, str]] = []
+        for title_key, body_key in (
+            ("help_what_title", "help_what"),
+            ("help_try_title", "help_try"),
+            ("help_ask_title", "help_ask"),
+            ("help_quality_title", "help_quality"),
+            ("help_refuse_title", "help_refuse"),
+            ("help_privacy_title", "help_privacy"),
+        ):
+            card = _card()
+            inner = QVBoxLayout(card)
+            inner.setContentsMargins(14, 12, 14, 12)
+            inner.setSpacing(4)
+            title = _label(self.tr_(title_key), "stepTitle")
+            body = _label(self.tr_(body_key), "helpText", wrap=True)
+            body.setTextInteractionFlags(TEXT_SELECTABLE)
+            inner.addWidget(title)
+            inner.addWidget(body)
+            layout.addWidget(card)
+            self.help_blocks.append((title, body, title_key, body_key))
+
+        self.help_docs = _label(self.tr_("help_docs"), "helpText", wrap=True)
+        self.help_docs.setTextInteractionFlags(TEXT_SELECTABLE)
+        layout.addWidget(self.help_docs)
+
+        self.help_authorship = _label(self.tr_("about_map_authorship"), "helpText", wrap=True)
+        layout.addWidget(self.help_authorship)
+
+        layout.addStretch(1)
         return page
 
     # -- aba 4: avançado --------------------------------------------------
@@ -791,11 +842,22 @@ class SigmaiPanel(QWidget):
         style.polish(widget)
 
     # -- idioma -----------------------------------------------------------
+    def _retranslate_help(self) -> None:
+        """A aba de Ajuda é toda texto: sem isto ela ficaria em português no modo EN."""
+        self.help_title.setText(self.tr_("help_title"))
+        for title, body, title_key, body_key in getattr(self, "help_blocks", []):
+            title.setText(self.tr_(title_key))
+            body.setText(self.tr_(body_key))
+        self.help_docs.setText(self.tr_("help_docs"))
+        self.help_authorship.setText(self.tr_("about_map_authorship"))
+
     def retranslate(self) -> None:
         self.subtitle_label.setText(self.tr_("subtitle"))
         self.context_label.setText(self.tr_("context"))
         self.language_button.setText(self.tr_("language_button"))
-        for index, key in enumerate(("tab_connection", "tab_access", "tab_activity", "tab_advanced")):
+        for index, key in enumerate(
+            ("tab_connection", "tab_access", "tab_activity", "tab_advanced", "tab_help")
+        ):
             self.tabs.setTabText(index, self.tr_(key))
         for card in (self.step1_card, self.step2_card, self.step3_card):
             title = card.property("_title_label")
@@ -848,3 +910,5 @@ class SigmaiPanel(QWidget):
         self.about_plugin_label.setText(self.tr_("about_plugin"))
         self.about_license_label.setText(self.tr_("about_license", version=str(self._call("plugin_version") or "")))
         self.about_authorship_label.setText(self.tr_("about_map_authorship"))
+        self._retranslate_help()
+

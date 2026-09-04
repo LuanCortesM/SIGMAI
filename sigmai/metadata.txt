@@ -29,6 +29,9 @@ changelog=0.2.2
     - Corrigido: estilo embutido em KML/KMZ não gerava amostra na legenda; passa a receber a paleta padrão, com nota de como preservar o original.
     - Corrigido: dois polígonos saíam com o mesmo preenchimento, e o inserto vinha na cor aleatória do QGIS competindo com o retângulo do recorte.
     - Corrigido: numa folha de comparação a legenda ignorava o segundo painel, e CART021 acusava de fantasma uma camada visível nele.
+    - Nova aba Ajuda no painel: o que é a ferramenta, frases de exemplo para dizer ao assistente, o que ele vai perguntar de volta, o que a nota significa e por que ele às vezes recusa.
+    - Corrigido: projeto sem CRS definido derrubava a composição com um ValueError cru; agora herda o CRS da primeira camada válida e avisa.
+    - Corrigido: CART007 conferia presença de rodapé e não procedência, então um mapa sem fonte nem autoria declaradas passava com nota A.
     - Encerramento seguro do QGIS em scripts autônomos: camada não adicionada ao projeto era destruída depois de exitQgis e derrubava o processo.
     0.2.1
     - Corrigido: o plugin não abria no QGIS 4 (Qt6). QSizePolicy.Fixed, QgsLayoutExporter.Success, QgsVectorFileWriter.NoError, QgsProcessingParameterDefinition.FlagOptional e os enums de geometria e unidade só existem no escopo qualificado no Qt6.

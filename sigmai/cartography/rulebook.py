@@ -295,13 +295,48 @@ def _check_north_is_symbol(observation: dict[str, Any]) -> CheckOutcome:
     )
 
 
+#: Marcadores de procedência aceitos na linha de crédito, em pt e en.
+SOURCE_MARKERS = ("fonte:", "fontes:", "source:", "sources:", "dados:", "data source:", "base de dados:")
+AUTHOR_MARKERS = ("elabora", "autor", "author", "cartografia", "organiza", "credit")
+
+#: O que a própria ferramenta escreve sozinha e, portanto, não conta como
+#: procedência: assinatura, data e sistema de referência.
+_BOILERPLATE = ("produzido com sigmai", "sigmai/qgis", "qgis")
+
+
 def _check_source_credit(observation: dict[str, Any]) -> CheckOutcome:
-    source = _item_by_role(observation, "source")
-    if source and str(source.get("text", "")).strip():
-        return _pass("Linha de fonte/autoria presente.")
-    if _has_text(observation, "fonte", "source", "elabora"):
-        return _pass("Fonte identificada em um rótulo do layout.")
-    return _fail("Falta a linha de fonte dos dados e autoria. Sem procedência o mapa não é citável.")
+    """A linha de crédito precisa dizer DE ONDE vieram os dados e QUEM fez o mapa.
+
+    A versão anterior só verificava que existia um rótulo de rodapé com algum
+    texto. Como o compositor sempre escreve o sistema de referência, a data e
+    "Produzido com SIGMAI/QGIS", um mapa sem nenhuma fonte declarada passava com
+    nota A — e chegava ao usuário parecendo citável sem ser.
+    """
+    textos = [str(item.get("text", "")).lower() for item in _texts(observation)]
+    fonte_item = _item_by_role(observation, "source")
+    if fonte_item:
+        textos.append(str(fonte_item.get("text", "")).lower())
+    junto = " · ".join(t for t in textos if t.strip())
+    if not junto.strip():
+        return _fail("Falta a linha de fonte dos dados e autoria. Sem procedência o mapa não é citável.")
+
+    tem_fonte = any(marcador in junto for marcador in SOURCE_MARKERS)
+    tem_autor = any(marcador in junto for marcador in AUTHOR_MARKERS)
+    if tem_fonte and tem_autor:
+        return _pass("A linha de crédito declara a fonte dos dados e a autoria do mapa.")
+
+    faltando = []
+    if not tem_fonte:
+        faltando.append("a fonte dos dados (data_source)")
+    if not tem_autor:
+        faltando.append("a autoria do mapa (map_author)")
+    return _fail(
+        "A linha de crédito não declara " + " nem ".join(faltando) + ". "
+        "O sistema de referência, a data e a assinatura da ferramenta não são procedência: "
+        "sem dizer de onde vieram os dados e quem fez o mapa, ele não é citável. "
+        "Pergunte ao usuário — a autoria do mapa não é a autoria do plugin.",
+        missing=faltando,
+    )
 
 
 def _check_crs_declared(observation: dict[str, Any]) -> CheckOutcome:

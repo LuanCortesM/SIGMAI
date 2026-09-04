@@ -96,6 +96,47 @@ STRINGS: dict[str, dict[str, str]] = {
         "dev_dialog_prompt": "Digite SIM para confirmar:",
 
         "help_title": "Como o SIGMAI funciona",
+        "help_what_title": "O que é isto",
+        "help_what": (
+            "O SIGMAI abre uma porta entre o QGIS e um assistente de IA. Você conversa com o "
+            "assistente em português; ele opera o QGIS por você e devolve o mapa pronto. Você não "
+            "precisa saber onde ficam os menus do QGIS, nem o que é escala, projeção ou legenda — "
+            "o SIGMAI cuida disso e conta o que fez."
+        ),
+        "help_try_title": "Frases para começar",
+        "help_try": (
+            "• “Quais camadas estão abertas neste projeto?”\n"
+            "• “Faça um mapa da trilha em A4, para eu imprimir.”\n"
+            "• “Mapa do parque mostrando os municípios em volta, com um mapinha de localização.”\n"
+            "• “Coloque os nomes das unidades no mapa.”\n"
+            "• “Dois mapas na mesma folha: o parque e o estado inteiro.”\n"
+            "• “Esse mapa está bom para publicar? O que falta nele?”"
+        ),
+        "help_ask_title": "Duas coisas que o assistente vai perguntar",
+        "help_ask": (
+            "De onde vieram os dados e quem assina o mapa. Sem essas duas informações o mapa não "
+            "pode ser citado num trabalho, e o SIGMAI recusa dar nota máxima. A autoria do mapa é "
+            "sua (ou de quem o elaborou) — não é a autoria deste plugin."
+        ),
+        "help_quality_title": "A nota do mapa",
+        "help_quality": (
+            "Todo mapa gerado recebe uma nota de A a E, com a lista do que está errado e o que "
+            "corrige cada item. A nota não é opinião: é um regulamento de regras explícitas, cada "
+            "uma com o motivo de existir. Peça ao assistente “me explique a nota deste mapa”."
+        ),
+        "help_refuse_title": "Quando o SIGMAI recusa",
+        "help_refuse": (
+            "Recusar é proposital. Se o assistente pedir um formato de página que não existe, um "
+            "campo de rótulo vazio ou uma pasta no lugar do arquivo, o SIGMAI para e diz o que "
+            "aceita — em vez de entregar, calado, um mapa diferente do que foi pedido."
+        ),
+        "help_privacy_title": "Onde os seus dados ficam",
+        "help_privacy": (
+            "A ponte escuta apenas em 127.0.0.1, que é a sua própria máquina, e exige um token. "
+            "Os seus arquivos não são enviados para lugar nenhum: o assistente manda comandos, o "
+            "QGIS executa aqui e devolve o resultado."
+        ),
+        "help_docs": "Documentação e código: github.com/LuanCortesM/SIGMAI",
         "about_title": "Sobre o SIGMAI",
         "about_plugin": "Plugin author: MACIEL, L. S. C. · herpetomantiqueira@gmail.com",
         "about_license": "SIGMAI {version} · GNU GPL v3.0 ou posterior · github.com/LuanCortesM/SIGMAI",
@@ -201,6 +242,47 @@ STRINGS: dict[str, dict[str, str]] = {
         "dev_dialog_prompt": "Type SIM to confirm:",
 
         "help_title": "How SIGMAI works",
+        "help_what_title": "What this is",
+        "help_what": (
+            "SIGMAI opens a door between QGIS and an AI assistant. You talk to the assistant in "
+            "plain language; it drives QGIS for you and hands back the finished map. You do not "
+            "need to know where the QGIS menus are, nor what scale, projection or legend mean — "
+            "SIGMAI handles that and tells you what it did."
+        ),
+        "help_try_title": "Sentences to start with",
+        "help_try": (
+            "• “What layers are open in this project?”\n"
+            "• “Make a map of the trail on A4, for printing.”\n"
+            "• “Map of the park showing the surrounding municipalities, with a locator inset.”\n"
+            "• “Put the names of the units on the map.”\n"
+            "• “Two maps on one sheet: the park and the whole state.”\n"
+            "• “Is this map good enough to publish? What is missing?”"
+        ),
+        "help_ask_title": "Two things the assistant will ask you",
+        "help_ask": (
+            "Where the data came from and who signs the map. Without those two, the map cannot be "
+            "cited in a paper, and SIGMAI refuses to grade it top marks. Map authorship is yours "
+            "(or whoever made it) — it is not the authorship of this plugin."
+        ),
+        "help_quality_title": "The map grade",
+        "help_quality": (
+            "Every map is graded A to E, with the list of what is wrong and what fixes each item. "
+            "The grade is not an opinion: it is an explicit rulebook, each rule carrying the reason "
+            "it exists. Ask the assistant to “explain this map's grade”."
+        ),
+        "help_refuse_title": "When SIGMAI refuses",
+        "help_refuse": (
+            "Refusing is deliberate. If the assistant asks for a page size that does not exist, an "
+            "empty label field or a folder where a file belongs, SIGMAI stops and says what it "
+            "accepts — instead of quietly handing over a different map from the one requested."
+        ),
+        "help_privacy_title": "Where your data stays",
+        "help_privacy": (
+            "The bridge listens on 127.0.0.1 only — your own machine — and requires a token. Your "
+            "files are not uploaded anywhere: the assistant sends commands, QGIS runs them here and "
+            "returns the result."
+        ),
+        "help_docs": "Documentation and code: github.com/LuanCortesM/SIGMAI",
         "about_title": "About SIGMAI",
         "about_plugin": "Plugin author: MACIEL, L. S. C. · herpetomantiqueira@gmail.com",
         "about_license": "SIGMAI {version} · GNU GPL v3.0 or later · github.com/LuanCortesM/SIGMAI",

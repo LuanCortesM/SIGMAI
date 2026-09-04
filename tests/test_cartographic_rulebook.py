@@ -57,8 +57,13 @@ def observation_good() -> dict:
         {"id": "north_arrow", "role": "north", "type": "picture", "x": 248, "y": 32, "width": 12, "height": 18},
         {"id": "scale_text", "role": "scale_text", "type": "label", "x": 220, "y": 152, "width": 60, "height": 7,
          "font_size_pt": 9, "text": "Escala 1:250.000"},
-        {"id": "crs_note", "role": "crs_note", "type": "label", "x": 10, "y": 197, "width": 264, "height": 6,
-         "font_size_pt": 7, "text": "SIRGAS 2000 / UTM 23S (EPSG:31983) · 04/09/2026"},
+        # A linha de crédito de um mapa publicável diz de ONDE vieram os dados e
+        # QUEM fez o mapa: sistema de referência e data, sozinhos, não são
+        # procedência.
+        {"id": "source", "role": "source", "type": "label", "x": 10, "y": 197, "width": 264, "height": 6,
+         "font_size_pt": 7,
+         "text": ("Fonte: IBGE, Malha Municipal 2024 · Elaboração: MACIEL, L. S. C. · "
+                  "SIRGAS 2000 / UTM 23S (EPSG:31983) · 04/09/2026")},
     ]
     observation["legend"]["layer_names"] = ["Unidades de Conservacao", "Drenagem", "Ocorrencias"]
     observation["scalebar"]["frame_fraction"] = 0.29

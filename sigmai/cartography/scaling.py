@@ -170,7 +170,11 @@ def choose_publication_scale(
     fallback = _round_up_significant(target_scale, 2)
     if fallback < minimum_scale:
         fallback = _round_up_significant(minimum_scale, 2)
-    return int(fallback), "dois_algarismos_significativos"
+    # Um denominador arredondado a zero (escala abaixo de 1:1) significa que as
+    # unidades do mapa não são metros — quase sempre graus tomados por metros.
+    # Devolver 0 fazia a barra de escala estourar com um ValueError cru, longe
+    # da causa; melhor devolver 1 e deixar o chamador diagnosticar.
+    return max(1, int(fallback)), "dois_algarismos_significativos"
 
 
 # ---------------------------------------------------------------------------

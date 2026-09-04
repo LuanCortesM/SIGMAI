@@ -564,6 +564,27 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
         map_crs = project.crs()
     map_crs_label = ""
 
+    # Projeto sem CRS definido acontece com frequência em projetos novos e em
+    # scripts. Um CRS inválido não é geográfico nem projetado: a reprojeção
+    # automática não disparava, os graus eram tomados por metros e a escala saía
+    # 1:0, estourando lá na frente com um erro que não dizia nada.
+    if not map_crs.isValid():
+        herdado = next(
+            (layer.crs() for layer in layers if layer.crs().isValid()), None
+        )
+        if herdado is None:
+            raise CompositionError(
+                "O projeto não tem sistema de coordenadas definido e nenhuma das camadas "
+                "informadas declara o seu. Defina o CRS do projeto no QGIS, ou passe map_crs "
+                "com o código do sistema (por exemplo 'EPSG:31983')."
+            )
+        map_crs = herdado
+        notes.append(
+            f"O projeto está sem sistema de coordenadas definido; foi adotado o da primeira "
+            f"camada válida ({_crs_identifier(map_crs)}). Defina o CRS do projeto no QGIS "
+            "para que este mapa e os próximos usem sempre o mesmo."
+        )
+
     # Assunto e contexto são coisas diferentes. "Mapa do parque, mostrando os
     # municípios em volta" enquadra o parque e desenha os municípios; usar a
     # união de todas as camadas enquadraria o estado inteiro e o parque
