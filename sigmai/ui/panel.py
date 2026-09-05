@@ -21,46 +21,12 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..cartography.qtcompat import qt_enum
-from .client_configs import AI_CLIENTS, build_client_config
-from .strings import translate
-
-#: Eventos da trilha de auditoria em linguagem de gente.
-EVENT_LABELS: dict[str, dict[str, str]] = {
-    "pt-BR": {
-        "allowed": "Permitido",
-        "denied_read_only": "Bloqueado (somente leitura)",
-        "denied_by_user": "Negado por você",
-        "denied_remembered": "Negado (categoria recusada antes)",
-        "denied_limit": "Bloqueado (limite da sessão)",
-        "denied_output_root": "Bloqueado (pasta não autorizada)",
-        "denied_never_auto": "Bloqueado (exige ação sua no painel)",
-        "denied_no_prompt": "Bloqueado (painel indisponível)",
-        "prompt_failed": "Falha ao confirmar",
-        "mode_changed": "Modo de acesso alterado",
-        "limit_changed": "Limite alterado",
-        "output_roots_changed": "Pastas autorizadas alteradas",
-        "session_reset": "Sessão reiniciada",
-    },
-    "en": {
-        "allowed": "Allowed",
-        "denied_read_only": "Blocked (read only)",
-        "denied_by_user": "Denied by you",
-        "denied_remembered": "Denied (category refused earlier)",
-        "denied_limit": "Blocked (session limit)",
-        "denied_output_root": "Blocked (folder not allowed)",
-        "denied_never_auto": "Blocked (needs your action in the panel)",
-        "denied_no_prompt": "Blocked (panel unavailable)",
-        "prompt_failed": "Confirmation failed",
-        "mode_changed": "Access mode changed",
-        "limit_changed": "Limit changed",
-        "output_roots_changed": "Allowed folders changed",
-        "session_reset": "Session reset",
-    },
-}
-
+from .client_configs import AI_CLIENTS, build_client_config, client_label
+from .strings import LANGUAGES, normalize_ui_language, translate
+from .theme import PALETTES, THEME_AUTO, THEME_DARK, THEME_LIGHT, THEME_PREFERENCES
 
 try:  # pragma: no cover - só falha fora do QGIS
-    from qgis.PyQt.QtCore import Qt  # type: ignore
+    from qgis.PyQt.QtCore import QEvent, Qt  # type: ignore
     from qgis.PyQt.QtGui import QPixmap  # type: ignore
     from qgis.PyQt.QtWidgets import (  # type: ignore
         QAbstractItemView,
@@ -110,12 +76,39 @@ STRETCH = qt_enum(QHeaderView, "ResizeMode", "Stretch")
 # no QGIS 4.
 SIZE_FIXED = qt_enum(QSizePolicy, "Policy", "Fixed")
 RESIZE_CONTENTS = qt_enum(QHeaderView, "ResizeMode", "ResizeToContents")
+ADJUST_TO_CONTENTS = qt_enum(QComboBox, "SizeAdjustPolicy", "AdjustToContents")
+# Eventos que anunciam troca de tema no QGIS: paleta do aplicativo e estilo.
+# O painel os ouve para reaplicar a folha de estilo no modo certo — sem isto
+# quem trocasse "Night Mapping" com o painel aberto ficava com o tema antigo.
+_THEME_EVENTS = tuple(
+    event for event in (
+        qt_enum(QEvent, "Type", "PaletteChange"),
+        qt_enum(QEvent, "Type", "ApplicationPaletteChange"),
+        qt_enum(QEvent, "Type", "StyleChange"),
+    ) if event is not None
+)
 
 
 def _card(object_name: str = "stepCard") -> QFrame:
     frame = QFrame()
     frame.setObjectName(object_name)
     return frame
+
+
+def _fit_combo(combo: QComboBox, extra_px: int = 56) -> None:
+    """Largura mínima pelo item mais largo.
+
+    ``AdjustToContents`` não conta o padding nem a seta que a folha de estilo
+    acrescenta, e "自動（QGIS のテーマに従う）" saía cortado. A folga cobre
+    padding, borda e o botão da lista.
+    """
+    metrics = combo.fontMetrics()
+    widest = 0
+    for index in range(combo.count()):
+        text = combo.itemText(index)
+        width = metrics.horizontalAdvance(text) if hasattr(metrics, "horizontalAdvance") else metrics.width(text)
+        widest = max(widest, int(width))
+    combo.setMinimumWidth(widest + extra_px)
 
 
 def _label(text: str, object_name: str = "", wrap: bool = False) -> QLabel:
@@ -141,10 +134,31 @@ class SigmaiPanel(QWidget):
         super().__init__(parent)
         self.controller = controller
         self.setObjectName("sigmaiRoot")
+        self.theme = THEME_LIGHT
         self._building = True
         self._build()
         self._building = False
         self.refresh()
+
+    # -- tema -------------------------------------------------------------
+    def apply_theme(self, theme: str, stylesheet: str) -> None:
+        """Aplica a folha de estilo do tema (``"light"``/``"dark"``) e repinta.
+
+        Quem decide o tema é o controlador (preferência do usuário × paleta do
+        QGIS, ver ``ui/theme.resolve_theme``); o painel só guarda qual está em
+        vigor, porque o autoteste pinta ✓/✗ com as cores da paleta corrente.
+        """
+        self.theme = THEME_DARK if theme == THEME_DARK else THEME_LIGHT
+        self.setStyleSheet(stylesheet)
+        self._repolish(self)
+
+    def changeEvent(self, event: Any) -> None:  # noqa: N802 — nome da API Qt
+        super().changeEvent(event)
+        try:
+            if event.type() in _THEME_EVENTS and not self._building:
+                self._call("apply_theme")
+        except Exception:
+            pass
 
     # -- utilidades -------------------------------------------------------
     def tr_(self, key: str, **kwargs: Any) -> str:
@@ -165,7 +179,17 @@ class SigmaiPanel(QWidget):
         # a métrica do texto depois do cálculo inicial de largura.
         self.tabs.setElideMode(qt_enum(Qt, 'TextElideMode', 'ElideNone'))
         self.tabs.tabBar().setExpanding(False)
-        self.tabs.tabBar().setUsesScrollButtons(False)
+        # O negrito das abas vem da fonte do próprio QTabBar, não da folha de
+        # estilo: o Qt mede a largura de cada aba com a fonte do widget, e um
+        # font-weight só na folha deixava "Verbindung" medido em regular e
+        # pintado em negrito — cortado na última letra.
+        tab_font = self.tabs.tabBar().font()
+        tab_font.setBold(True)
+        self.tabs.tabBar().setFont(tab_font)
+        # Num dock estreito (o mínimo é 380 px) cinco abas em alemão não cabem;
+        # sem botões de rolagem a primeira aba era simplesmente cortada
+        # ("/erbindung"). Com eles, o Qt mostra setas e nada some.
+        self.tabs.tabBar().setUsesScrollButtons(True)
         self.tabs.addTab(self._scrolled(self._build_connection_tab()), self.tr_("tab_connection"))
         self.tabs.addTab(self._scrolled(self._build_access_tab()), self.tr_("tab_access"))
         self.tabs.addTab(self._scrolled(self._build_activity_tab()), self.tr_("tab_activity"))
@@ -177,6 +201,7 @@ class SigmaiPanel(QWidget):
         area = QScrollArea()
         area.setWidgetResizable(True)
         area.setFrameShape(NO_FRAME)
+        widget.setObjectName("tabPage")
         area.setWidget(widget)
         return area
 
@@ -198,8 +223,11 @@ class SigmaiPanel(QWidget):
         titles = QVBoxLayout()
         titles.setSpacing(1)
         self.title_label = _label("SIGMAI", "brandTitle")
-        self.subtitle_label = _label(self.tr_("subtitle"), "brandSubtitle")
-        self.context_label = _label(self.tr_("context"), "brandContext")
+        # Com quebra de linha: sem ela, a legenda do cabeçalho em alemão
+        # ("Lokale Brücke zwischen KI-Assistenten und QGIS") impunha ao painel
+        # inteiro uma largura mínima de 600 px — maior que o dock do QGIS.
+        self.subtitle_label = _label(self.tr_("subtitle"), "brandSubtitle", wrap=True)
+        self.context_label = _label(self.tr_("context"), "brandContext", wrap=True)
         titles.addWidget(self.title_label)
         titles.addWidget(self.subtitle_label)
         titles.addWidget(self.context_label)
@@ -207,12 +235,21 @@ class SigmaiPanel(QWidget):
 
         right = QVBoxLayout()
         right.setSpacing(6)
-        self.language_button = QPushButton(self.tr_("language_button"))
-        self.language_button.setObjectName("linkButton")
-        self.language_button.clicked.connect(self._toggle_language)
+        # Lista de idiomas com o nome de cada um escrito nele mesmo: quem não
+        # lê português precisa achar a sua língua sem ler português. Substitui
+        # o botão que só alternava entre PT e EN.
+        self.language_combo = QComboBox()
+        self.language_combo.setObjectName("languageCombo")
+        self.language_combo.setSizeAdjustPolicy(ADJUST_TO_CONTENTS)
+        for code, native_name in LANGUAGES:
+            self.language_combo.addItem(native_name, code)
+        self.language_combo.setToolTip(self.tr_("language_label"))
+        _fit_combo(self.language_combo, extra_px=34)
+        self._select_language_item(getattr(self.controller, "language", "pt-BR"))
+        self.language_combo.currentIndexChanged.connect(self._change_language)
         self.status_pill = _label(self.tr_("offline"), "pillOffline")
         self.status_pill.setAlignment(ALIGN_CENTER)
-        right.addWidget(self.language_button, 0, ALIGN_RIGHT)
+        right.addWidget(self.language_combo, 0, ALIGN_RIGHT)
         right.addWidget(self.status_pill, 0, ALIGN_RIGHT)
         right.addStretch(1)
         layout.addLayout(right)
@@ -243,8 +280,8 @@ class SigmaiPanel(QWidget):
         client_row = QHBoxLayout()
         self.client_label = _label(self.tr_("step2_client") + ":", "helpText")
         self.client_combo = QComboBox()
-        for key, spec in AI_CLIENTS.items():
-            self.client_combo.addItem(spec["label"], key)
+        for key in AI_CLIENTS:
+            self.client_combo.addItem(client_label(key, getattr(self.controller, "language", "pt-BR")), key)
         self.client_combo.currentIndexChanged.connect(self._refresh_client_config)
         client_row.addWidget(self.client_label)
         client_row.addWidget(self.client_combo, 1)
@@ -394,6 +431,7 @@ class SigmaiPanel(QWidget):
             bar = QProgressBar()
             bar.setTextVisible(True)
             row = QWidget()
+            row.setObjectName("transparentRow")
             row_layout = QHBoxLayout(row)
             row_layout.setContentsMargins(0, 0, 0, 0)
             row_layout.setSpacing(8)
@@ -518,6 +556,7 @@ class SigmaiPanel(QWidget):
         self.token_copy_button.setObjectName("linkButton")
         self.token_copy_button.clicked.connect(self._copy_token)
         token_row = QWidget()
+        token_row.setObjectName("transparentRow")
         token_layout = QHBoxLayout(token_row)
         token_layout.setContentsMargins(0, 0, 0, 0)
         token_layout.addWidget(self.token_field, 1)
@@ -539,6 +578,25 @@ class SigmaiPanel(QWidget):
         self.token_warning = _label(self.tr_("advanced_token_warning"), "noticeWarn", wrap=True)
         form.addRow(self.token_warning)
         layout.addWidget(self.endpoint_group)
+
+        # Aparência: automática (segue o tema do QGIS), clara ou escura.
+        theme_row = QWidget()
+        theme_row.setObjectName("transparentRow")
+        theme_layout = QHBoxLayout(theme_row)
+        theme_layout.setContentsMargins(0, 0, 0, 0)
+        theme_layout.setSpacing(8)
+        self.theme_label = QLabel(self.tr_("theme_label"))
+        self.theme_combo = QComboBox()
+        self.theme_combo.setSizeAdjustPolicy(ADJUST_TO_CONTENTS)
+        for preference in THEME_PREFERENCES:
+            self.theme_combo.addItem(self.tr_(f"theme_{preference}"), preference)
+        _fit_combo(self.theme_combo)
+        self._select_theme_item(str(self._call("settings_get", "ui_theme", THEME_AUTO) or THEME_AUTO))
+        self.theme_combo.currentIndexChanged.connect(self._change_theme)
+        theme_layout.addWidget(self.theme_label)
+        theme_layout.addWidget(self.theme_combo)
+        theme_layout.addStretch(1)
+        layout.addWidget(theme_row)
 
         self.autostart_check = QCheckBox(self.tr_("advanced_autostart"))
         self.autostart_check.toggled.connect(lambda value: self._settings_set("auto_start", value))
@@ -604,11 +662,37 @@ class SigmaiPanel(QWidget):
             self._call("start_bridge")
         self.refresh()
 
-    def _toggle_language(self) -> None:
-        current = getattr(self.controller, "language", "pt-BR")
-        self._call("set_language", "en" if current == "pt-BR" else "pt-BR")
+    def _select_language_item(self, code: str) -> None:
+        wanted = normalize_ui_language(code)
+        for index in range(self.language_combo.count()):
+            if self.language_combo.itemData(index) == wanted:
+                self.language_combo.blockSignals(True)
+                self.language_combo.setCurrentIndex(index)
+                self.language_combo.blockSignals(False)
+                return
+
+    def _change_language(self, index: int) -> None:
+        if self._building or index < 0:
+            return
+        code = str(self.language_combo.itemData(index) or "pt-BR")
+        self._call("set_language", code)
         self.retranslate()
         self.refresh()
+
+    def _select_theme_item(self, preference: str) -> None:
+        wanted = preference if preference in THEME_PREFERENCES else THEME_AUTO
+        for index in range(self.theme_combo.count()):
+            if self.theme_combo.itemData(index) == wanted:
+                self.theme_combo.blockSignals(True)
+                self.theme_combo.setCurrentIndex(index)
+                self.theme_combo.blockSignals(False)
+                return
+
+    def _change_theme(self, index: int) -> None:
+        if self._building or index < 0:
+            return
+        preference = str(self.theme_combo.itemData(index) or THEME_AUTO)
+        self._call("set_theme", preference)
 
     def _set_mode(self, mode: str) -> None:
         if self._building:
@@ -669,14 +753,14 @@ class SigmaiPanel(QWidget):
             self._current_client(),
             package_root=Path(__file__).resolve().parents[1],
             session_file=str(session) if session else None,
+            language=getattr(self.controller, "language", "pt-BR"),
         )
 
     def _refresh_client_config(self) -> None:
         config = self._client_config()
         self.config_block.setPlainText(config["snippet"])
         self.config_where_label.setText(f"<b>{self.tr_('step2_where')}:</b> <code>{config['config_path']}</code>")
-        language = getattr(self.controller, "language", "pt-BR")
-        self.config_note_label.setText(config["note_pt"] if language == "pt-BR" else config["note_en"])
+        self.config_note_label.setText(config["note"])
         self.copy_feedback_label.setVisible(False)
 
     def _copy_config(self) -> None:
@@ -717,9 +801,10 @@ class SigmaiPanel(QWidget):
             self.self_test_output.setText(self.tr_("step3_never"))
             return
         lines = []
+        palette = PALETTES[self.theme]
         for item in results:
             mark = "✓" if item.get("ok") else "✗"
-            colour = "#0B6E4F" if item.get("ok") else "#A3231F"
+            colour = palette.ok if item.get("ok") else palette.danger
             detail = item.get("detail", "")
             lines.append(f'<span style="color:{colour}">{mark}</span> <b>{item.get("label","")}</b> — {detail}')
         self.self_test_output.setText("<br>".join(lines))
@@ -818,9 +903,10 @@ class SigmaiPanel(QWidget):
             request = entry.get("request") or {}
             timestamp = str(entry.get("timestamp", ""))[11:19]
             detail = entry.get("reason") or "; ".join(request.get("output_paths", [])) or entry.get("mode", "")
-            language = getattr(self.controller, "language", "pt-BR")
             raw_event = str(entry.get("event", ""))
-            event = EVENT_LABELS.get(language, EVENT_LABELS["en"]).get(raw_event, raw_event)
+            event = self.tr_(f"event_{raw_event}") if raw_event else ""
+            if event == f"event_{raw_event}":
+                event = raw_event  # evento sem tradução: mostra o nome cru, nunca a chave
             for column, value in enumerate((timestamp, event, str(request.get("action", "")), str(detail))):
                 self.activity_table.setItem(row, column, QTableWidgetItem(value))
 
@@ -851,7 +937,14 @@ class SigmaiPanel(QWidget):
     def retranslate(self) -> None:
         self.subtitle_label.setText(self.tr_("subtitle"))
         self.context_label.setText(self.tr_("context"))
-        self.language_button.setText(self.tr_("language_button"))
+        self.language_combo.setToolTip(self.tr_("language_label"))
+        self.theme_label.setText(self.tr_("theme_label"))
+        for index in range(self.theme_combo.count()):
+            self.theme_combo.setItemText(index, self.tr_(f"theme_{self.theme_combo.itemData(index)}"))
+        _fit_combo(self.theme_combo)
+        for index in range(self.client_combo.count()):
+            key = str(self.client_combo.itemData(index))
+            self.client_combo.setItemText(index, client_label(key, getattr(self.controller, "language", "pt-BR")))
         for index, key in enumerate(
             ("tab_connection", "tab_access", "tab_activity", "tab_advanced", "tab_help")
         ):

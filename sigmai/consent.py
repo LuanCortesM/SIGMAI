@@ -88,6 +88,28 @@ ACTION_CATEGORIES: dict[str, tuple[str, str]] = {
     "gps_gpx": ("GPS", "Carregar e converter trilhas GPX"),
 }
 
+#: Nome canônico da categoria → chave de tradução em ui/strings. O registro
+#: (categorias lembradas/recusadas, trilha de auditoria) guarda o canônico em
+#: português para que uma troca de idioma não "esqueça" o que o usuário já
+#: aprovou; a interface traduz só na hora de mostrar.
+CATEGORY_KEYS: dict[str, str] = {
+    "Cartografia": "category_cartografia",
+    "Simbologia": "category_simbologia",
+    "Camadas": "category_camadas",
+    "Raster": "category_raster",
+    "Vetor": "category_vetor",
+    "Seleção": "category_selecao",
+    "Processing": "category_processing",
+    "Fluxos": "category_fluxos",
+    "Atlas e relatórios": "category_atlas",
+    "Fontes de dados": "category_fontes",
+    "Bancos de dados": "category_bancos",
+    "Geometria": "category_geometria",
+    "Expressões": "category_expressoes",
+    "Perfil": "category_perfil",
+    "GPS": "category_gps",
+}
+
 DEFAULT_LIMITS: dict[str, int] = {
     "writes_per_session": 200,
     "exports_per_session": 60,

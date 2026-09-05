@@ -1,7 +1,7 @@
 [general]
 name=SIGMAI
 description=Secure local bridge between AI assistants and QGIS, with cartographic quality control.
-version=1.0.0
+version=1.0.1
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=MACIEL, L. S. C.
@@ -16,7 +16,11 @@ homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=GPL-3.0-or-later
-changelog=1.0.0
+changelog=1.0.1
+    - Corrigido: no tema escuro do QGIS (Night Mapping, Blend of Gray) o painel ficava ilegível — rádios com fundo preto, rótulos cinza sobre cartão branco, faixas escuras dentro dos cartões. O painel passa a seguir o tema do QGIS com uma paleta escura própria (contraste WCAG AA conferido em teste) e a reaplicar o tema quando ele muda; Avançado > Aparência força claro ou escuro.
+    - Novo: a interface do painel em nove línguas — português (Brasil), inglês, espanhol, francês, alemão, italiano, japonês, chinês simplificado e chinês tradicional — escolhidas numa lista no cabeçalho, com o nome de cada língua escrito nela mesma. O autoteste, o diálogo de consentimento, a trilha de atividade e as instruções de cada cliente de IA também são traduzidos; antes ficavam em português mesmo em inglês.
+    - Corrigido: o negrito das abas era pintado pela folha de estilo mas medido em regular, e o rótulo saía cortado ("Verbindung"); num dock estreito as abas passam a rolar em vez de sumir. O cabeçalho quebra a linha em vez de impor 600 px de largura mínima ao painel.
+    1.0.0
     - Primeira versão estável. O catálogo é igual à realidade: 208 ações habilitadas de 221 catalogadas; as 13 desabilitadas (atlas, PostGIS, create_map_hierarchy) são recusadas pela ponte como inexistentes e listadas em capabilities com o motivo.
     - 24 esqueletos resolvidos: execute_workflow executa passo a passo pelo mesmo caminho validado da ponte; export_report_pdf gera PDF; repair_data_source_path, test_service_connection, list_ogc_connections, list_database_connections, gpx_track_length e map_gpx_track fazem o que o nome diz; apply_scientific_* recusam camada de outra geometria; apply_boundary_highlight tem perfil próprio; run_workflow_job e run_map_export_job honram dry_run.
     - Bateria de liberação (tools/release_battery.py): 7 portões, 672 verificações — 384 combinações de template, página, orientação, formato e elementos omitidos; 15 tipos de dado; 15 línguas; 16 recusas nomeadas; folhas de comparação em 10 escritas; catálogo contra a ponte; idempotência.

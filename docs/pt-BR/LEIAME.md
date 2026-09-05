@@ -26,6 +26,8 @@ O SIGMAI segue um terceiro caminho. Ele roda dentro do QGIS como plugin e expõe
 
 Depois abra o painel do SIGMAI na barra de ferramentas. Nenhum pacote Python externo é necessário: o SIGMAI roda no interpretador que acompanha o QGIS/OSGeo4W.
 
+O painel fala nove línguas — Português (Brasil), English, Español, Français, Deutsch, Italiano, 日本語, 简体中文, 繁體中文 — escolhidas na lista do cabeçalho, cada uma com o nome escrito nela mesma. Ele segue o tema do QGIS (claro ou escuro, inclusive o *Night Mapping*) com uma paleta própria para cada um, e *Avançado ▸ Aparência* força um deles se você preferir. Os mapas que o assistente compõe têm os textos da moldura em quinze línguas (`map_language`), independentes da língua do painel.
+
 ## Conectar um assistente de IA
 
 O painel faz isso por você: escolha o programa no passo 2 e ele monta o bloco de configuração com os caminhos absolutos corretos.

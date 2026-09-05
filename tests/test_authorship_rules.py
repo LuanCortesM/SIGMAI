@@ -25,14 +25,22 @@ class AuthorshipRulesTests(unittest.TestCase):
         # seção "Sobre", em Avançado: o cabeçalho responde "como conecto?",
         # não "quem escreveu isto?". A informação continua visível e é o
         # arquivo de textos da interface que a carrega, nos dois idiomas.
-        strings = (ROOT / "sigmai" / "ui" / "strings.py").read_text(encoding="utf-8")
-        self.assertEqual(strings.count("Plugin author: MACIEL, L. S. C."), 2)
-        self.assertIn("herpetomantiqueira@gmail.com", strings)
+        # Nove línguas, nove tabelas: a autoria aparece em todas — traduzida
+        # a palavra "autor", nunca o nome nem o e-mail.
+        from sigmai.ui.strings import STRINGS
+
+        for language, table in STRINGS.items():
+            with self.subTest(language=language):
+                self.assertIn("MACIEL, L. S. C.", table["about_plugin"])
+                self.assertIn("herpetomantiqueira@gmail.com", table["about_plugin"])
 
     def test_ui_separates_plugin_authorship_from_map_authorship(self):
-        strings = (ROOT / "sigmai" / "ui" / "strings.py").read_text(encoding="utf-8")
-        self.assertIn("about_map_authorship", strings)
-        self.assertIn("map_author", strings)
+        from sigmai.ui.strings import STRINGS
+
+        for language, table in STRINGS.items():
+            with self.subTest(language=language):
+                self.assertIn("map_author", table["about_map_authorship"])
+                self.assertIn("data_source", table["about_map_authorship"])
 
     def test_public_map_credit_does_not_default_to_plugin_author(self):
         context = {"user_profile": {"default_map_author": "", "default_map_author_email": "", "default_organization": "", "default_credit_line": "", "use_plugin_author_as_map_author_in_dev": True}}

@@ -2,6 +2,24 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.0.1] — 2026-09-05
+
+Dois defeitos apontados no primeiro uso da 1.0.0 dentro do QGIS.
+
+### Corrigido — o painel no tema escuro
+
+No *Night Mapping* (e em qualquer tema escuro do QGIS) o painel ficava ilegível: botões de rádio com fundo preto e texto escuro, rótulos de formulário cinza-claro sobre cartão branco, faixas escuras atrás dos campos numéricos e dos títulos das caixas de grupo. A causa: a folha de estilo só tinha a paleta clara e só estilizava os widgets que nomeava; tudo o que ficava de fora herdava o tema do aplicativo, e o resultado era uma mistura dos dois.
+
+`ui/theme.py` passa a ter **duas paletas com o mesmo desenho** — a escura não é a clara invertida: superfícies azul-ardósia, o verde da marca um tom acima para manter contraste, avisos em pastel sobre fundo fechado; todo par texto/fundo é conferido acima de 4,5:1 (WCAG AA) por um teste — e uma **folha completa**, que declara fundo e texto de todo widget do painel: rótulos, rádios e caixas de seleção (com indicadores desenhados pela própria folha, porque o círculo do rádio sumia no escuro), o viewport das áreas de rolagem, os popups das listas, os spinboxes, as barras de rolagem, as células de tabela e o título das caixas de grupo. O tema é escolhido pela paleta do QGIS (`resolve_theme`) e reaplicado quando o Qt anuncia troca de paleta, então mudar o tema do QGIS com o painel aberto surte efeito na hora; *Avançado ▸ Aparência* força claro ou escuro.
+
+De quebra, dois defeitos de largura que só apareciam noutras línguas: o negrito das abas era pintado pela folha mas medido em regular, e "Verbindung" saía cortado (a fonte do `QTabBar` passa a ser negrito de verdade); e o cabeçalho, sem quebra de linha, impunha ao painel 600 px de largura mínima em alemão — mais que o dock do QGIS. As abas rolam num dock estreito em vez de sumir.
+
+### Novo — nove línguas na interface
+
+O botão que alternava PT/EN virou uma **lista no cabeçalho** com nove línguas — Português (Brasil), English, Español, Français, Deutsch, Italiano, 日本語, 简体中文, 繁體中文 — cada uma com o nome escrito nela mesma, porque quem não lê português precisa achar a sua língua sem ler português. As tabelas vivem em `sigmai/ui/strings/` (um módulo por língua, 190 textos cada); um teste garante que toda chave existe em toda língua com os mesmos marcadores de formatação, que nenhuma tabela é cópia do português e que o pedido de confirmação do Modo DEV pede uma palavra que o plugin aceita.
+
+Também passam a ser traduzidos o que antes saía em português em qualquer idioma: o **autoteste** do passo 3 ("Ponte local — responde em…"), o **diálogo de consentimento** (categoria, descrição, "Grava em"), a **trilha de atividade** e as **instruções de cada cliente de IA** no passo 2. O registro de consentimento continua guardando o nome canônico da categoria, para que trocar de língua não esqueça o que o usuário já aprovou. O código de língua é tolerante (`pt`, `en-US`, `zh-TW`, `jp` resolvem). Os textos que o compositor escreve nos mapas continuam em `cartography/maptext.py`, com quinze línguas.
+
 ## [1.0.0] — 2026-09-05
 
 Primeira versão estável. O que separa a 1.0.0 da 0.2.2 não é uma funcionalidade nova, e sim uma propriedade: **o catálogo é igual à realidade**. Toda ação que o `get_capabilities` anuncia executa o que o nome diz; toda ação que não executa foi desabilitada com o motivo escrito; e uma bateria de liberação reproduzível decide se a versão sai.
