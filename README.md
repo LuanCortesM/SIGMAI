@@ -31,6 +31,8 @@ That last step is the part that matters. Producing a map is easy; producing a ma
 
 Then open the SIGMAI panel from the toolbar. No external Python packages are required: SIGMAI runs on the interpreter that ships with QGIS/OSGeo4W.
 
+The panel speaks nine languages — Português (Brasil), English, Español, Français, Deutsch, Italiano, 日本語, 简体中文, 繁體中文 — chosen from the list in its header, each named in itself. It follows the QGIS theme (light or dark, including *Night Mapping*) with a palette of its own for each, and *Advanced ▸ Appearance* forces one if you prefer. The maps the assistant composes carry their own frame texts in fifteen languages (`map_language`), independent of the panel language.
+
 ## Connect an AI client
 
 The panel does this for you — pick your program in step 2 and it produces the exact configuration block with the correct absolute paths. For reference, the shape is the same everywhere:
@@ -137,7 +139,7 @@ The split between `cartography` and the rest is deliberate: `pagespec`, `scaling
 ```bash
 git clone https://github.com/LuanCortesM/SIGMAI.git
 cd SIGMAI
-python -m pytest tests -q          # 501 tests; the 32 that need PyQGIS skip themselves without QGIS
+python -m pytest tests -q          # 519 tests; the 32 that need PyQGIS skip themselves without QGIS
 python tools/package_qgis_plugin_zip.py
 ```
 
@@ -169,7 +171,7 @@ Developed by Luan da Silva Cortes Maciel as a research product associated with H
 @software{maciel_sigmai,
   author  = {Maciel, Luan da Silva Cortes},
   title   = {{SIGMAI}: Secure {GIS}-{AI} Interface},
-  version = {1.0.0},
+  version = {1.0.1},
   url     = {https://github.com/LuanCortesM/SIGMAI},
   license = {GPL-3.0-or-later}
 }

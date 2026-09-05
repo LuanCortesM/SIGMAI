@@ -321,15 +321,17 @@ class HelpTabStrings(unittest.TestCase):
             "help_quality_title", "help_quality", "help_refuse_title", "help_refuse",
             "help_privacy_title", "help_privacy", "help_docs",
         ]
-        for idioma in ("pt-BR", "en"):
+        for idioma in STRINGS:
             for chave in chaves:
                 with self.subTest(idioma=idioma, chave=chave):
                     self.assertTrue(STRINGS[idioma].get(chave), f"{chave} vazio em {idioma}")
 
-    def test_os_dois_idiomas_tem_o_mesmo_conjunto_de_chaves(self) -> None:
+    def test_todos_os_idiomas_tem_o_mesmo_conjunto_de_chaves(self) -> None:
         from sigmai.ui.strings import STRINGS
 
-        self.assertEqual(set(STRINGS["pt-BR"]), set(STRINGS["en"]))
+        for idioma in STRINGS:
+            with self.subTest(idioma=idioma):
+                self.assertEqual(set(STRINGS[idioma]), set(STRINGS["pt-BR"]))
 
     def test_as_frases_de_exemplo_sao_pedidos_de_verdade(self) -> None:
         from sigmai.ui.strings import STRINGS

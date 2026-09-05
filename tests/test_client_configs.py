@@ -14,8 +14,21 @@ class ClientConfigTests(unittest.TestCase):
                 config = build_client_config(client)
                 self.assertTrue(config["snippet"].strip())
                 self.assertTrue(config["config_path"])
-                self.assertTrue(config["note_pt"])
-                self.assertTrue(config["note_en"])
+                self.assertTrue(config["note"])
+
+    def test_note_label_and_path_hint_follow_the_interface_language(self):
+        from sigmai.ui.strings import LANGUAGES
+
+        seen = set()
+        for code, _ in LANGUAGES:
+            config = build_client_config("generic", language=code)
+            self.assertTrue(config["note"] and config["label"] and config["config_path"])
+            seen.add((config["note"], config["label"]))
+        # Nove línguas, nove textos diferentes: nenhuma cai em inglês por
+        # falta de tradução da nota do cliente.
+        self.assertEqual(len(seen), len(LANGUAGES))
+        self.assertEqual(build_client_config("claude_code", language="ja")["config_path"],
+                         "プロジェクトのルートの .mcp.json、または ~/.claude.json")
 
     def test_json_clients_emit_valid_json_with_absolute_paths(self):
         for client in ("claude_desktop", "cursor", "generic"):

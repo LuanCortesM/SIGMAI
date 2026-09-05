@@ -113,9 +113,17 @@ def main() -> int:
     controller = FakeController()
     panel = SigmaiPanel(controller)
 
-    step("folha de estilo", lambda: panel.setStyleSheet(get_sigmai_stylesheet(1.0)))
+    step("folha de estilo clara", lambda: panel.apply_theme("light", get_sigmai_stylesheet(1.0, dark=False)))
+    step("folha de estilo escura", lambda: panel.apply_theme("dark", get_sigmai_stylesheet(1.0, dark=True)))
     step("refresh", panel.refresh)
-    step("trocar idioma", panel._toggle_language)
+    step("percorrer os nove idiomas", lambda: [
+        (panel.language_combo.setCurrentIndex(index), app.processEvents())
+        for index in range(panel.language_combo.count())
+    ])
+    step("aparência: automática, clara, escura", lambda: [
+        (panel.theme_combo.setCurrentIndex(index), app.processEvents())
+        for index in range(panel.theme_combo.count())
+    ])
     step("percorrer clientes de IA", lambda: [
         (panel.client_combo.setCurrentIndex(index), app.processEvents())
         for index in range(panel.client_combo.count())

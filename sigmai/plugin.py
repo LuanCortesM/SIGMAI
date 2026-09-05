@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from .bridge_server import SIGMAIServer
-from .consent import DECISION_ALLOWED, DECISION_DENIED, MODE_READ_ONLY, MODES
+from .consent import DECISION_ALLOWED, DECISION_DENIED, MODE_ALLOW_SESSION, MODE_ASK, MODE_READ_ONLY, MODES
 from .security import DEFAULT_HOST, DEFAULT_PORT, generate_token
 from .session import (
     build_session_payload,
@@ -41,6 +41,7 @@ SETTINGS_DEFAULTS: dict[str, Any] = {
     "persist_token": True,
     "consent_mode": MODE_READ_ONLY,
     "ui_language": "pt-BR",
+    "ui_theme": "auto",
     "output_roots": "",
     "limit_writes_per_session": 200,
     "limit_exports_per_session": 60,
@@ -62,7 +63,10 @@ class SIGMAIPlugin:
         self.session_file = None
         self.session_id = generate_pairing_code()
         self.token = self._load_or_create_token()
-        self.language = str(self.settings_get("ui_language", "pt-BR"))
+        from .ui.strings import normalize_ui_language
+
+        self.language = normalize_ui_language(self.settings_get("ui_language", "pt-BR"))
+        self.theme_preference = str(self.settings_get("ui_theme", "auto") or "auto")
         self.server = SIGMAIServer(
             iface=iface,
             host=DEFAULT_HOST,
@@ -125,10 +129,9 @@ class SIGMAIPlugin:
         from .cartography.qtcompat import qt_enum
         from .ui.panel import SigmaiPanel
         from .ui.strings import translate
-        from .ui.theme import get_sigmai_stylesheet
 
         self.panel = SigmaiPanel(self)
-        self.panel.setStyleSheet(get_sigmai_stylesheet(self._ui_scale()))
+        self.apply_theme()
 
         # Um painel acoplável, e não um diálogo modal: o usuário precisa ver o
         # estado da ponte enquanto trabalha no mapa, não em vez disso.
@@ -141,6 +144,42 @@ class SIGMAIPlugin:
             self.iface.addDockWidget(area, self.dock)
         except Exception:
             self.dock.setFloating(True)
+
+    # -- tema -------------------------------------------------------------
+    def resolved_theme(self) -> str:
+        """``"light"`` ou ``"dark"``: a preferência do usuário, ou a paleta do QGIS."""
+        from .ui.theme import resolve_theme
+
+        palette = None
+        try:
+            from qgis.PyQt.QtWidgets import QApplication  # type: ignore
+
+            palette = QApplication.palette()
+        except Exception:
+            palette = None
+        return resolve_theme(self.theme_preference, palette)
+
+    def apply_theme(self) -> None:
+        """Reaplica a folha de estilo no tema em vigor.
+
+        Chamado ao criar o painel, quando o usuário muda a preferência em
+        Avançado e quando o Qt anuncia troca de paleta (o painel ouve
+        PaletteChange/StyleChange e chama de volta) — é assim que o painel
+        acompanha "Night Mapping" ligado ou desligado com ele aberto.
+        """
+        if self.panel is None:
+            return
+        from .ui.theme import THEME_DARK, get_sigmai_stylesheet
+
+        theme = self.resolved_theme()
+        self.panel.apply_theme(theme, get_sigmai_stylesheet(self._ui_scale(), dark=(theme == THEME_DARK)))
+
+    def set_theme(self, preference: str) -> None:
+        from .ui.theme import THEME_PREFERENCES
+
+        self.theme_preference = preference if preference in THEME_PREFERENCES else "auto"
+        self.settings_set("ui_theme", self.theme_preference)
+        self.apply_theme()
 
     def _ui_scale(self) -> float:
         try:
@@ -227,11 +266,11 @@ class SIGMAIPlugin:
             pass
 
     def set_language(self, language: str) -> None:
-        self.language = "en" if language == "en" else "pt-BR"
+        from .ui.strings import normalize_ui_language, translate
+
+        self.language = normalize_ui_language(language)
         self.settings_set("ui_language", self.language)
         if self.dock is not None:
-            from .ui.strings import translate
-
             self.dock.setWindowTitle(translate(self.language, "window_title"))
 
     def copy_to_clipboard(self, text: str) -> None:
@@ -298,7 +337,7 @@ class SIGMAIPlugin:
         results: list[dict[str, Any]] = []
 
         if not self.server.running:
-            results.append({"ok": False, "label": "Ponte local", "detail": "A ponte está desligada. Inicie no passo 1."})
+            results.append({"ok": False, "label": self._tr("selftest_bridge"), "detail": self._tr("selftest_bridge_off")})
             return results
 
         base = f"http://{self.server.host}:{self.server.port}"
@@ -314,22 +353,22 @@ class SIGMAIPlugin:
         try:
             with urllib.request.urlopen(f"{base}/health", timeout=4) as response:
                 payload = json.loads(response.read().decode("utf-8"))
-            return {"ok": True, "label": "Ponte local", "detail": f"responde em {self.server.host}:{self.server.port} (plugin {payload.get('plugin_version')})"}
+            return {"ok": True, "label": self._tr("selftest_bridge"), "detail": self._tr("selftest_bridge_ok", host=self.server.host, port=self.server.port, version=payload.get("plugin_version"))}
         except Exception as exc:
-            return {"ok": False, "label": "Ponte local", "detail": f"sem resposta: {exc}"}
+            return {"ok": False, "label": self._tr("selftest_bridge"), "detail": self._tr("selftest_bridge_fail", error=exc)}
 
     def _probe_auth(self, base: str) -> dict[str, Any]:
         body = json.dumps({"action": "status"}).encode("utf-8")
         request = urllib.request.Request(base + "/command", data=body, headers={"Content-Type": "application/json"}, method="POST")
         try:
             urllib.request.urlopen(request, timeout=4)
-            return {"ok": False, "label": "Autenticação", "detail": "a ponte aceitou uma requisição SEM token — isto não deveria acontecer"}
+            return {"ok": False, "label": self._tr("selftest_auth"), "detail": self._tr("selftest_auth_leak")}
         except urllib.error.HTTPError as exc:
             if exc.code == 401:
-                return {"ok": True, "label": "Autenticação", "detail": "requisição sem token é recusada, como esperado"}
-            return {"ok": False, "label": "Autenticação", "detail": f"resposta inesperada HTTP {exc.code}"}
+                return {"ok": True, "label": self._tr("selftest_auth"), "detail": self._tr("selftest_auth_ok")}
+            return {"ok": False, "label": self._tr("selftest_auth"), "detail": self._tr("selftest_auth_http", code=exc.code)}
         except Exception as exc:
-            return {"ok": False, "label": "Autenticação", "detail": str(exc)}
+            return {"ok": False, "label": self._tr("selftest_auth"), "detail": str(exc)}
 
     def _probe_command(self, base: str) -> dict[str, Any]:
         body = json.dumps({"action": "get_project_overview", "params": {"include_fields": False}}).encode("utf-8")
@@ -342,50 +381,47 @@ class SIGMAIPlugin:
             with urllib.request.urlopen(request, timeout=15) as response:
                 payload = json.loads(response.read().decode("utf-8"))
             if not payload.get("ok"):
-                return {"ok": False, "label": "Projeto QGIS", "detail": str((payload.get("errors") or [{}])[0].get("message", ""))[:120]}
+                return {"ok": False, "label": self._tr("selftest_project"), "detail": str((payload.get("errors") or [{}])[0].get("message", ""))[:120]}
             data = payload.get("data") or {}
             return {
                 "ok": True,
-                "label": "Projeto QGIS",
-                "detail": f"{data.get('layer_count', 0)} camada(s), CRS {data.get('project_crs') or 'não definido'}",
+                "label": self._tr("selftest_project"),
+                "detail": self._tr("selftest_project_ok", count=data.get("layer_count", 0), crs=data.get("project_crs") or self._tr("selftest_crs_undefined")),
             }
         except Exception as exc:
-            return {"ok": False, "label": "Projeto QGIS", "detail": str(exc)}
+            return {"ok": False, "label": self._tr("selftest_project"), "detail": str(exc)}
 
     def _probe_session_file(self) -> dict[str, Any]:
         if not bool(self.settings_get("write_session_file", True)):
-            return {"ok": False, "label": "Arquivo de sessão", "detail": "desligado em Avançado; os clientes de IA não vão encontrar a ponte sozinhos"}
+            return {"ok": False, "label": self._tr("selftest_session"), "detail": self._tr("selftest_session_disabled")}
         path = session_file_path()
         if not path.exists():
-            return {"ok": False, "label": "Arquivo de sessão", "detail": f"não encontrado em {path}"}
+            return {"ok": False, "label": self._tr("selftest_session"), "detail": self._tr("selftest_session_missing", path=path)}
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except Exception as exc:
-            return {"ok": False, "label": "Arquivo de sessão", "detail": f"ilegível: {exc}"}
+            return {"ok": False, "label": self._tr("selftest_session"), "detail": self._tr("selftest_session_unreadable", error=exc)}
         if int(data.get("port", 0)) != int(self.server.port):
-            return {"ok": False, "label": "Arquivo de sessão", "detail": f"aponta para a porta {data.get('port')}, mas a ponte está na {self.server.port}"}
-        return {"ok": True, "label": "Arquivo de sessão", "detail": "gravado e coerente com a ponte"}
+            return {"ok": False, "label": self._tr("selftest_session"), "detail": self._tr("selftest_session_port", file_port=data.get("port"), port=self.server.port)}
+        return {"ok": True, "label": self._tr("selftest_session"), "detail": self._tr("selftest_session_ok")}
 
     def _probe_mcp_server(self) -> dict[str, Any]:
         server = Path(__file__).resolve().parent / "mcp" / "sigmai_mcp.py"
         if not server.exists():
-            return {"ok": False, "label": "Servidor MCP", "detail": f"arquivo ausente: {server}"}
+            return {"ok": False, "label": self._tr("selftest_mcp"), "detail": self._tr("selftest_mcp_missing", path=server)}
         from .ui.client_configs import python_executable
 
         executable = python_executable()
         if not Path(executable).exists() and executable not in {"python", "python3"}:
-            return {"ok": False, "label": "Servidor MCP", "detail": f"interpretador não encontrado: {executable}"}
-        return {"ok": True, "label": "Servidor MCP", "detail": f"{server.name} pronto, com {Path(executable).name}"}
+            return {"ok": False, "label": self._tr("selftest_mcp"), "detail": self._tr("selftest_mcp_no_python", executable=executable)}
+        return {"ok": True, "label": self._tr("selftest_mcp"), "detail": self._tr("selftest_mcp_ok", server=server.name, python=Path(executable).name)}
 
     def _probe_consent(self) -> dict[str, Any]:
         status = self.consent.status()
         if status["mode"] == MODE_READ_ONLY:
-            return {
-                "ok": False,
-                "label": "Modo de acesso",
-                "detail": "somente leitura: a IA pode inspecionar e simular, mas não gerar mapas. Mude na aba Acesso quando quiser.",
-            }
-        return {"ok": True, "label": "Modo de acesso", "detail": status["mode_label"]}
+            return {"ok": False, "label": self._tr("selftest_mode"), "detail": self._tr("selftest_mode_read_only")}
+        mode_key = {MODE_ASK: "mode_ask", MODE_ALLOW_SESSION: "mode_allow"}.get(status["mode"], "mode_read_only")
+        return {"ok": True, "label": self._tr("selftest_mode"), "detail": self._tr(mode_key)}
 
     # -- consentimento ----------------------------------------------------
     def _prompt_for_consent(self, request: Any) -> tuple[str, bool]:
@@ -402,8 +438,8 @@ class SIGMAIPlugin:
         from .cartography.qtcompat import qt_enum
 
         box.setIcon(qt_enum(QMessageBox, "Icon", "Question"))
-        box.setText(f"<b>{request.category}</b> — {request.category_description}")
-        box.setInformativeText(request.summary())
+        box.setText(f"<b>{self._category_name(request)}</b> — {self._category_description(request)}")
+        box.setInformativeText(self._describe_request(request))
         remember = QCheckBox(translate(self.language, "consent_allow_category"))
         box.setCheckBox(remember)
         allow = box.addButton(translate(self.language, "consent_allow"), qt_enum(QMessageBox, "ButtonRole", "AcceptRole"))
@@ -412,6 +448,41 @@ class SIGMAIPlugin:
         allowed = box.clickedButton() is allow
         self._refresh_panel()
         return (DECISION_ALLOWED if allowed else DECISION_DENIED, bool(remember.isChecked()))
+
+    def _category_name(self, request: Any) -> str:
+        """Nome da categoria na língua da interface.
+
+        O registro de consentimento guarda o nome canônico em português
+        ("Cartografia") — é ele que "lembrar esta categoria" compara —, por
+        isso a tradução é só de exibição, feita aqui e não em consent.py.
+        """
+        from .consent import CATEGORY_KEYS
+
+        key = CATEGORY_KEYS.get(request.category)
+        return self._tr(key) if key else str(request.category)
+
+    def _category_description(self, request: Any) -> str:
+        from .consent import ACTION_CATEGORIES
+
+        key = f"category_desc_{request.group}" if request.group in ACTION_CATEGORIES else "category_desc_default"
+        # vector_tools e vector_analysis (e symbology/labels, workflows/job_queue)
+        # compartilham a descrição; a chave existe só para o primeiro de cada par.
+        aliases = {"category_desc_vector_tools": "category_desc_vector", "category_desc_vector_analysis": "category_desc_vector",
+                   "category_desc_labels": "category_desc_symbology", "category_desc_job_queue": "category_desc_workflows"}
+        return self._tr(aliases.get(key, key))
+
+    def _describe_request(self, request: Any) -> str:
+        outputs = request.output_paths()
+        parts = [f"{self._tr('consent_action')}: {request.action}", f"{self._tr('consent_category')}: {self._category_name(request)}"]
+        if outputs:
+            parts.append(f"{self._tr('consent_writes_to')}: " + "; ".join(outputs))
+        interesting = {
+            key: value for key, value in request.params.items()
+            if key in {"layout_name", "layer_id", "layer_ids", "title", "page", "template", "format", "algorithm_id"}
+        }
+        if interesting:
+            parts.append(f"{self._tr('consent_params')}: " + json.dumps(interesting, ensure_ascii=False)[:300])
+        return "\n".join(parts)
 
     def _restore_consent_settings(self) -> None:
         mode = str(self.settings_get("consent_mode", MODE_READ_ONLY))

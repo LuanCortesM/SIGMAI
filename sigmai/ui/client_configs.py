@@ -19,6 +19,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .strings import translate
+
 #: Clientes conhecidos. ``config_path`` usa placeholders de ambiente porque o
 #: caminho real depende do sistema operacional do usuário.
 AI_CLIENTS: dict[str, dict[str, str]] = {
@@ -28,23 +30,12 @@ AI_CLIENTS: dict[str, dict[str, str]] = {
         "config_windows": r"%APPDATA%\Claude\claude_desktop_config.json",
         "config_macos": "~/Library/Application Support/Claude/claude_desktop_config.json",
         "config_linux": "~/.config/Claude/claude_desktop_config.json",
-        "note_pt": (
-            "Menu Claude → Settings… → aba Developer → Edit Config. "
-            "Depois de salvar, feche o Claude Desktop por completo e abra de novo."
-        ),
-        "note_en": (
-            "Claude menu → Settings… → Developer tab → Edit Config. "
-            "Fully quit and reopen Claude Desktop after saving."
-        ),
     },
     "claude_code": {
         "label": "Claude Code",
         "kind": "cli",
-        "config_windows": ".mcp.json na raiz do projeto, ou ~/.claude.json",
-        "config_macos": ".mcp.json na raiz do projeto, ou ~/.claude.json",
-        "config_linux": ".mcp.json na raiz do projeto, ou ~/.claude.json",
-        "note_pt": "Ou rode o comando abaixo no terminal, dentro do projeto.",
-        "note_en": "Or run the command below in your project directory.",
+        # Caminho descrito em prosa, traduzido: chave em ui/strings.
+        "config_key": "client_path_claude_code",
     },
     "cursor": {
         "label": "Cursor",
@@ -52,8 +43,6 @@ AI_CLIENTS: dict[str, dict[str, str]] = {
         "config_windows": r"%USERPROFILE%\.cursor\mcp.json",
         "config_macos": "~/.cursor/mcp.json",
         "config_linux": "~/.cursor/mcp.json",
-        "note_pt": "Settings → MCP → Add new MCP server, ou edite o arquivo diretamente.",
-        "note_en": "Settings → MCP → Add new MCP server, or edit the file directly.",
     },
     "codex": {
         "label": "Codex CLI",
@@ -61,23 +50,12 @@ AI_CLIENTS: dict[str, dict[str, str]] = {
         "config_windows": r"%USERPROFILE%\.codex\config.toml",
         "config_macos": "~/.codex/config.toml",
         "config_linux": "~/.codex/config.toml",
-        "note_pt": "Acrescente o bloco ao final do arquivo de configuração.",
-        "note_en": "Append the block to the end of the configuration file.",
     },
     "generic": {
-        "label": "Outro cliente MCP",
+        # Rótulo traduzido: chave em ui/strings.
+        "label_key": "client_generic_label",
         "kind": "json",
-        "config_windows": "consulte a documentação do cliente",
-        "config_macos": "consulte a documentação do cliente",
-        "config_linux": "consulte a documentação do cliente",
-        "note_pt": (
-            "Qualquer cliente que fale MCP por stdio serve. O contrato é: lançar o comando "
-            "abaixo como subprocesso e trocar JSON-RPC 2.0 delimitado por quebras de linha."
-        ),
-        "note_en": (
-            "Any MCP client that speaks stdio works. The contract is: launch the command below "
-            "as a subprocess and exchange newline-delimited JSON-RPC 2.0."
-        ),
+        "config_key": "client_path_generic",
     },
 }
 
@@ -124,13 +102,24 @@ def mcp_server_path(package_root: Path | None = None) -> str:
     return str(sibling)
 
 
-def config_file_hint(client: str) -> str:
+def config_file_hint(client: str, language: str = "pt-BR") -> str:
+    """Onde o bloco vai: um caminho real do sistema ou, para os clientes que
+    não têm um só arquivo, uma frase traduzida (``config_key``)."""
     spec = AI_CLIENTS.get(client, AI_CLIENTS["generic"])
+    if "config_key" in spec:
+        return translate(language, spec["config_key"])
     if os.name == "nt":
         return spec["config_windows"]
     if sys.platform == "darwin":
         return spec["config_macos"]
     return spec["config_linux"]
+
+
+def client_label(client: str, language: str = "pt-BR") -> str:
+    spec = AI_CLIENTS.get(client, AI_CLIENTS["generic"])
+    if "label_key" in spec:
+        return translate(language, spec["label_key"])
+    return spec["label"]
 
 
 def build_client_config(
@@ -139,9 +128,16 @@ def build_client_config(
     package_root: Path | None = None,
     session_file: str | None = None,
     python_path: str | None = None,
+    language: str = "pt-BR",
 ) -> dict[str, Any]:
-    """Bloco de configuração pronto para colar, mais a instrução de onde colar."""
+    """Bloco de configuração pronto para colar, mais a instrução de onde colar.
+
+    ``language`` escolhe a língua da instrução (``note``), do rótulo e da
+    frase de caminho — as nove línguas de ``ui/strings``; antes só havia
+    ``note_pt``/``note_en`` e qualquer outra língua da interface lia inglês.
+    """
     spec = AI_CLIENTS.get(client, AI_CLIENTS["generic"])
+    client_key = client if client in AI_CLIENTS else "generic"
     executable = python_path or python_executable()
     server = mcp_server_path(package_root)
 
@@ -174,12 +170,11 @@ def build_client_config(
 
     return {
         "client": client,
-        "label": spec["label"],
+        "label": client_label(client_key, language),
         "kind": spec["kind"],
         "snippet": snippet,
-        "config_path": config_file_hint(client),
-        "note_pt": spec["note_pt"],
-        "note_en": spec["note_en"],
+        "config_path": config_file_hint(client_key, language),
+        "note": translate(language, f"client_note_{client_key}"),
         "python": executable,
         "server": server,
         "server_exists": Path(server).exists(),
