@@ -2,6 +2,33 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.0.2] — 2026-09-05
+
+Um teste diferente dos anteriores: um agente **emulando um assistente de IA sem acesso ao computador** — proibido de ler qualquer arquivo ou código, só o cliente MCP na mão — recebeu o pedido informal de uma pesquisadora ("mapa do parque em A4 com os municípios em volta e um mapinha de localização") e teve de se virar. Nas duas rodadas o mapa saiu com nota A; o que interessa é o relatório do que o obrigou a adivinhar. Cada item virou correção, e `tools/remote_ai_lab.py` + `tools/mcp_call.py` reproduzem o cenário para quem quiser repetir.
+
+### Corrigido — o assistente não tinha como saber
+
+- **Nome de comando errado recebia `ACTION_NOT_ALLOWED`** ("get_features"), a mesma resposta de uma ação proibida. Passa a `UNKNOWN_ACTION` com sugestões pelo nome (`sample_features`, `query_features`…); `ACTION_NOT_ALLOWED` fica para as ações catalogadas e desabilitadas, com o motivo.
+- **`sigmai_capabilities` tinha 70 KB e nenhum filtro** — não cabia no contexto do assistente, que passou a chutar nomes. Aceita `group`, `search` e `names_only`, e **cada comando lista os parâmetros que lê** (`parameters`, com `parameters_complete` dizendo se a lista é exata), extraídos do próprio manipulador.
+- **Parâmetro que o comando não lê era engolido em silêncio**: `sample_features` com `filter=…` devolvia as dez primeiras feições como se tivesse filtrado; `apply_boundary_highlight` ignorava `stroke_color`. Para os 145 comandos cujo manipulador lê só nomes literais, a ponte devolve `warnings: ["Parameters not read by 'sample_features' and therefore ignored: filter…"]`; para os que repassam `params` a outra função nenhum aviso é emitido, porque a extração não tem como saber. `apply_boundary_highlight` passa a aceitar cor e espessura.
+- **`sigmai_layer_details` prometia amostra, estilo e validade e entregava só os metadados.** Agora compõe as quatro leituras. Foi assim que a segunda rodada descobriu, pelos atributos do próprio KML (`municipios: "Granja; Viçosa do Ceará"`, `Fonte: CEUC…/SEMA`), que o Parque Estadual das Carnaúbas fica no Ceará e não no Piauí — e corrigiu o pedido da usuária em vez de desenhar o que ela pediu errado.
+- **`inspect_layer_style` não mostrava o estilo** (só o tipo do renderizador): quem aplicava uma cor não tinha como confirmar. Mostra o símbolo — cores, contorno, largura, preenchimento — e, para estilos categorizados e graduados, as classes.
+- **`sigmai_plan_map` e `sigmai_compose_map` não publicavam 14 parâmetros que o compositor aceita** (`production_date`, `auto_projected_crs`, `margin_mm`, `round_scale`, `include_logo`…), e o esquema é fechado: o regulamento mandava usá-los e o cliente não conseguia. Os dois passam a publicar o esquema completo, o mesmo para ambos; um teste o confere contra `KNOWN_PARAMETERS`.
+- **`list_layouts` prometia página e itens e devolvia nome e contagem.** Descreve páginas, itens e quadros de mapa (CRS, escala, camadas, grade, insertos).
+- **`status.project_loaded` era `null`.** Agora é verdadeiro/falso, com caminho e contagem de camadas.
+
+### Corrigido — o que o assistente acertou por dedução e não devia precisar
+
+- **A nota do inserto dizia "12x a largura do recorte" mesmo quando ele tinha sido ajustado ao estado inteiro.** O assistente, lendo isso, refez o mapa com um fator maior sem necessidade. A nota diz qual camada de contexto ajustou o inserto, e a descrição de `inset_zoom_factor` diz quando ele se aplica.
+- **A auditoria não olhava o inserto.** Nova regra **CART067** (aviso): o inserto tem de mostrar a extensão inteira das camadas de contexto e conter o recorte principal — a observação passa a medir a fração de cada camada visível no inserto.
+- **`apply_single_symbol` seguido de `compose_map(apply_style="missing")` reestilizava a camada recém-estilizada**, e o relatório dizia "estilizada" contradizendo a documentação. As ações de simbologia marcam a origem do estilo na camada (`sigmai/style_origin`), e a paleta da composição também: um estilo aplicado pelo assistente é preservado, e o mesmo mapa refeito **não muda de cor**.
+- **Cada composição criava "Título (2)", "Título (3)"…** Um `layout_name` que já existe passa a ser substituído; sem nome explícito, a nota avisa do acúmulo.
+- **"UTM zone 24S" num mapa em português.** O nome do CRS na linha de crédito sai na língua do mapa (zona, Policônica do Brasil) para pt-BR, es, it e fr; o código EPSG continua ao lado.
+
+### O que ficou registrado e não foi feito
+
+O slot do inserto é paisagem mesmo quando o estado é retrato (o Piauí ocupa uma coluna estreita no centro); um slot adaptado à proporção da camada de contexto ficaria melhor. A cor da paleta depende da posição da camada na lista, então dois mapas com listas diferentes podem colorir a mesma camada de modo diferente (a preservação da origem do estilo resolve o caso do mesmo mapa refeito). Não há consulta espacial por retângulo ("quais municípios caem neste recorte"); `query_features` aceita expressão.
+
 ## [1.0.1] — 2026-09-05
 
 Dois defeitos apontados no primeiro uso da 1.0.0 dentro do QGIS.

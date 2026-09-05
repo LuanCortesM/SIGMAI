@@ -64,11 +64,45 @@ def _imports() -> dict[str, Any]:
 RESTYLABLE_RENDERERS = ("QgsSingleSymbolRenderer", "QgsEmbeddedSymbolRenderer")
 
 
+#: Propriedade da camada em que o SIGMAI registra quem definiu o estilo atual.
+#: ``"user"``: uma ação de simbologia da ponte (apply_single_symbol, estilo
+#: graduado, QML carregado…) — intenção declarada, ``apply_style="missing"``
+#: preserva. ``"sigmai_palette"``: a paleta segura de compose_map — também
+#: preservada na composição seguinte, para que o mesmo mapa refeito não mude
+#: de cor. Sem a propriedade, um símbolo único é o sorteio do QGIS ao carregar.
+STYLE_ORIGIN_PROPERTY = "sigmai/style_origin"
+STYLE_ORIGIN_USER = "user"
+STYLE_ORIGIN_PALETTE = "sigmai_palette"
+
+
+def mark_style_origin(layer: Any, origin: str) -> None:
+    try:
+        layer.setCustomProperty(STYLE_ORIGIN_PROPERTY, origin)
+    except Exception:
+        pass
+
+
+def style_origin(layer: Any) -> str:
+    try:
+        return str(layer.customProperty(STYLE_ORIGIN_PROPERTY, "") or "")
+    except Exception:
+        return ""
+
+
 def has_default_symbology(layer: Any) -> bool:
-    """A camada ainda está sem intenção temática declarada no projeto?"""
+    """A camada ainda está sem intenção temática declarada no projeto?
+
+    Um símbolo único que uma ação do SIGMAI acabou de aplicar (ou que a paleta
+    da composição anterior definiu) NÃO é "padrão": antes, apply_single_symbol
+    seguido de compose_map com apply_style='missing' reestilizava a camada
+    que o assistente tinha acabado de estilizar — e o relatório dizia
+    "estilizada", contradizendo a promessa da documentação.
+    """
     try:
         renderer = layer.renderer()
     except Exception:
+        return False
+    if style_origin(layer) in (STYLE_ORIGIN_USER, STYLE_ORIGIN_PALETTE):
         return False
     return type(renderer).__name__ in RESTYLABLE_RENDERERS
 
@@ -117,7 +151,12 @@ def apply_default_symbology(layers: list[Any], mode: str = "missing", dry_run: b
         if not hasattr(layer, "renderer") or not hasattr(layer, "geometryType"):
             continue  # raster ou camada sem simbologia vetorial
         if mode == "missing" and not has_default_symbology(layer):
-            applied.append({"layer": layer.name(), "action": "preservada", "reason": "simbologia temática já definida"})
+            origem_estilo = style_origin(layer)
+            reason = {
+                STYLE_ORIGIN_USER: "estilo definido por uma ação de simbologia (apply_single_symbol, graduado, categorizado ou QML)",
+                STYLE_ORIGIN_PALETTE: "paleta aplicada numa composição anterior",
+            }.get(origem_estilo, "simbologia temática já definida")
+            applied.append({"layer": layer.name(), "action": "preservada", "reason": reason, "style_origin": origem_estilo or "project"})
             continue
 
         try:
@@ -169,6 +208,7 @@ def apply_default_symbology(layers: list[Any], mode: str = "missing", dry_run: b
             continue
         try:
             layer.setRenderer(imports["QgsSingleSymbolRenderer"](symbol))
+            mark_style_origin(layer, STYLE_ORIGIN_PALETTE)
             layer.triggerRepaint()
             registro = {"layer": layer.name(), "action": "estilizada", "geometry": kind, "accent": accent, "color": display_color}
             if origem == "QgsEmbeddedSymbolRenderer":

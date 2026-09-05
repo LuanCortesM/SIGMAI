@@ -5,6 +5,7 @@ from typing import Any
 
 from ..cartography.qtcompat import geometry_type as _geometry_type
 from ..security import ensure_parent_exists, normalize_output_path, reject_existing_path_without_confirmation
+from ..cartography.symbology import STYLE_ORIGIN_USER, mark_style_origin, style_origin
 from ..validators import ValidationError, require_param
 from .common import layer_type_name, project
 
@@ -161,12 +162,16 @@ def apply_single_symbol(params: dict[str, Any], context: dict[str, Any]):
     imports = _imports()
     symbol = _symbol_for_layer(layer, fill, stroke, stroke_width, fill_opacity, stroke_opacity, outline_only)
     layer.setRenderer(imports["QgsSingleSymbolRenderer"](symbol))
+    mark_style_origin(layer, STYLE_ORIGIN_USER)
     _set_opacity(layer, opacity if layer.geometryType() != _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Polygon") else 1.0)
     layer.triggerRepaint()
     return {
         "layer_id": layer.id(),
         "layer_name": layer.name(),
         "style_type": "single_symbol",
+        "fill_color": fill,
+        "stroke_color": stroke,
+        "stroke_width": stroke_width,
         "opacity": opacity,
         "fill_opacity": fill_opacity,
         "stroke_opacity": stroke_opacity,
@@ -190,6 +195,7 @@ def apply_categorized_style(params: dict[str, Any], context: dict[str, Any]):
         symbol = _symbol_for_layer(layer, color, "#1E2A32", 0.35)
         categories.append(imports["QgsRendererCategory"](value, symbol, str(value)))
     layer.setRenderer(imports["QgsCategorizedSymbolRenderer"](field_name, categories))
+    mark_style_origin(layer, STYLE_ORIGIN_USER)
     _set_opacity(layer, float(params.get("opacity", 0.85)))
     layer.triggerRepaint()
     return {"layer_id": layer.id(), "field_name": field_name, "style_type": "categorized", "category_count": len(categories)}
@@ -225,6 +231,7 @@ def apply_graduated_style(params: dict[str, Any], context: dict[str, Any]):
         symbol = _symbol_for_layer(layer, colors[index % len(colors)], "#1E2A32", 0.25)
         ranges.append(imports["QgsRendererRange"](lower, upper, symbol, f"{lower:.2f} - {upper:.2f}"))
     layer.setRenderer(imports["QgsGraduatedSymbolRenderer"](field_name, ranges))
+    mark_style_origin(layer, STYLE_ORIGIN_USER)
     _set_opacity(layer, float(params.get("opacity", 0.85)))
     layer.triggerRepaint()
     return {"layer_id": layer.id(), "field_name": field_name, "style_type": "graduated", "classes": classes}
@@ -240,10 +247,79 @@ def set_layer_opacity(params: dict[str, Any], context: dict[str, Any]):
     return {"layer_id": layer.id(), "opacity": opacity}
 
 
+def _hex_colour(value: Any) -> Any:
+    """'127,59,8,255' (formato das propriedades de símbolo do QGIS) → '#7f3b08'."""
+    text = str(value)
+    parts = text.split(",")
+    if len(parts) in (3, 4) and all(part.strip().isdigit() for part in parts):
+        r, g, b = (int(part) for part in parts[:3])
+        return f"#{r:02x}{g:02x}{b:02x}"
+    return value
+
+
+def _symbol_summary(symbol: Any) -> dict[str, Any]:
+    """Cor, contorno, largura e preenchimento de um símbolo, como texto."""
+    summary: dict[str, Any] = {}
+    try:
+        summary["color"] = symbol.color().name()
+        summary["opacity"] = round(float(symbol.opacity()), 3)
+    except Exception:
+        pass
+    try:
+        first = symbol.symbolLayer(0)
+        props = dict(first.properties())
+        for source, target in (("outline_color", "stroke_color"), ("outline_width", "stroke_width"), ("outline_style", "stroke_style"),
+                               ("style", "fill_style"), ("line_width", "stroke_width"), ("size", "size"), ("name", "marker")):
+            if source in props and target not in summary:
+                summary[target] = _hex_colour(props[source]) if target.endswith("color") else props[source]
+        if "fill_style" in summary:
+            summary["outline_only"] = str(summary["fill_style"]) == "no"
+    except Exception:
+        pass
+    return summary
+
+
 def inspect_layer_style(params: dict[str, Any], context: dict[str, Any]):
+    """O estilo em vigor, com o símbolo por extenso.
+
+    A versão anterior devolvia só o tipo do renderizador: quem aplicava uma
+    cor por apply_single_symbol não tinha como confirmar o que ficou.
+    """
     layer = _layer(require_param(params, "layer_id", str))
     renderer = layer.renderer()
-    return {"layer_id": layer.id(), "layer_name": layer.name(), "renderer_type": renderer.type() if renderer else "", "opacity": layer.opacity() if hasattr(layer, "opacity") else None, "labels_enabled": bool(layer.labelsEnabled())}
+    renderer_type = renderer.type() if renderer else ""
+    result: dict[str, Any] = {
+        "layer_id": layer.id(),
+        "layer_name": layer.name(),
+        "renderer_type": renderer_type,
+        "style_origin": style_origin(layer) or "project",
+        "opacity": layer.opacity() if hasattr(layer, "opacity") else None,
+        "labels_enabled": bool(layer.labelsEnabled()),
+    }
+    try:
+        if renderer_type == "singleSymbol":
+            result["symbol"] = _symbol_summary(renderer.symbol())
+        elif renderer_type == "categorizedSymbol":
+            result["field"] = renderer.classAttribute()
+            categories = list(renderer.categories())
+            result["category_count"] = len(categories)
+            result["categories"] = [
+                {"value": str(category.value()), "label": category.label(), **_symbol_summary(category.symbol())}
+                for category in categories[:25]
+            ]
+        elif renderer_type == "graduatedSymbol":
+            result["field"] = renderer.classAttribute()
+            ranges = list(renderer.ranges())
+            result["class_count"] = len(ranges)
+            result["classes"] = [
+                {"lower": item.lowerValue(), "upper": item.upperValue(), "label": item.label(), **_symbol_summary(item.symbol())}
+                for item in ranges[:25]
+            ]
+        elif renderer_type in ("embeddedSymbol", "RuleRenderer") and hasattr(renderer, "symbols"):
+            result["note"] = "estilo por feição ou por regra; use apply_single_symbol ou apply_categorized_style para uma legenda por camada"
+    except Exception as exc:
+        result["symbol_error"] = str(exc)[:200]
+    return result
 
 
 def save_qml_style(params: dict[str, Any], context: dict[str, Any]):
@@ -268,6 +344,8 @@ def load_qml_style(params: dict[str, Any], context: dict[str, Any]):
     if context.get("dry_run"):
         return {"dry_run": True, "layer_id": layer.id(), "path": str(path)}
     ok, message = layer.loadNamedStyle(str(path))
+    if ok:
+        mark_style_origin(layer, STYLE_ORIGIN_USER)
     layer.triggerRepaint()
     return {"layer_id": layer.id(), "path": str(path), "loaded": bool(ok), "message": message}
 

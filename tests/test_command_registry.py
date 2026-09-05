@@ -27,7 +27,10 @@ class CommandRegistryTests(unittest.TestCase):
         registry = CommandRegistry({})
         response = registry.execute({"action": "unknown"})
         self.assertFalse(response["ok"])
-        self.assertEqual(response["errors"][0]["code"], "ACTION_NOT_ALLOWED")
+        # Nome fora do catálogo é UNKNOWN_ACTION (com sugestões); ACTION_NOT_ALLOWED
+        # ficou para as ações catalogadas mas desabilitadas nesta versão.
+        self.assertEqual(response["errors"][0]["code"], "UNKNOWN_ACTION")
+        self.assertIn("suggestions", response["errors"][0]["details"])
 
 
 if __name__ == "__main__":

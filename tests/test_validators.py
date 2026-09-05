@@ -24,7 +24,13 @@ class ValidatorTests(unittest.TestCase):
     def test_rejects_unknown_action(self):
         with self.assertRaises(ValidationError) as raised:
             validate_command({"action": "do_anything"})
+        self.assertEqual(raised.exception.code, "UNKNOWN_ACTION")
+
+    def test_disabled_action_is_not_allowed_with_reason(self):
+        with self.assertRaises(ValidationError) as raised:
+            validate_command({"action": "create_atlas"})
         self.assertEqual(raised.exception.code, "ACTION_NOT_ALLOWED")
+        self.assertTrue(raised.exception.details.get("disabled"))
 
     def test_rejects_execution_construct_in_a_code_bearing_field(self):
         with self.assertRaises(ValidationError) as raised:

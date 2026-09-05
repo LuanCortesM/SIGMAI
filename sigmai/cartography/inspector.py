@@ -73,6 +73,7 @@ def observe_layout(
         "scalebar": None,
         "north": None,
         "map_frames": [],
+        "inset": None,
         "output": _observe_output(output_path),
     }
 
@@ -80,6 +81,7 @@ def observe_layout(
     legend_item = None
     scalebar_item = None
     north_item = None
+    inset_item = None
 
     for item in _safe(layout.items, []) or []:
         item_id = _safe(getattr(item, "id", lambda: ""), "") or ""
@@ -108,9 +110,13 @@ def observe_layout(
             scalebar_item = item
         elif role == "north" and north_item is None:
             north_item = item
+        elif role == "inset" and inset_item is None:
+            inset_item = item
 
     if map_item is not None:
         observation["map"] = _observe_map(map_item, data_extent, ink_fraction)
+    if inset_item is not None:
+        observation["inset"] = _observe_inset(inset_item, map_item)
     if legend_item is not None:
         observation["legend"] = _observe_legend(legend_item)
     if scalebar_item is not None:
@@ -265,6 +271,52 @@ def _observe_map(map_item: Any, data_extent: dict[str, float] | None, ink_fracti
     else:
         info["grid"] = {"enabled": False, "interval_x": 0.0, "interval_y": 0.0, "annotations": False}
 
+    return info
+
+
+def _observe_inset(inset_item: Any, main_map: Any) -> dict[str, Any]:
+    """O inserto de localização: extensão, escala, camadas e quanto de cada
+    camada de contexto cabe nele.
+
+    A auditoria não olhava o inserto: um localizador que corta o estado ao
+    meio passava com nota A porque a observação só descrevia o quadro
+    principal. ``layer_coverage`` é a fração da extensão de cada camada que
+    está dentro do inserto — 1,0 quando o estado inteiro aparece.
+    """
+    crs = _safe(inset_item.crs)
+    layers = _safe(inset_item.layers, []) or []
+    extent = _safe(inset_item.extent)
+    info: dict[str, Any] = {
+        "item_id": _safe(inset_item.id, "") or "",
+        "crs": _safe(crs.authid, "") if crs is not None else "",
+        "scale": round(float(_safe(inset_item.scale, 0.0) or 0.0), 1),
+        "extent": _rect_dict(extent),
+        "visible_layer_names": [str(_safe(layer.name, "")) for layer in layers],
+        "layer_coverage": {},
+        "shows_main_frame": False,
+    }
+    try:
+        from qgis.core import QgsCoordinateTransform, QgsProject  # type: ignore
+
+        for layer in layers:
+            layer_extent = layer.extent()
+            if layer_extent is None or layer_extent.isEmpty() or crs is None:
+                continue
+            if layer.crs().isValid() and crs.isValid() and layer.crs().authid() != crs.authid():
+                layer_extent = QgsCoordinateTransform(layer.crs(), crs, QgsProject.instance()).transformBoundingBox(layer_extent)
+            shown = layer_extent.intersect(extent)
+            area = layer_extent.width() * layer_extent.height()
+            info["layer_coverage"][str(layer.name())] = round((shown.width() * shown.height()) / area, 3) if area > 0 else 1.0
+        if main_map is not None and extent is not None:
+            main_extent = _safe(main_map.extent)
+            if main_extent is not None:
+                info["shows_main_frame"] = bool(extent.contains(main_extent))
+    except Exception:
+        pass
+    try:
+        info["overviews"] = int(inset_item.overviews().size())
+    except Exception:
+        info["overviews"] = None
     return info
 
 
