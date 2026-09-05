@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import platform
 import re
 import secrets
 from pathlib import Path
@@ -61,17 +62,56 @@ def validate_bearer_header(header_value: str | None, expected_token: str) -> boo
     return secrets.compare_digest(supplied, expected_token)
 
 
+class OutputPathError(ValueError):
+    """Caminho de saída que não pode ser aceito. ``CommandRegistry`` a devolve
+    como BAD_REQUEST — é recusa de parâmetro, não erro interno."""
+
+
 def normalize_output_path(path_value: str) -> Path:
-    """Normalize an output path without creating or deleting anything."""
-    if not path_value or not isinstance(path_value, str):
-        raise ValueError("Output path must be a non-empty string.")
-    expanded = os.path.expandvars(os.path.expanduser(path_value))
-    return Path(expanded).resolve()
+    """Normalize an output path without creating or deleting anything.
+
+    Only absolute paths of THIS operating system are accepted. Two accidents
+    the previous version let through: a Windows path pasted into a QGIS
+    running on Linux/macOS ("C:\\Users\\...\\map.png") is, to POSIX, a
+    relative file name with backslashes — the export created a file literally
+    called ``C:\\Users\\...`` in the current directory and reported success;
+    and a relative path ("map.png") landed in the QGIS process's current
+    directory, which the user does not know.
+    """
+    if not path_value or not isinstance(path_value, str) or not path_value.strip():
+        raise OutputPathError("Output path must be a non-empty string.")
+    text = path_value.strip()
+    problem = classify_output_path(text)
+    if problem == "foreign":
+        raise OutputPathError(
+            f"Output path looks like a Windows path ({text!r}) but this QGIS runs on "
+            f"{platform.system() or 'another OS'}. Give an absolute path on this computer, "
+            f"for example {Path.home() / 'map.png'}."
+        )
+    if problem == "relative":
+        raise OutputPathError(
+            f"Output path must be absolute; got {text!r}, which would be written to the QGIS "
+            f"process's current directory. Give the full folder, for example {Path.home() / text}."
+        )
+    return Path(os.path.expandvars(os.path.expanduser(text))).resolve()
+
+
+def classify_output_path(text: str) -> str:
+    """``"foreign"`` (caminho do Windows num sistema POSIX), ``"relative"``
+    (sem pasta completa) ou ``"ok"``. É o único lugar que define o que conta
+    como caminho aceitável; ``compose_map`` e as ações da ponte só redigem a
+    recusa cada um na sua língua."""
+    windows_style = bool(re.match(r"^[A-Za-z]:[\\/]", text)) or text.startswith("\\\\")
+    if os.name != "nt" and (windows_style or "\\" in text):
+        return "foreign"
+    if not Path(os.path.expandvars(os.path.expanduser(text))).is_absolute():
+        return "relative"
+    return "ok"
 
 
 def ensure_parent_exists(path: Path) -> None:
     if not path.parent.exists():
-        raise ValueError(f"Output directory does not exist: {path.parent}")
+        raise OutputPathError(f"Output directory does not exist: {path.parent}")
 
 
 def reject_existing_path_without_confirmation(path: Path, confirm_overwrite: bool) -> None:

@@ -1,7 +1,7 @@
 [general]
 name=SIGMAI
 description=Secure local bridge between AI assistants and QGIS, with cartographic quality control.
-version=0.2.2
+version=1.0.0
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=MACIEL, L. S. C.
@@ -16,7 +16,18 @@ homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=GPL-3.0-or-later
-changelog=0.2.2
+changelog=1.0.0
+    - Primeira versão estável. O catálogo é igual à realidade: 208 ações habilitadas de 221 catalogadas; as 13 desabilitadas (atlas, PostGIS, create_map_hierarchy) são recusadas pela ponte como inexistentes e listadas em capabilities com o motivo.
+    - 24 esqueletos resolvidos: execute_workflow executa passo a passo pelo mesmo caminho validado da ponte; export_report_pdf gera PDF; repair_data_source_path, test_service_connection, list_ogc_connections, list_database_connections, gpx_track_length e map_gpx_track fazem o que o nome diz; apply_scientific_* recusam camada de outra geometria; apply_boundary_highlight tem perfil próprio; run_workflow_job e run_map_export_job honram dry_run.
+    - Bateria de liberação (tools/release_battery.py): 7 portões, 672 verificações — 384 combinações de template, página, orientação, formato e elementos omitidos; 15 tipos de dado; 15 línguas; 16 recusas nomeadas; folhas de comparação em 10 escritas; catálogo contra a ponte; idempotência.
+    - Corrigido: a auditoria criava uma grade-fantasma ao inspecionar um mapa pedido sem grade (QgsLayoutItemMap.grid cria a grade) e reprovava CART026/CART027.
+    - Corrigido: a barra de escala ignorava a altura da faixa reservada e invadia o rodapé em A5 paisagem (CART042).
+    - Corrigido: CART007 acusava falta de fonte em mapas em japonês, chinês e francês (dois-pontos de largura inteira e espaço antes do dois-pontos).
+    - Corrigido: CART043 contava só o quadro principal numa folha de dois painéis.
+    - Corrigido: output_path do Windows num QGIS em Linux/macOS gravava um arquivo chamado C:\Users\... na pasta corrente; caminho relativo ia para a pasta corrente do QGIS. Os dois são recusados em toda a ponte, com o caminho absoluto pedido de volta.
+    - Corrigido: format inválido sem output_path era aceito calado; map_language desconhecido caía em português; a simbologia era aplicada antes da última validação de parâmetro.
+    - Denominador da escala com o separador de milhar da língua do mapa (1:250,000 em inglês, 1:250 000 em francês), conforme o CLDR. Painéis sem panel_title recebem rótulos simétricos.
+    0.2.2
     - Mapas duplos: second_map compõe dois quadros na mesma folha, igualados por padrão na escala mais aberta; em escalas diferentes cada painel anuncia a sua e a barra única é substituída (regra CART066).
     - subject_layer_id enquadra a camada de assunto e desenha as demais como contexto; include_inset acrescenta o inserto de localização; label_field rotula as feições com halo.
     - compose_map passa a recusar em vez de improvisar: parâmetro desconhecido, formato de página ou template inexistente, campo de rótulo ausente, output_path que é pasta ou sem extensão reconhecida, e exportação que não gerou arquivo. Toda recusa lista o que é aceito.

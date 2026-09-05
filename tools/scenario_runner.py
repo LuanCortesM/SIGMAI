@@ -69,6 +69,9 @@ ACTIONABLE_MARKERS = (
     "aceito", "aceitos", "disponív", "use um", "use estes", "passe ", "informe ",
     "por exemplo", "campos ", "camadas do mapa", "formatos", "templates",
     "defina ", "omita ", "tire-a", "escolha ",
+    # "X precisa ser um número; recebido 'hoch'" diz o que fazer tanto quanto
+    # "use um"; sem estes dois marcadores toda recusa de tipo contava como opaca.
+    "precisa ", "verifique ",
 )
 
 
@@ -143,7 +146,21 @@ class ScenarioBench:
             params["output_path"] = str(self.image_dir / f"{safe}.png")
             params.setdefault("format", "png")
             params.setdefault("dpi", 110)
-        params.setdefault("confirm_overwrite", True)
+            # Só a saída que o PRÓPRIO runner inventou ganha confirmação
+            # automática: um cenário que traz output_path está testando o
+            # comportamento de sobrescrita e precisa do padrão real do
+            # compositor (sem confirmação = recusa).
+            params.setdefault("confirm_overwrite", True)
+        # Cenários de sobrescrita nomeiam o alvo "_preexistente_*": o arquivo
+        # tem de existir antes da chamada, sem depender de uma corrida anterior.
+        alvo = str(params.get("output_path") or "")
+        if "_preexistente" in alvo:
+            try:
+                Path(alvo).parent.mkdir(parents=True, exist_ok=True)
+                if not Path(alvo).exists():
+                    Path(alvo).write_bytes(b"conteudo anterior")
+            except OSError:
+                pass
 
         record: dict[str, Any] = {
             "id": identifier,

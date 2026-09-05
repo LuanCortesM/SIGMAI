@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from .permissions import SCHEMA_VERSION, permission_for
+from .security import OutputPathError
 from .validators import ValidationError, validate_command
 
 
@@ -49,6 +50,20 @@ class CommandRegistry:
                 None,
                 [],
                 [{"code": exc.code, "message": str(exc), "details": exc.details}],
+                started,
+                self._qgis_context,
+                request_id,
+            )
+        except OutputPathError as exc:
+            # Caminho de saída recusado por normalize_output_path (relativo,
+            # de outro sistema, pasta inexistente): é recusa de parâmetro e o
+            # assistente precisa vê-la como tal, não como INTERNAL_ERROR.
+            return make_response(
+                False,
+                action,
+                None,
+                [],
+                [{"code": "BAD_REQUEST", "message": str(exc), "details": {"parameter": "output_path"}}],
                 started,
                 self._qgis_context,
                 request_id,

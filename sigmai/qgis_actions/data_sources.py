@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlparse
@@ -7,6 +10,7 @@ import xml.etree.ElementTree as ET
 
 from ..security import normalize_output_path
 from ..validators import ValidationError, require_param
+from .cartography_engine import compose_map
 from .common import crs_authid, extent_to_dict, layer_type_name, project
 from .load_layers import handle as load_vector_layer
 from .project_overview import redact_layer_source, redact_source
@@ -59,9 +63,37 @@ def broken_data_source_report(params: dict[str, Any], context: dict[str, Any]):
 
 
 def repair_data_source_path(params: dict[str, Any], context: dict[str, Any]):
-    if not context.get("dry_run"):
-        raise ValidationError("REPAIR_DATA_SOURCE_NOT_ENABLED", "Data source path repair is planned and currently dry-run only.", {})
-    return {"dry_run": True, "layer_id": params.get("layer_id"), "new_path": params.get("new_path"), "changes": ["Would update layer source path after validation."]}
+    layer_id = require_param(params, "layer_id", str)
+    new_path = normalize_output_path(require_param(params, "new_path", str))
+    if not new_path.exists():
+        raise ValidationError("FILE_NOT_FOUND", "The replacement data source path was not found.", {"path": str(new_path)})
+    layer = project().mapLayer(layer_id)
+    if layer is None:
+        raise ValidationError("LAYER_NOT_FOUND", "Layer not found.", {"layer_id": layer_id})
+    provider = str(params.get("provider") or layer.providerType() or "ogr")
+    if context.get("dry_run"):
+        return {
+            "dry_run": True,
+            "layer_id": layer_id,
+            "new_path": str(new_path),
+            "provider": provider,
+            "changes": ["Would call layer.setDataSource() with the new path and re-check layer validity."],
+        }
+    layer.setDataSource(str(new_path), layer.name(), provider)
+    if not layer.isValid():
+        raise ValidationError(
+            "REPAIR_FAILED",
+            "QGIS could not open the new data source; the layer stayed broken. Check the path, the "
+            "provider and that the new file actually holds compatible data.",
+            {"layer_id": layer_id, "path": str(new_path), "provider": provider, "error": _safe_layer_error_text(layer)[:400]},
+        )
+    return {
+        "layer_id": layer.id(),
+        "name": layer.name(),
+        "new_path": str(new_path),
+        "provider": provider,
+        "valid": True,
+    }
 
 
 def validate_service_url(params: dict[str, Any], context: dict[str, Any]):
@@ -77,13 +109,73 @@ def inspect_ogc_service(params: dict[str, Any], context: dict[str, Any]):
 
 
 def test_service_connection(params: dict[str, Any], context: dict[str, Any]):
+    url = require_param(params, "url", str)
+    _safe_url(url)
     if not bool(params.get("confirm_network")):
         raise ValidationError("NETWORK_CONFIRMATION_REQUIRED", "Network service tests require confirm_network=true.", {})
-    return {"network_test": "planned", "url": require_param(params, "url", str)}
+    service_type = str(params.get("service_type", "")).strip().upper()
+    timeout_seconds = float(params.get("timeout_seconds", 5.0))
+    if not 0 < timeout_seconds <= 30:
+        raise ValidationError("BAD_REQUEST", "timeout_seconds must be between 0 (exclusive) and 30.", {"timeout_seconds": timeout_seconds})
+    if service_type in {"WMS", "WFS"}:
+        separator = "&" if "?" in url else "?"
+        request_url = f"{url}{separator}SERVICE={service_type}&REQUEST=GetCapabilities"
+        method = "GET"
+    else:
+        request_url = url
+        method = "HEAD"
+    request = urllib.request.Request(request_url, method=method, headers={"User-Agent": "SIGMAI/1.0"})
+    started = time.perf_counter()
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            status_code = int(getattr(response, "status", None) or response.getcode())
+        return {
+            "url": redact_source(url),
+            "service_type": service_type or "generic",
+            "method": method,
+            "reachable": True,
+            "status_code": status_code,
+            "elapsed_ms": int((time.perf_counter() - started) * 1000),
+        }
+    except urllib.error.HTTPError as exc:
+        # O servidor respondeu — ele existe e está no ar — só recusou o
+        # método/caminho pedido. Isso é uma conexão bem-sucedida do ponto de
+        # vista de "o serviço está acessível", mesmo que o corpo seja um erro.
+        return {
+            "url": redact_source(url),
+            "service_type": service_type or "generic",
+            "method": method,
+            "reachable": True,
+            "status_code": exc.code,
+            "elapsed_ms": int((time.perf_counter() - started) * 1000),
+            "note": "O servidor respondeu com um status de erro HTTP; o serviço existe mas rejeitou esta requisição.",
+        }
+    except Exception as exc:
+        raise ValidationError(
+            "NETWORK_TEST_FAILED",
+            f"Não foi possível alcançar o serviço: {exc}",
+            {"url": redact_source(url), "method": method, "service_type": service_type or "generic"},
+        ) from exc
 
 
 def list_ogc_connections(params: dict[str, Any], context: dict[str, Any]):
-    return {"connections": [], "note": "QGIS stored OGC connection inventory is planned; no credentials are exposed."}
+    from qgis.core import QgsSettings  # type: ignore
+
+    settings = QgsSettings()
+    connections: list[dict[str, Any]] = []
+    for service_type, group in (
+        ("WMS", "qgis/connections-wms"),
+        ("WFS", "qgis/connections-wfs"),
+        ("XYZ", "qgis/connections-xyz"),
+    ):
+        settings.beginGroup(group)
+        try:
+            for name in settings.childGroups():
+                url = settings.value(f"{name}/url", "")
+                connections.append({"service_type": service_type, "name": name, "url": str(url) if url else ""})
+        finally:
+            settings.endGroup()
+    return {"connections": connections, "count": len(connections), "note": "Credentials are never read or exposed here."}
 
 
 #: Atribuição obrigatória de fontes de tiles conhecidas. Um mapa de base é
@@ -395,11 +487,74 @@ def summarize_gpx_track(params: dict[str, Any], context: dict[str, Any]):
     return {"layer_id": layer.id(), "name": layer.name(), "feature_count": layer.featureCount(), "crs": crs_authid(layer.crs()), "extent": extent_to_dict(layer)}
 
 
+def _distance_area(source_crs: Any) -> Any:
+    from qgis.core import QgsDistanceArea  # type: ignore
+
+    distance_area = QgsDistanceArea()
+    distance_area.setEllipsoid("WGS84")
+    distance_area.setSourceCrs(source_crs, project().transformContext())
+    return distance_area
+
+
+def _measure_track_geometries(features: Any, source_crs: Any) -> tuple[float, int, int]:
+    """Comprimento elipsoidal total (m), contagem de trechos e de feições.
+
+    "Trecho" é cada parte da geometria (``QgsGeometry.constGet().partCount()``)
+    — no driver GPX do GDAL, cada ``<trkseg>`` de um ``<trk>`` vira uma parte
+    do MultiLineString daquela feição, então somar partes através das feições
+    dá a contagem real de segmentos de trilha, não só de feições ``<trk>``.
+    """
+    distance_area = _distance_area(source_crs)
+    total_length_m = 0.0
+    segment_count = 0
+    feature_count = 0
+    for feature in features:
+        geometry = feature.geometry()
+        if geometry is None or geometry.isEmpty():
+            continue
+        feature_count += 1
+        total_length_m += distance_area.measureLength(geometry)
+        native = geometry.constGet()
+        segment_count += native.partCount() if hasattr(native, "partCount") else 1
+    return total_length_m, segment_count, feature_count
+
+
 def gpx_track_length(params: dict[str, Any], context: dict[str, Any]):
-    summary = summarize_gpx_track(params, context)
-    summary["length_calculation"] = "planned"
-    summary["note"] = "Metric GPX length calculation requires CRS/geodesic strategy validation."
-    return summary
+    path_value = params.get("path")
+    if path_value:
+        path = normalize_output_path(str(path_value))
+        if not path.exists():
+            raise ValidationError("FILE_NOT_FOUND", "GPX file was not found.", {"path": str(path)})
+        from qgis.core import QgsVectorLayer  # type: ignore
+
+        tracks_layer = QgsVectorLayer(f"{path}|layername=tracks", "sigmai_gpx_tracks", "ogr")
+        if not tracks_layer.isValid():
+            raise ValidationError("BAD_GPX", "QGIS could not read the tracks layer from this GPX file.", {"path": str(path)})
+        total_length_m, segment_count, feature_count = _measure_track_geometries(tracks_layer.getFeatures(), tracks_layer.crs())
+        return {
+            "path": str(path),
+            "length_meters": round(total_length_m, 2),
+            "segment_count": segment_count,
+            "track_feature_count": feature_count,
+            "crs": crs_authid(tracks_layer.crs()),
+            "method": "QgsDistanceArea, ellipsoidal WGS84",
+        }
+    layer_id = require_param(params, "layer_id", str)
+    layer = project().mapLayer(layer_id)
+    if layer is None:
+        raise ValidationError("LAYER_NOT_FOUND", "Layer not found.", {"layer_id": layer_id})
+    if layer_type_name(layer) != "vector":
+        raise ValidationError("VECTOR_LAYER_REQUIRED", "gpx_track_length requires a vector layer.", {"layer_id": layer_id})
+    total_length_m, segment_count, feature_count = _measure_track_geometries(layer.getFeatures(), layer.crs())
+    return {
+        "layer_id": layer.id(),
+        "name": layer.name(),
+        "length_meters": round(total_length_m, 2),
+        "segment_count": segment_count,
+        "track_feature_count": feature_count,
+        "crs": crs_authid(layer.crs()),
+        "method": "QgsDistanceArea, ellipsoidal WGS84",
+    }
 
 
 def gpx_track_extent(params: dict[str, Any], context: dict[str, Any]):
@@ -410,14 +565,80 @@ def gpx_to_layer(params: dict[str, Any], context: dict[str, Any]):
     return load_gpx(params, context)
 
 
+def _load_gpx_track_layer(path: Path, name: str):
+    """Carrega especificamente o sublayer "tracks" do driver GPX do GDAL.
+
+    ``load_gpx``/``load_vector_layer`` abrem o arquivo sem indicar sublayer,
+    o que faz o GDAL escolher "waypoints" por padrão — vazio (0 feições) para
+    um GPX que só tem trilha, como os do autor. map_gpx_track existe para
+    mapear a TRILHA; carregar o sublayer errado produziria um mapa "de
+    sucesso" com o quadro vazio, o mesmo defeito de fundo que esta rodada
+    inteira corrige, só que disfarçado de arquivo exportado com tamanho > 0.
+    """
+    from qgis.core import QgsVectorLayer  # type: ignore
+
+    layer = QgsVectorLayer(f"{path}|layername=tracks", name, "ogr")
+    if not layer.isValid() or layer.featureCount() == 0:
+        raise ValidationError(
+            "GPX_HAS_NO_TRACK",
+            "This GPX file has no usable <trk> track data to map (only waypoints/routes, or an "
+            "empty track). map_gpx_track needs an actual track; use load_gpx/gpx_to_layer for "
+            "waypoint-only files instead.",
+            {"path": str(path)},
+        )
+    project().addMapLayer(layer)
+    return layer
+
+
 def map_gpx_track(params: dict[str, Any], context: dict[str, Any]):
+    """Carrega a trilha de um GPX e a compõe num mapa — o caso de uso das
+    coletas de campo do próprio autor. Antes só carregava a camada e nunca
+    chamava o segundo passo que anunciava; agora ``compose_map`` roda de
+    verdade sobre a camada de trilha carregada, e o resultado devolvido é o
+    da composição (não um "sucesso" da simples carga do GPX)."""
+    path = normalize_output_path(require_param(params, "path", str))
+    if path.suffix.lower() != ".gpx":
+        raise ValidationError("BAD_REQUEST", "map_gpx_track requires a .gpx file.", {"suffix": path.suffix})
+    if not path.exists():
+        raise ValidationError("FILE_NOT_FOUND", "GPX file was not found.", {"path": str(path)})
+    name = str(params.get("name") or path.stem)
     if context.get("dry_run"):
-        return {"dry_run": True, "steps": ["load_gpx", "generate_professional_map"]}
-    return load_gpx(params, context)
+        return {
+            "dry_run": True,
+            "steps": ["load_gpx", "compose_map"],
+            "path": str(path),
+            "name": name,
+            "changes": ["Would load the GPX track layer and compose a map from it, without modifying the source file."],
+        }
+    layer = _load_gpx_track_layer(path, name)
+    compose_params = {key: value for key, value in params.items() if key not in {"path", "name"}}
+    compose_params["layer_ids"] = [layer.id()]
+    if not str(compose_params.get("title", "")).strip():
+        compose_params["title"] = f"Trilha {name}".strip()
+    map_result = compose_map(compose_params, context)
+    return {"layer_id": layer.id(), "layer_name": layer.name(), "feature_count": layer.featureCount(), "map": map_result}
 
 
 def list_database_connections(params: dict[str, Any], context: dict[str, Any]):
-    return {"connections": [], "note": "Database connection inventory is planned; credentials are never exposed."}
+    from qgis.core import QgsSettings  # type: ignore
+
+    settings = QgsSettings()
+    connections: list[dict[str, Any]] = []
+    settings.beginGroup("PostgreSQL/connections")
+    try:
+        for name in settings.childGroups():
+            connections.append(
+                {
+                    "name": name,
+                    "host": str(settings.value(f"{name}/host", "")),
+                    "port": str(settings.value(f"{name}/port", "")),
+                    "database": str(settings.value(f"{name}/database", "")),
+                    "username": str(settings.value(f"{name}/username", "")),
+                }
+            )
+    finally:
+        settings.endGroup()
+    return {"connections": connections, "count": len(connections), "note": "Passwords and authcfg are never read or exposed here."}
 
 
 def inspect_database_connection(params: dict[str, Any], context: dict[str, Any]):

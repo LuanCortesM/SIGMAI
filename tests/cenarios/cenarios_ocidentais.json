@@ -4,427 +4,862 @@
     "lang": "fr",
     "intent": "legitimo",
     "note": "Usuário francês pede A4 paysage (paisagem em francês) — palavra francesa de orientação não está na lista de sinônimos do resolve_page.",
-    "params": {"layer_ids": ["@uf"], "title": "Carte de l'État du Piauí", "page": "A4 paysage", "map_author": "Équipe SIG", "data_source": "IBGE 2024"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Carte de l'État du Piauí",
+      "page": "A4 paysage",
+      "map_author": "Équipe SIG",
+      "data_source": "IBGE 2024"
+    }
   },
   {
     "id": "fr-02-portrait",
     "lang": "fr",
     "intent": "legitimo",
     "note": "Francês 'portrait' é igual ao inglês, deveria funcionar.",
-    "params": {"layer_ids": ["@uf"], "title": "Carte du Piauí en portrait", "page": "A3 portrait", "map_author": "Équipe SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Carte du Piauí en portrait",
+      "page": "A3 portrait",
+      "map_author": "Équipe SIG"
+    }
   },
   {
     "id": "it-01-orizzontale",
     "lang": "it",
     "intent": "legitimo",
     "note": "Italiano 'orizzontale' (paisagem) não está nos sinônimos aceitos.",
-    "params": {"layer_ids": ["@uf"], "title": "Mappa dello Stato del Piauí", "page": "A4 orizzontale", "map_author": "Team GIS"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mappa dello Stato del Piauí",
+      "page": "A4 orizzontale",
+      "map_author": "Team GIS"
+    }
   },
   {
     "id": "it-02-verticale",
     "lang": "it",
     "intent": "legitimo",
     "note": "Italiano 'verticale' (retrato) não está nos sinônimos aceitos.",
-    "params": {"layer_ids": ["@uf"], "title": "Mappa verticale del Piauí", "page": "A4 verticale", "map_author": "Team GIS"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mappa verticale del Piauí",
+      "page": "A4 verticale",
+      "map_author": "Team GIS"
+    }
   },
   {
     "id": "de-01-querformat",
     "lang": "de",
     "intent": "legitimo",
     "note": "Alemão 'Querformat' (paisagem) não está nos sinônimos aceitos.",
-    "params": {"layer_ids": ["@uf"], "title": "Karte des Bundesstaates Piauí", "page": "A4 Querformat", "map_author": "GIS-Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Karte des Bundesstaates Piauí",
+      "page": "A4 Querformat",
+      "map_author": "GIS-Team"
+    }
   },
   {
     "id": "de-02-hochformat",
     "lang": "de",
     "intent": "legitimo",
     "note": "Alemão 'Hochformat' (retrato) não está nos sinônimos aceitos.",
-    "params": {"layer_ids": ["@uf"], "title": "Karte im Hochformat", "page": "A3 Hochformat", "map_author": "GIS-Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Karte im Hochformat",
+      "page": "A3 Hochformat",
+      "map_author": "GIS-Team"
+    }
   },
   {
     "id": "es-01-horizontal",
     "lang": "es",
     "intent": "legitimo",
     "note": "Espanhol 'horizontal' (paisagem) — já está na lista PT como sinônimo, deve funcionar por coincidência.",
-    "params": {"layer_ids": ["@uf"], "title": "Mapa del Estado de Piauí", "page": "A4 horizontal", "map_author": "Equipo SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa del Estado de Piauí",
+      "page": "A4 horizontal",
+      "map_author": "Equipo SIG"
+    }
   },
   {
     "id": "es-02-vertical",
     "lang": "es",
     "intent": "legitimo",
     "note": "Espanhol 'vertical' (retrato) — já está na lista PT como sinônimo, deve funcionar por coincidência.",
-    "params": {"layer_ids": ["@uf"], "title": "Mapa vertical de Piauí", "page": "A3 vertical", "map_author": "Equipo SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa vertical de Piauí",
+      "page": "A3 vertical",
+      "map_author": "Equipo SIG"
+    }
   },
   {
     "id": "pt-pt-01-apaisado",
     "lang": "pt-PT",
     "intent": "legitimo",
     "note": "Português de Portugal usa 'apaisado' para paisagem; bug já conhecido segundo o briefing.",
-    "params": {"layer_ids": ["@uf"], "title": "Mapa do Estado do Piauí", "page": "A4 apaisado", "map_author": "Equipa SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa do Estado do Piauí",
+      "page": "A4 apaisado",
+      "map_author": "Equipa SIG"
+    }
   },
   {
     "id": "en-gb-01-landscape",
     "lang": "en-GB",
     "intent": "legitimo",
     "note": "Inglês britânico, caso de controle que deve funcionar.",
-    "params": {"layer_ids": ["@uf"], "title": "Map of Piauí State", "page": "A4 landscape", "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Map of Piauí State",
+      "page": "A4 landscape",
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "en-us-01-letter",
     "lang": "en-US",
     "intent": "legitimo",
     "note": "Inglês americano pedindo papel Letter, caso de controle.",
-    "params": {"layer_ids": ["@uf"], "title": "Map of Piauí State", "page": "Letter landscape", "map_author": "GIS Team", "data_source": "IBGE 2024"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Map of Piauí State",
+      "page": "Letter landscape",
+      "map_author": "GIS Team",
+      "data_source": "IBGE 2024"
+    }
   },
   {
     "id": "orient-standalone-fr",
     "lang": "fr",
     "intent": "legitimo",
     "note": "Orientação em francês passada SOZINHA (sem 'page'), fora do parser tolerante de string — hipótese: cai silenciosamente em landscape sem avisar, mesmo pedindo retrato.",
-    "params": {"layer_ids": ["@uf"], "title": "Carte verticale", "orientation": "portrait haut", "map_author": "Équipe SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Carte verticale",
+      "orientation": "portrait haut",
+      "map_author": "Équipe SIG"
+    }
   },
   {
     "id": "orient-standalone-de-retrato",
     "lang": "de",
     "intent": "legitimo",
     "note": "orientation='Hochformat' (retrato) sozinho, sem 'page' — testa se o valor não-inglês vira retrato ou é ignorado silenciosamente.",
-    "params": {"layer_ids": ["@uf"], "title": "Hochformat-Karte", "orientation": "Hochformat", "map_author": "GIS-Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Hochformat-Karte",
+      "orientation": "Hochformat",
+      "map_author": "GIS-Team"
+    }
   },
   {
     "id": "orient-standalone-pt-retrato",
     "lang": "pt-PT",
     "intent": "legitimo",
     "note": "orientation='retrato' sozinho (sem 'page') — mesmo em português, fora do parser de string 'page' o valor não é reconhecido pela lista ORIENTATIONS (só 'portrait'/'landscape' literais).",
-    "params": {"layer_ids": ["@uf"], "title": "Mapa em retrato", "orientation": "retrato", "map_author": "Equipa SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa em retrato",
+      "orientation": "retrato",
+      "map_author": "Equipa SIG"
+    }
   },
   {
     "id": "num-comma-margin-es",
     "lang": "es",
     "intent": "legitimo",
     "note": "margin_percent com vírgula decimal espanhola '7,5' em vez de 7.5 — float('7,5') deveria estourar ValueError não tratado.",
-    "params": {"layer_ids": ["@parque"], "title": "Mapa con margen personalizado", "margin_percent": "7,5", "map_author": "Equipo SIG"}
+    "params": {
+      "layer_ids": [
+        "@parque"
+      ],
+      "title": "Mapa con margen personalizado",
+      "margin_percent": "7,5",
+      "map_author": "Equipo SIG"
+    }
   },
   {
     "id": "num-comma-fontsize-it",
     "lang": "it",
     "intent": "legitimo",
     "note": "label_font_size com vírgula decimal italiana '12,5'.",
-    "params": {"layer_ids": ["@municipios"], "title": "Mappa etichettata", "label_field": "NM_MUN", "label_font_size": "12,5", "map_author": "Team GIS"}
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "title": "Mappa etichettata",
+      "label_field": "NM_MUN",
+      "label_font_size": "12,5",
+      "map_author": "Team GIS"
+    }
   },
   {
     "id": "num-comma-zoom-de",
     "lang": "de",
     "intent": "legitimo",
     "note": "inset_zoom_factor com vírgula decimal alemã '15,0'.",
-    "params": {"layer_ids": ["@parque"], "title": "Karte mit Übersichtskarte", "include_inset": true, "inset_layer_ids": ["@municipios"], "inset_zoom_factor": "15,0", "map_author": "GIS-Team"}
+    "params": {
+      "layer_ids": [
+        "@parque"
+      ],
+      "title": "Karte mit Übersichtskarte",
+      "include_inset": true,
+      "inset_layer_ids": [
+        "@municipios"
+      ],
+      "inset_zoom_factor": "15,0",
+      "map_author": "GIS-Team"
+    }
   },
   {
     "id": "num-comma-dpi-fr",
     "lang": "fr",
     "intent": "legitimo",
     "note": "dpi como string com vírgula decimal francesa '300,0' — int() não aceita vírgula nem ponto.",
-    "params": {"layer_ids": ["@uf"], "title": "Carte haute résolution", "dpi": "300,0", "map_author": "Équipe SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Carte haute résolution",
+      "dpi": "300,0",
+      "map_author": "Équipe SIG"
+    }
   },
   {
     "id": "num-dpi-word-de",
     "lang": "de",
     "intent": "invalido",
     "note": "dpi como palavra 'hoch' (alta, em alemão) em vez de número — deve ser recusado, não estourar.",
-    "params": {"layer_ids": ["@uf"], "title": "Karte", "dpi": "hoch", "map_author": "GIS-Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Karte",
+      "dpi": "hoch",
+      "map_author": "GIS-Team"
+    }
   },
   {
     "id": "bool-string-grid-false-fr",
     "lang": "fr",
     "intent": "legitimo",
     "note": "include_grid enviado como STRING 'false' (não bool JSON) — bool('false') é True em Python, então a grade apareceria mesmo pedida para sumir. Usuário pediu 'sans grille'.",
-    "params": {"layer_ids": ["@uf"], "title": "Carte sans grille", "include_grid": "false", "map_author": "Équipe SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Carte sans grille",
+      "include_grid": "false",
+      "map_author": "Équipe SIG"
+    }
   },
   {
     "id": "bool-string-legend-no-it",
     "lang": "it",
     "intent": "legitimo",
     "note": "include_legend='no' (string) — usuário pediu mapa senza legenda.",
-    "params": {"layer_ids": ["@municipios"], "title": "Mappa senza legenda", "include_legend": "no", "map_author": "Team GIS"}
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "title": "Mappa senza legenda",
+      "include_legend": "no",
+      "map_author": "Team GIS"
+    }
   },
   {
     "id": "bool-string-scalebar-0-de",
     "lang": "de",
     "intent": "legitimo",
     "note": "include_scale_bar='0' (string) — usuário pediu ohne Maßstabsleiste.",
-    "params": {"layer_ids": ["@uf"], "title": "Karte ohne Maßstabsleiste", "include_scale_bar": "0", "map_author": "GIS-Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Karte ohne Maßstabsleiste",
+      "include_scale_bar": "0",
+      "map_author": "GIS-Team"
+    }
   },
   {
     "id": "bool-string-north-false-es",
     "lang": "es",
     "intent": "legitimo",
     "note": "include_north_arrow='false' (string) — sin rosa de los vientos.",
-    "params": {"layer_ids": ["@uf"], "title": "Mapa sin rosa de los vientos", "include_north_arrow": "false", "map_author": "Equipo SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa sin rosa de los vientos",
+      "include_north_arrow": "false",
+      "map_author": "Equipo SIG"
+    }
   },
   {
     "id": "bool-string-roundscale-false-en",
     "lang": "en-US",
     "intent": "legitimo",
     "note": "round_scale='false' (string) — user asked for the exact computed scale, not rounded.",
-    "params": {"layer_ids": ["@parque"], "title": "Exact scale map", "round_scale": "false", "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@parque"
+      ],
+      "title": "Exact scale map",
+      "round_scale": "false",
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "bool-string-autocrs-false-pt",
     "lang": "pt-PT",
     "intent": "legitimo",
     "note": "auto_projected_crs='false' (string) — pedido explícito para NÃO projetar automaticamente, mas bool('false') é True.",
-    "params": {"layer_ids": ["@municipios"], "title": "Mapa geográfico sem projeção automática", "auto_projected_crs": "false", "map_author": "Equipa SIG"}
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "title": "Mapa geográfico sem projeção automática",
+      "auto_projected_crs": "false",
+      "map_author": "Equipa SIG"
+    }
   },
   {
     "id": "overwrite-string-false-step1",
     "lang": "en-US",
     "intent": "legitimo",
     "note": "Passo 1/2: cria o arquivo de saída fixo para o teste de confirm_overwrite a seguir.",
-    "params": {"layer_ids": ["@uf"], "title": "Original version - do not overwrite", "output_path": "/tmp/img_ocidentais/overwrite_guard_test.png", "format": "png", "dpi": 110, "confirm_overwrite": true, "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Original version - do not overwrite",
+      "output_path": "/tmp/img_ocidentais/overwrite_guard_test.png",
+      "format": "png",
+      "dpi": 110,
+      "confirm_overwrite": true,
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "overwrite-string-false-step2",
     "lang": "en-US",
     "intent": "invalido",
     "note": "Passo 2/2: tenta sobrescrever o MESMO arquivo com confirm_overwrite='false' (string) — deveria ser recusado por já existir e não estar confirmado, mas bool('false') é True e a ferramenta provavelmente sobrescreve em silêncio.",
-    "params": {"layer_ids": ["@municipios"], "title": "Overwritten version - should have been refused", "output_path": "/tmp/img_ocidentais/overwrite_guard_test.png", "format": "png", "dpi": 110, "confirm_overwrite": "false", "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "title": "Overwritten version - should have been refused",
+      "output_path": "/tmp/img_ocidentais/overwrite_guard_test.png",
+      "format": "png",
+      "dpi": 110,
+      "confirm_overwrite": "false",
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "title-long-accents-fr",
     "lang": "fr",
     "intent": "legitimo",
     "note": "Título longuíssimo com acentos franceses numa página pequena A5 — checar corte/transbordamento visualmente.",
-    "params": {"layer_ids": ["@uf"], "title": "Carte détaillée de l'État du Piauí avec délimitations municipales et unités de conservation à des fins éducatives", "page": "A5 landscape", "map_author": "Équipe de Géomatique", "data_source": "IBGE"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Carte détaillée de l'État du Piauí avec délimitations municipales et unités de conservation à des fins éducatives",
+      "page": "A5 landscape",
+      "map_author": "Équipe de Géomatique",
+      "data_source": "IBGE"
+    }
   },
   {
     "id": "title-long-accents-de",
     "lang": "de",
     "intent": "legitimo",
     "note": "Título longo com caracteres alemães (ß, ü, ä) em A5 — checar corte/transbordamento.",
-    "params": {"layer_ids": ["@uf"], "title": "Übersichtskarte des Bundesstaates Piauí mit Gemeindegrenzen für schulische Zwecke", "page": "A5 landscape", "map_author": "Straße-Team für Geoinformation", "data_source": "IBGE"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Übersichtskarte des Bundesstaates Piauí mit Gemeindegrenzen für schulische Zwecke",
+      "page": "A5 landscape",
+      "map_author": "Straße-Team für Geoinformation",
+      "data_source": "IBGE"
+    }
   },
   {
     "id": "title-long-accents-pt-pt",
     "lang": "pt-PT",
     "intent": "legitimo",
     "note": "Título longo em português europeu numa página A5 pequena.",
-    "params": {"layer_ids": ["@uf"], "title": "Mapa pormenorizado do Estado do Piauí com limites municipais e unidades de conservação para fins educativos", "page": "A5 paisagem", "map_author": "Equipa de Geoinformação", "data_source": "IBGE"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa pormenorizado do Estado do Piauí com limites municipais e unidades de conservação para fins educativos",
+      "page": "A5 paisagem",
+      "map_author": "Equipa de Geoinformação",
+      "data_source": "IBGE"
+    }
   },
   {
     "id": "title-curly-quotes-de",
     "lang": "de",
     "intent": "legitimo",
     "note": "Título com aspas tipográficas alemãs „baixas e altas” e subtítulo com aspas simples.",
-    "params": {"layer_ids": ["@parque"], "title": "Der „Naturpark Carnaúbas” im Überblick", "subtitle": "Eine Karte für ‚Bildungszwecke’", "map_author": "GIS-Team"}
+    "params": {
+      "layer_ids": [
+        "@parque"
+      ],
+      "title": "Der „Naturpark Carnaúbas” im Überblick",
+      "subtitle": "Eine Karte für ‚Bildungszwecke’",
+      "map_author": "GIS-Team"
+    }
   },
   {
     "id": "title-guillemets-fr",
     "lang": "fr",
     "intent": "legitimo",
     "note": "Título com guillemets franceses «» e espaço fino.",
-    "params": {"layer_ids": ["@parque"], "title": "Le parc « Carnaúbas » et ses environs", "subtitle": "Carte à vocation pédagogique", "map_author": "Équipe SIG"}
+    "params": {
+      "layer_ids": [
+        "@parque"
+      ],
+      "title": "Le parc « Carnaúbas » et ses environs",
+      "subtitle": "Carte à vocation pédagogique",
+      "map_author": "Équipe SIG"
+    }
   },
   {
     "id": "title-smartquotes-en",
     "lang": "en-US",
     "intent": "legitimo",
     "note": "Título com aspas curvas (curly quotes) tipográficas do inglês.",
-    "params": {"layer_ids": ["@parque"], "title": "The “Carnaúbas” Conservation Area", "subtitle": "A visitor’s reference map", "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@parque"
+      ],
+      "title": "The “Carnaúbas” Conservation Area",
+      "subtitle": "A visitor’s reference map",
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "author-particles-de-obrien",
     "lang": "de",
     "intent": "legitimo",
     "note": "Nome de autor com partículas nobiliárias e apóstrofo: 'von', 'de la', O'Brien.",
-    "params": {"layer_ids": ["@uf"], "title": "Karte des Bundesstaates Piauí", "map_author": "Klaus von Bülow", "organization": "Geoinformationsbüro"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Karte des Bundesstaates Piauí",
+      "map_author": "Klaus von Bülow",
+      "organization": "Geoinformationsbüro"
+    }
   },
   {
     "id": "author-particles-fr-delafontaine",
     "lang": "fr",
     "intent": "legitimo",
     "note": "Nome de autor francês com partícula 'de la'.",
-    "params": {"layer_ids": ["@uf"], "title": "Carte du Piauí", "map_author": "Jean-Baptiste de la Fontaine", "organization": "Bureau SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Carte du Piauí",
+      "map_author": "Jean-Baptiste de la Fontaine",
+      "organization": "Bureau SIG"
+    }
   },
   {
     "id": "author-particles-en-obrien",
     "lang": "en-GB",
     "intent": "legitimo",
     "note": "Nome de autor irlandês/britânico com apóstrofo.",
-    "params": {"layer_ids": ["@uf"], "title": "Map of Piauí State", "map_author": "Seán O'Brien", "organization": "GIS Office"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Map of Piauí State",
+      "map_author": "Seán O'Brien",
+      "organization": "GIS Office"
+    }
   },
   {
     "id": "author-particles-nl-vanderberg",
     "lang": "de",
     "intent": "legitimo",
     "note": "Nome com partícula holandesa 'van der' (comum em contexto germânico/ocidental).",
-    "params": {"layer_ids": ["@uf"], "title": "Karte von Piauí", "map_author": "Anna van der Berg", "organization": "Kartografie-Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Karte von Piauí",
+      "map_author": "Anna van der Berg",
+      "organization": "Kartografie-Team"
+    }
   },
   {
     "id": "author-particles-es-nunez",
     "lang": "es",
     "intent": "legitimo",
     "note": "Nome de autor espanhol com hífen e acentos.",
-    "params": {"layer_ids": ["@uf"], "title": "Mapa de Piauí", "map_author": "María José Fernández-Núñez", "organization": "Oficina SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa de Piauí",
+      "map_author": "María José Fernández-Núñez",
+      "organization": "Oficina SIG"
+    }
   },
   {
     "id": "page-legal-portrait-en",
     "lang": "en-US",
     "intent": "legitimo",
     "note": "Papel Legal em retrato, comum em documentos jurídicos americanos.",
-    "params": {"layer_ids": ["@uf"], "title": "Piauí State Boundary Map", "page": "Legal portrait", "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Piauí State Boundary Map",
+      "page": "Legal portrait",
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "page-tabloid-landscape-en",
     "lang": "en-US",
     "intent": "legitimo",
     "note": "Papel Tabloid em paisagem.",
-    "params": {"layer_ids": ["@municipios"], "title": "Piauí Municipalities Map", "page": "Tabloid landscape", "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "title": "Piauí Municipalities Map",
+      "page": "Tabloid landscape",
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "page-a0-poster-de",
     "lang": "de",
     "intent": "legitimo",
     "note": "Pôster A0 em paisagem (usando a palavra em inglês, que deve funcionar) com título alemão.",
-    "params": {"layer_ids": ["@municipios"], "title": "Gemeindekarte des Bundesstaates Piauí", "page": "A0 landscape", "map_author": "GIS-Team", "template": "publicacao"}
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "title": "Gemeindekarte des Bundesstaates Piauí",
+      "page": "A0 landscape",
+      "map_author": "GIS-Team",
+      "template": "publicacao"
+    }
   },
   {
     "id": "page-a1-portrait-it",
     "lang": "it",
     "intent": "legitimo",
     "note": "A1 retrato com título italiano.",
-    "params": {"layer_ids": ["@municipios"], "title": "Mappa dei comuni dello Stato del Piauí", "page": "A1 portrait", "map_author": "Team GIS"}
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "title": "Mappa dei comuni dello Stato del Piauí",
+      "page": "A1 portrait",
+      "map_author": "Team GIS"
+    }
   },
   {
     "id": "page-a2-landscape-fr",
     "lang": "fr",
     "intent": "legitimo",
     "note": "A2 paisagem (palavra inglesa) com título francês.",
-    "params": {"layer_ids": ["@municipios"], "title": "Carte des communes de l'État du Piauí", "page": "A2 landscape", "map_author": "Équipe SIG"}
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "title": "Carte des communes de l'État du Piauí",
+      "page": "A2 landscape",
+      "map_author": "Équipe SIG"
+    }
   },
   {
     "id": "page-carta-es-invalido",
     "lang": "es",
     "intent": "invalido",
     "note": "Espanhol 'carta' é o nome regional para papel Letter — não está na lista de formatos e deve ser recusado com sugestão útil.",
-    "params": {"layer_ids": ["@uf"], "title": "Mapa de Piauí", "page": "carta horizontal", "map_author": "Equipo SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa de Piauí",
+      "page": "carta horizontal",
+      "map_author": "Equipo SIG"
+    }
   },
   {
     "id": "page-folio-it-invalido",
     "lang": "it",
     "intent": "invalido",
     "note": "Italiano 'foglio protocollo' não é um tamanho reconhecido — deve recusar, não usar A4 em silêncio.",
-    "params": {"layer_ids": ["@uf"], "title": "Mappa di Piauí", "page": "foglio protocollo orizzontale", "map_author": "Team GIS"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mappa di Piauí",
+      "page": "foglio protocollo orizzontale",
+      "map_author": "Team GIS"
+    }
   },
   {
     "id": "page-conflicting-orientation-en",
     "lang": "en-US",
     "intent": "legitimo",
     "note": "Página com duas palavras de orientação conflitantes ('A4 landscape portrait') — testa qual prevalece (primeira encontrada) e se isso é razoável ou deveria ser recusado por ambíguo.",
-    "params": {"layer_ids": ["@uf"], "title": "Ambiguous orientation map", "page": "A4 landscape portrait", "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Ambiguous orientation map",
+      "page": "A4 landscape portrait",
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "template-english-invalido",
     "lang": "en-US",
     "intent": "invalido",
     "note": "IA manda o nome do template traduzido para inglês ('scientific') em vez do código aceito ('cientifico') — deve recusar com sugestão.",
-    "params": {"layer_ids": ["@uf"], "title": "Scientific map", "template": "scientific", "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Scientific map",
+      "template": "scientific",
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "gridstyle-spanish-invalido",
     "lang": "es",
     "intent": "invalido",
     "note": "grid_style traduzido para espanhol ('sólido') em vez do valor aceito ('solid') — deve recusar com sugestão.",
-    "params": {"layer_ids": ["@uf"], "title": "Mapa con grilla", "grid_style": "sólido", "map_author": "Equipo SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa con grilla",
+      "grid_style": "sólido",
+      "map_author": "Equipo SIG"
+    }
   },
   {
     "id": "format-spanish-invalido",
     "lang": "es",
     "intent": "invalido",
-    "note": "format traduzido para espanhol ('imagen') em vez de 'png' — deve recusar.",
-    "params": {"layer_ids": ["@uf"], "title": "Mapa de Piauí", "format": "imagen", "map_author": "Equipo SIG"}
+    "note": "format traduzido para espanhol ('imagen') em vez de 'png' — recusado com a lista de formatos, mesmo sem output_path.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa de Piauí",
+      "format": "imagen",
+      "map_author": "Equipo SIG"
+    }
   },
   {
     "id": "param-name-british-organisation",
     "lang": "en-GB",
     "intent": "invalido",
     "note": "Grafia britânica 'organisation' (com S) como NOME de parâmetro em vez de 'organization' (com Z, americano) — só o americano está em KNOWN_PARAMETERS. Deve recusar e sugerir 'organization'.",
-    "params": {"layer_ids": ["@uf"], "title": "Map of Piauí", "organisation": "Ordnance Survey Style GIS Office", "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Map of Piauí",
+      "organisation": "Ordnance Survey Style GIS Office",
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "param-name-french-titre",
     "lang": "fr",
     "intent": "invalido",
     "note": "IA manda o nome do parâmetro traduzido para francês ('titre' em vez de 'title') — parâmetro desconhecido, deve recusar e sugerir 'title'.",
-    "params": {"layer_ids": ["@uf"], "titre": "Carte du Piauí", "map_author": "Équipe SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "titre": "Carte du Piauí",
+      "map_author": "Équipe SIG"
+    }
   },
   {
     "id": "param-name-german-seite",
     "lang": "de",
     "intent": "invalido",
     "note": "IA manda 'Seite' (página em alemão) como nome de parâmetro em vez de 'page' — desconhecido, deve recusar.",
-    "params": {"layer_ids": ["@uf"], "title": "Karte", "Seite": "A4 Querformat", "map_author": "GIS-Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Karte",
+      "Seite": "A4 Querformat",
+      "map_author": "GIS-Team"
+    }
   },
   {
     "id": "mixed-it-title-en-params",
     "lang": "it",
     "intent": "legitimo",
     "note": "Mistura realista: título em italiano, mas a IA manda os parâmetros técnicos em inglês corretos (page, template) — deve funcionar normalmente.",
-    "params": {"layer_ids": ["@parque"], "title": "Parco delle Carnaúbas", "subtitle": "Mappa turistica", "page": "A4 landscape", "template": "publicacao", "map_author": "Team GIS", "data_source": "ICMBio", "include_north_arrow": true}
+    "params": {
+      "layer_ids": [
+        "@parque"
+      ],
+      "title": "Parco delle Carnaúbas",
+      "subtitle": "Mappa turistica",
+      "page": "A4 landscape",
+      "template": "publicacao",
+      "map_author": "Team GIS",
+      "data_source": "ICMBio",
+      "include_north_arrow": true
+    }
   },
   {
     "id": "mixed-de-title-en-bool",
     "lang": "de",
     "intent": "legitimo",
     "note": "Mistura realista: título alemão, mas booleans corretos em JSON nativo (não string) — caso de controle que deve funcionar bem, para contrastar com os casos bool-string.",
-    "params": {"layer_ids": ["@uf"], "title": "Karte ohne Gitternetz", "include_grid": false, "map_author": "GIS-Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Karte ohne Gitternetz",
+      "include_grid": false,
+      "map_author": "GIS-Team"
+    }
   },
   {
     "id": "mixed-es-title-legend-title-en",
     "lang": "es",
     "intent": "legitimo",
     "note": "Título em espanhol, mas legend_title em inglês (a IA mistura idiomas dentro dos próprios textos) — deve compor normalmente pois é só texto livre.",
-    "params": {"layer_ids": ["@municipios"], "title": "Municipios del Piauí", "legend_title": "Legend / Leyenda", "map_author": "Equipo SIG"}
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "title": "Municipios del Piauí",
+      "legend_title": "Legend / Leyenda",
+      "map_author": "Equipo SIG"
+    }
   },
   {
     "id": "min-request-fr",
     "lang": "fr",
     "intent": "legitimo",
     "note": "Pedido mínimo em francês: só camada e título.",
-    "params": {"layer_ids": ["@uf"], "title": "Carte minimale"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Carte minimale"
+    }
   },
   {
     "id": "min-request-de",
     "lang": "de",
     "intent": "legitimo",
     "note": "Pedido mínimo em alemão.",
-    "params": {"layer_ids": ["@uf"], "title": "Minimalkarte"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Minimalkarte"
+    }
   },
   {
     "id": "min-request-it",
     "lang": "it",
     "intent": "legitimo",
     "note": "Pedido mínimo em italiano.",
-    "params": {"layer_ids": ["@uf"], "title": "Mappa minima"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mappa minima"
+    }
   },
   {
     "id": "min-request-es",
     "lang": "es",
     "intent": "legitimo",
     "note": "Pedido mínimo em espanhol.",
-    "params": {"layer_ids": ["@uf"], "title": "Mapa mínimo"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa mínimo"
+    }
   },
   {
     "id": "min-request-en-gb",
     "lang": "en-GB",
     "intent": "legitimo",
     "note": "Pedido mínimo em inglês britânico.",
-    "params": {"layer_ids": ["@uf"], "title": "Minimal map"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Minimal map"
+    }
   },
   {
     "id": "min-request-pt-pt",
     "lang": "pt-PT",
     "intent": "legitimo",
     "note": "Pedido mínimo em português europeu.",
-    "params": {"layer_ids": ["@uf"], "title": "Mapa mínimo"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa mínimo"
+    }
   },
   {
     "id": "loaded-request-fr-full",
@@ -432,7 +867,10 @@
     "intent": "legitimo",
     "note": "Pedido carregado em francês: quase todos os elementos ligados, inserto, grade, dupla camada.",
     "params": {
-      "layer_ids": ["@parque", "@municipios"],
+      "layer_ids": [
+        "@parque",
+        "@municipios"
+      ],
       "subject_layer_id": "@parque",
       "title": "Le Parc des Carnaúbas et sa région",
       "subtitle": "Carte de référence pour la gestion territoriale",
@@ -447,7 +885,9 @@
       "include_north_arrow": true,
       "include_grid": true,
       "include_inset": true,
-      "inset_layer_ids": ["@uf"],
+      "inset_layer_ids": [
+        "@uf"
+      ],
       "grid_style": "cross",
       "dpi": 150
     }
@@ -458,10 +898,17 @@
     "intent": "legitimo",
     "note": "Pedido carregado em alemão com mapa duplo (second_map) para comparação.",
     "params": {
-      "layer_ids": ["@uf"],
+      "layer_ids": [
+        "@uf"
+      ],
       "title": "Vergleich: Bundesland und Gemeinden",
       "panel_title": "Bundesland Piauí",
-      "second_map": {"layer_ids": ["@municipios"], "panel_title": "Gemeinden von Piauí"},
+      "second_map": {
+        "layer_ids": [
+          "@municipios"
+        ],
+        "panel_title": "Gemeinden von Piauí"
+      },
       "map_author": "Kartografie-Team",
       "organization": "Geoinformationsinstitut",
       "data_source": "IBGE 2024",
@@ -475,125 +922,269 @@
     "lang": "en-US",
     "intent": "legitimo",
     "note": "Rótulos de município em mapa com título inglês, campo correto NM_MUN.",
-    "params": {"layer_ids": ["@municipios"], "title": "Piauí Municipalities with Labels", "label_field": "NM_MUN", "label_font_size": 6, "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "title": "Piauí Municipalities with Labels",
+      "label_field": "NM_MUN",
+      "label_font_size": 6,
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "label-field-wrong-name-fr-invalido",
     "lang": "fr",
     "intent": "invalido",
     "note": "Campo de rótulo traduzido/inventado ('NOM_COMMUNE' em vez de 'NM_MUN') — deve recusar listando os campos disponíveis, não estourar.",
-    "params": {"layer_ids": ["@municipios"], "title": "Carte des communes", "label_field": "NOM_COMMUNE", "map_author": "Équipe SIG"}
+    "params": {
+      "layer_ids": [
+        "@municipios"
+      ],
+      "title": "Carte des communes",
+      "label_field": "NOM_COMMUNE",
+      "map_author": "Équipe SIG"
+    }
   },
   {
     "id": "crs-epsg-with-space-de",
     "lang": "de",
     "intent": "legitimo",
     "note": "map_crs com formatação levemente diferente 'EPSG: 4674' (espaço depois dos dois-pontos) — comum quando a IA copia de texto em alemão.",
-    "params": {"layer_ids": ["@uf"], "title": "Karte mit CRS", "map_crs": "EPSG: 4674", "map_author": "GIS-Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Karte mit CRS",
+      "map_crs": "EPSG: 4674",
+      "map_author": "GIS-Team"
+    }
   },
   {
     "id": "production-date-free-text-es",
     "lang": "es",
     "intent": "legitimo",
     "note": "production_date como texto livre em espanhol por extenso, não uma data ISO — deve ser aceito como está (campo é string livre).",
-    "params": {"layer_ids": ["@uf"], "title": "Mapa de Piauí", "production_date": "4 de septiembre de 2026", "map_author": "Equipo SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Mapa de Piauí",
+      "production_date": "4 de septiembre de 2026",
+      "map_author": "Equipo SIG"
+    }
   },
   {
     "id": "unknown-param-invented-en",
     "lang": "en-US",
     "intent": "invalido",
     "note": "Parâmetro totalmente inventado pela IA ('color_scheme') que não existe na ferramenta — deve recusar listando os aceitos.",
-    "params": {"layer_ids": ["@uf"], "title": "Colourful map", "color_scheme": "vibrant", "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Colourful map",
+      "color_scheme": "vibrant",
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "unknown-param-british-spelling-colour",
     "lang": "en-GB",
     "intent": "invalido",
     "note": "Grafia britânica inventada 'colour_scheme' — desconhecido, deve recusar.",
-    "params": {"layer_ids": ["@uf"], "title": "Coloured map", "colour_scheme": "pastel", "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Coloured map",
+      "colour_scheme": "pastel",
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "scale-noop-param-en",
     "lang": "en-US",
+    "intent": "invalido",
+    "note": "scale=25000 para o parque inteiro não cabe em A4: a recusa diz a maior escala que ainda contém tudo (~1:149.000) e como pedir. Prova que 'scale' é lido, não ignorado.",
+    "params": {
+      "layer_ids": [
+        "@parque"
+      ],
+      "title": "Map at fixed scale",
+      "scale": 25000,
+      "map_author": "GIS Team"
+    }
+  },
+  {
+    "id": "scale-honoured-en",
+    "lang": "en-US",
     "intent": "legitimo",
-    "note": "Parâmetro 'scale' está em KNOWN_PARAMETERS (aceito sem erro) mas hipoteticamente não é lido em nenhum lugar do compositor — testa se o pedido de escala fixa 1:25000 é honrado ou silenciosamente ignorado.",
-    "params": {"layer_ids": ["@parque"], "title": "Map at fixed scale", "scale": 25000, "map_author": "GIS Team"}
+    "note": "Fixed scale that fits the park (1:250,000 on A4): must be honoured exactly, not re-rounded.",
+    "params": {
+      "layer_ids": [
+        "@parque"
+      ],
+      "title": "Park at fixed scale 1:250,000",
+      "scale": 250000,
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "page-b5-portrait-generic",
     "lang": "en-US",
     "intent": "legitimo",
     "note": "Formato B5 pouco comum, controle de que a lista PAGE_SIZES cobre também os formatos B.",
-    "params": {"layer_ids": ["@uf"], "title": "B5 map", "page": "B5 portrait", "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "B5 map",
+      "page": "B5 portrait",
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "single-point-gpx-en",
     "lang": "en-US",
     "intent": "legitimo",
     "note": "Camada de pontos GPX de coleta (extensão pode ser degenerada) — mapa de trilha georreferenciado, título inglês.",
-    "params": {"layer_ids": ["@gpx", "@trilha"], "subject_layer_id": "@trilha", "title": "Itaguaré Trail Collection Points", "map_author": "GIS Team", "data_source": "GPS field survey"}
+    "params": {
+      "layer_ids": [
+        "@gpx",
+        "@trilha"
+      ],
+      "subject_layer_id": "@trilha",
+      "title": "Itaguaré Trail Collection Points",
+      "map_author": "GIS Team",
+      "data_source": "GPS field survey"
+    }
   },
   {
     "id": "raster-dem-title-it",
     "lang": "it",
     "intent": "legitimo",
     "note": "Camada raster (DEM) com título italiano.",
-    "params": {"layer_ids": ["@dem"], "title": "Modello digitale di elevazione di Piauí", "map_author": "Team GIS", "data_source": "Copernicus GLO-90"}
+    "params": {
+      "layer_ids": [
+        "@dem"
+      ],
+      "title": "Modello digitale di elevazione di Piauí",
+      "map_author": "Team GIS",
+      "data_source": "Copernicus GLO-90"
+    }
   },
   {
     "id": "page-dict-form-fr",
     "lang": "fr",
     "intent": "legitimo",
     "note": "page como objeto/dicionário em vez de string, com orientação em francês dentro do dict — testa se o dict cai no mesmo bug de string solta (chave 'orientation' não tokenizada, valor 'paysage' não reconhecido, mas sem strict porque page é dict com name válido).",
-    "params": {"layer_ids": ["@uf"], "title": "Carte au format dictionnaire", "page": {"name": "A4", "orientation": "paysage"}, "map_author": "Équipe SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Carte au format dictionnaire",
+      "page": {
+        "name": "A4",
+        "orientation": "paysage"
+      },
+      "map_author": "Équipe SIG"
+    }
   },
   {
     "id": "margin-mm-dict-mixed-keys-en",
     "lang": "en-US",
     "intent": "legitimo",
     "note": "margin_mm como dicionário só com 'all', chaves em inglês — caso de controle correto.",
-    "params": {"layer_ids": ["@uf"], "title": "Custom margins map", "page": "A4 landscape", "margin_mm": {"all": 15}, "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Custom margins map",
+      "page": "A4 landscape",
+      "margin_mm": {
+        "all": 15
+      },
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "logo-path-missing-de",
     "lang": "de",
     "intent": "legitimo",
     "note": "include_logo=true mas logo_path aponta para arquivo inexistente — deve compor sem quebrar (o código verifica Path.exists()), possivelmente sem avisar que o logo não apareceu.",
-    "params": {"layer_ids": ["@uf"], "title": "Karte mit Logo", "include_logo": true, "logo_path": "/tmp/logo_que_nao_existe_xyz.png", "map_author": "GIS-Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Karte mit Logo",
+      "include_logo": true,
+      "logo_path": "/tmp/logo_que_nao_existe_xyz.png",
+      "map_author": "GIS-Team"
+    }
   },
   {
     "id": "apply-style-invalid-value-fr-invalido",
     "lang": "fr",
     "intent": "invalido",
     "note": "apply_style traduzido para francês ('tout' em vez de 'all') — valor de enum não reconhecido, deve recusar.",
-    "params": {"layer_ids": ["@uf"], "title": "Carte stylisée", "apply_style": "tout", "map_author": "Équipe SIG"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Carte stylisée",
+      "apply_style": "tout",
+      "map_author": "Équipe SIG"
+    }
   },
   {
     "id": "subtitle-only-no-title-it-invalido",
     "lang": "it",
-    "intent": "invalido",
-    "note": "Falta o parâmetro obrigatório 'title' (só subtitle) — deve recusar por título ausente, não quebrar.",
-    "params": {"layer_ids": ["@uf"], "subtitle": "Solo sottotitolo, senza titolo"}
+    "intent": "legitimo",
+    "note": "Só subtitle, sem title: entra o título padrão ('Mappa' em italiano) e o subtítulo pedido — não é recusa.",
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "subtitle": "Solo sottotitolo, senza titolo"
+    }
   },
   {
     "id": "empty-layer-ids-es-invalido",
     "lang": "es",
     "intent": "invalido",
     "note": "layer_ids como lista vazia — pedido sem nenhuma camada, deve recusar com mensagem clara.",
-    "params": {"layer_ids": [], "title": "Mapa sin capas"}
+    "params": {
+      "layer_ids": [],
+      "title": "Mapa sin capas"
+    }
   },
   {
     "id": "page-only-orientation-word-en-invalido",
     "lang": "en-US",
     "intent": "invalido",
     "note": "page só com a palavra de orientação, sem tamanho ('landscape' sozinho) — sem formato reconhecido nos tokens, deve recusar em modo estrito.",
-    "params": {"layer_ids": ["@uf"], "title": "Map with only orientation word", "page": "landscape", "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Map with only orientation word",
+      "page": "landscape",
+      "map_author": "GIS Team"
+    }
   },
   {
     "id": "grid-style-frame-en-control",
     "lang": "en-US",
     "intent": "legitimo",
     "note": "grid_style='frame' válido, caso de controle.",
-    "params": {"layer_ids": ["@uf"], "title": "Framed grid map", "grid_style": "frame", "map_author": "GIS Team"}
+    "params": {
+      "layer_ids": [
+        "@uf"
+      ],
+      "title": "Framed grid map",
+      "grid_style": "frame",
+      "map_author": "GIS Team"
+    }
   }
 ]

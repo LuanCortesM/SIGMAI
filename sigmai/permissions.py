@@ -81,13 +81,18 @@ COMMAND_PERMISSIONS: dict[str, CommandPermission] = {
     "run_workflow_job": CommandPermission("run_workflow_job", "job_queue", SAFE_WRITE, supports_dry_run=True),
     "run_raster_job": CommandPermission("run_raster_job", "job_queue", SAFE_WRITE, supports_dry_run=True),
     "run_map_export_job": CommandPermission("run_map_export_job", "job_queue", SAFE_WRITE, supports_dry_run=True),
-    "create_atlas": CommandPermission("create_atlas", "atlas_reports", SAFE_WRITE, supports_dry_run=True),
-    "configure_atlas_coverage_layer": CommandPermission("configure_atlas_coverage_layer", "atlas_reports", SAFE_WRITE, supports_dry_run=True),
-    "set_atlas_filter_expression": CommandPermission("set_atlas_filter_expression", "atlas_reports", SAFE_WRITE, supports_dry_run=True),
-    "set_atlas_sort_expression": CommandPermission("set_atlas_sort_expression", "atlas_reports", SAFE_WRITE, supports_dry_run=True),
-    "export_atlas_pdf": CommandPermission("export_atlas_pdf", "atlas_reports", SAFE_WRITE, supports_dry_run=True),
-    "export_atlas_images": CommandPermission("export_atlas_images", "atlas_reports", SAFE_WRITE, supports_dry_run=True),
-    "generate_map_book": CommandPermission("generate_map_book", "atlas_reports", READ_ONLY),
+    # Atlas de verdade exige QgsLayoutAtlas, que esta versão não implementa —
+    # o que existia era um registro em memória fingindo ser um atlas. As sete
+    # ações da família (criação, configuração, filtro/ordenação e as duas
+    # exportações) são desabilitadas juntas: metade de uma funcionalidade no
+    # catálogo é o mesmo defeito que a auditoria apontou, só que disfarçado.
+    "create_atlas": CommandPermission("create_atlas", "atlas_reports", SAFE_WRITE, supports_dry_run=True, enabled=False),
+    "configure_atlas_coverage_layer": CommandPermission("configure_atlas_coverage_layer", "atlas_reports", SAFE_WRITE, supports_dry_run=True, enabled=False),
+    "set_atlas_filter_expression": CommandPermission("set_atlas_filter_expression", "atlas_reports", SAFE_WRITE, supports_dry_run=True, enabled=False),
+    "set_atlas_sort_expression": CommandPermission("set_atlas_sort_expression", "atlas_reports", SAFE_WRITE, supports_dry_run=True, enabled=False),
+    "export_atlas_pdf": CommandPermission("export_atlas_pdf", "atlas_reports", SAFE_WRITE, supports_dry_run=True, enabled=False),
+    "export_atlas_images": CommandPermission("export_atlas_images", "atlas_reports", SAFE_WRITE, supports_dry_run=True, enabled=False),
+    "generate_map_book": CommandPermission("generate_map_book", "atlas_reports", READ_ONLY, enabled=False),
     "create_report": CommandPermission("create_report", "atlas_reports", SAFE_WRITE, supports_dry_run=True),
     "add_report_section": CommandPermission("add_report_section", "atlas_reports", SAFE_WRITE, supports_dry_run=True),
     "export_report_pdf": CommandPermission("export_report_pdf", "atlas_reports", SAFE_WRITE, supports_dry_run=True),
@@ -113,11 +118,17 @@ COMMAND_PERMISSIONS: dict[str, CommandPermission] = {
     "gpx_to_layer": CommandPermission("gpx_to_layer", "gps_gpx", SAFE_WRITE, supports_dry_run=True),
     "map_gpx_track": CommandPermission("map_gpx_track", "gps_gpx", SAFE_WRITE, supports_dry_run=True),
     "list_database_connections": CommandPermission("list_database_connections", "databases", READ_ONLY),
-    "inspect_database_connection": CommandPermission("inspect_database_connection", "databases", READ_ONLY),
-    "load_postgis_layer": CommandPermission("load_postgis_layer", "databases", SAFE_WRITE, supports_dry_run=True),
-    "test_postgis_connection": CommandPermission("test_postgis_connection", "databases", READ_ONLY),
-    "list_postgis_tables": CommandPermission("list_postgis_tables", "databases", READ_ONLY),
-    "inspect_postgis_layer": CommandPermission("inspect_postgis_layer", "databases", READ_ONLY),
+    # Um teste real contra o provedor postgres (feito para decidir esta lista)
+    # mostrou QgsProviderConnectionException devolvendo a string de conexão
+    # completa — senha em texto puro incluída — na primeira falha de conexão.
+    # Sem um banco PostGIS acessível neste ambiente para validar a redação
+    # dessa mensagem em todos os caminhos de erro, cinco ações desabilitadas
+    # são mais seguras que cinco que ninguém testou.
+    "inspect_database_connection": CommandPermission("inspect_database_connection", "databases", READ_ONLY, enabled=False),
+    "load_postgis_layer": CommandPermission("load_postgis_layer", "databases", SAFE_WRITE, supports_dry_run=True, enabled=False),
+    "test_postgis_connection": CommandPermission("test_postgis_connection", "databases", READ_ONLY, enabled=False),
+    "list_postgis_tables": CommandPermission("list_postgis_tables", "databases", READ_ONLY, enabled=False),
+    "inspect_postgis_layer": CommandPermission("inspect_postgis_layer", "databases", READ_ONLY, enabled=False),
     "diagnose_crs": CommandPermission("diagnose_crs", "crs_quality", READ_ONLY),
     "validate_geometries": CommandPermission("validate_geometries", "crs_quality", READ_ONLY),
     "fix_geometries": CommandPermission("fix_geometries", "crs_quality", SAFE_WRITE, supports_dry_run=True),
@@ -181,7 +192,11 @@ COMMAND_PERMISSIONS: dict[str, CommandPermission] = {
     "apply_scientific_line_style": CommandPermission("apply_scientific_line_style", "cartographic_design", SAFE_WRITE, supports_dry_run=True),
     "apply_scientific_point_style": CommandPermission("apply_scientific_point_style", "cartographic_design", SAFE_WRITE, supports_dry_run=True),
     "apply_boundary_highlight": CommandPermission("apply_boundary_highlight", "cartographic_design", SAFE_WRITE, supports_dry_run=True),
-    "create_map_hierarchy": CommandPermission("create_map_hierarchy", "cartographic_design", READ_ONLY),
+    # "create_map_hierarchy" promete criar uma hierarquia visual de mapas; o
+    # manipulador é só um alias de leitura de suggest_layout_improvements, que
+    # não cria nada. Um nome de escrita para uma ação de leitura é a mesma
+    # mentira de catálogo que o resto da auditoria corrigiu.
+    "create_map_hierarchy": CommandPermission("create_map_hierarchy", "cartographic_design", READ_ONLY, enabled=False),
     "validate_map_readability": CommandPermission("validate_map_readability", "cartographic_design", READ_ONLY),
     "detect_visual_collisions": CommandPermission("detect_visual_collisions", "cartographic_design", READ_ONLY),
     "suggest_layout_improvements": CommandPermission("suggest_layout_improvements", "cartographic_design", READ_ONLY),
@@ -271,9 +286,14 @@ def capabilities_payload(developer_mode: bool = False) -> dict[str, Any]:
             groups.setdefault(metadata.group, []).append(action)
         else:
             disabled_actions.append(action)
-        if metadata.requires_confirmation:
+        # Uma ação desabilitada não existe para o assistente (allowed_actions()
+        # a recusa como inexistente); listá-la aqui como "aceita confirmação"
+        # ou "aceita dry_run" seria a mesma promessa vazia que a auditoria
+        # cobrou das próprias ações — por isso as duas listas também respeitam
+        # enabled.
+        if metadata.enabled and metadata.requires_confirmation:
             requires_confirmation.append(action)
-        if metadata.supports_dry_run:
+        if metadata.enabled and metadata.supports_dry_run:
             dry_run_supported.append(action)
 
     return {
@@ -342,27 +362,32 @@ def capabilities_payload(developer_mode: bool = False) -> dict[str, Any]:
             "professional_templates": ["scientific_basic", "scientific_publication", "environmental_report", "minimal_clean", "technical_dark", "atlas_page"],
         },
         "vector_capabilities": ["diagnose_crs", "validate_geometries", "fix_geometries", "buffer", "clip", "dissolve", "reproject_layer", "export_layer", "intersection", "union", "difference", "centroids", "multipart_to_singleparts", "count_points_in_polygon"],
-        "raster_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "raster"],
-        "user_profile_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "user_profile"],
+        "raster_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "raster" and metadata.enabled],
+        "user_profile_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "user_profile" and metadata.enabled],
         "attribute_capabilities": ["list_fields", "sample_features", "inspect_attribute_table", "field_statistics", "unique_values"],
         "expression_capabilities": ["validate_expression", "evaluate_expression", "query_features"],
         "selection_capabilities": ["select_by_expression", "select_by_attribute", "select_by_location", "extract_by_expression", "extract_by_attribute", "extract_by_location"],
         "layer_tree_capabilities": ["list_layer_tree", "set_layer_visibility", "move_layer_order", "create_layer_group", "move_layer_to_group"],
-        "symbology_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "symbology"],
-        "label_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "labels"],
-        "cartographic_design_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "cartographic_design"],
-        "processing_inventory_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "processing_inventory"],
-        "plugin_orchestration_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "plugin_orchestration"],
-        "workflow_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "workflows"] + ["generate_workflow_report"],
-        "job_queue_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "job_queue"],
-        "atlas_report_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "atlas_reports"],
-        "data_source_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "data_sources"],
-        "gps_gpx_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "gps_gpx"],
-        "database_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "databases"],
-        "plugin_management_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "plugin_management"],
-        "self_management_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "self_management"],
-        "platform_maturity_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "platform_maturity"],
-        "developer_mode_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "developer_mode"],
+        "symbology_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "symbology" and metadata.enabled],
+        "label_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "labels" and metadata.enabled],
+        # As quatro listas abaixo (design cartográfico, workflows, job_queue,
+        # atlas_reports, databases) são exatamente onde a auditoria achou
+        # ações desabilitadas nesta rodada — filtrar por enabled aqui é o que
+        # impede um alias desligado (create_map_hierarchy, create_atlas...)
+        # de continuar aparecendo como "capacidade" depois de ser desligado.
+        "cartographic_design_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "cartographic_design" and metadata.enabled],
+        "processing_inventory_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "processing_inventory" and metadata.enabled],
+        "plugin_orchestration_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "plugin_orchestration" and metadata.enabled],
+        "workflow_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "workflows" and metadata.enabled] + ["generate_workflow_report"],
+        "job_queue_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "job_queue" and metadata.enabled],
+        "atlas_report_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "atlas_reports" and metadata.enabled],
+        "data_source_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "data_sources" and metadata.enabled],
+        "gps_gpx_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "gps_gpx" and metadata.enabled],
+        "database_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "databases" and metadata.enabled],
+        "plugin_management_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "plugin_management" and metadata.enabled],
+        "self_management_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "self_management" and metadata.enabled],
+        "platform_maturity_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "platform_maturity" and metadata.enabled],
+        "developer_mode_capabilities": [action for action, metadata in sorted(COMMAND_PERMISSIONS.items()) if metadata.group == "developer_mode" and metadata.enabled],
         "mcp_capabilities": [
             "dependency_free_json_lines_transport",
             "tool_manifest",
@@ -375,8 +400,21 @@ def capabilities_payload(developer_mode: bool = False) -> dict[str, Any]:
         ],
         "limitations": [
             "Raster core is implemented through explicit wrappers and Processing allowlist; advanced raster calculator, reclassification and zonal statistics remain planned.",
-            "OGC/database source commands and advanced expression/editing commands are planned next phases.",
+            "OGC connection inventory, network service tests and PostgreSQL connection inventory read local QGIS settings or make a direct, short-timeout network call; advanced expression/editing commands remain a later phase.",
             "The initial job queue runs read-only actions and dry-run mutations; real long-running QGIS mutations require the future QgsTask-safe runner.",
             "QGIS must load the updated plugin package before new runtime capabilities appear in live get_capabilities.",
+            "create_map_hierarchy is disabled: it is an alias of the read-only suggest_layout_improvements and creates nothing, so a write-sounding name would promise a capability that does not exist.",
+            "create_atlas is disabled: a real atlas requires QgsLayoutAtlas, which this version does not implement; reserved for a future version.",
+            "configure_atlas_coverage_layer is disabled: it only re-runs create_atlas and shares the same missing QgsLayoutAtlas dependency; reserved for a future version.",
+            "set_atlas_filter_expression is disabled: it only makes sense once a real QgsLayoutAtlas exists; reserved for a future version.",
+            "set_atlas_sort_expression is disabled: it only makes sense once a real QgsLayoutAtlas exists; reserved for a future version.",
+            "export_atlas_pdf is disabled: it never drove a real QgsLayoutAtlas batch export; reserved for a future version.",
+            "export_atlas_images is disabled: it never drove a real QgsLayoutAtlas batch export; reserved for a future version.",
+            "generate_map_book is disabled: real per-page export needs QgsLayoutAtlas, which this version does not implement; reserved for a future version.",
+            "inspect_database_connection is disabled: a generic PostgreSQL provider probe surfaced the raw connection string, including the plaintext password, in its error text, and there is no PostGIS server in this environment to validate safe redaction; reserved for a future version.",
+            "test_postgis_connection is disabled: the same unredacted-password provider error applies to connection tests; reserved for a future version with a PostGIS server available to validate redaction.",
+            "list_postgis_tables is disabled: it requires the same untested PostGIS connection path as test_postgis_connection; reserved for a future version.",
+            "load_postgis_layer is disabled: it requires the same untested PostGIS connection path as test_postgis_connection; reserved for a future version.",
+            "inspect_postgis_layer is disabled: it requires the same untested PostGIS connection path as test_postgis_connection; reserved for a future version.",
         ],
     }

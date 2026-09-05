@@ -142,8 +142,8 @@
   {
     "id": "num-dpi-string-decimal",
     "lang": "pt",
-    "intent": "invalido",
-    "note": "IA formata dpi como string com ponto decimal.",
+    "intent": "legitimo",
+    "note": "IA formata dpi como string com ponto decimal ('300.0'); aceito como 300 (texto numérico inequívoco, ver params.py).",
     "params": {
       "layer_ids": [
         "@uf"
@@ -207,8 +207,8 @@
   {
     "id": "num-margin-mm-lista",
     "lang": "pt",
-    "intent": "invalido",
-    "note": "Iniciante manda margin_mm como lista [topo,dir,baixo,esq] em vez de objeto.",
+    "intent": "legitimo",
+    "note": "margin_mm como lista [topo, dir, baixo, esq] (ordem CSS) é aceito e aplicado nessa ordem.",
     "params": {
       "layer_ids": [
         "@uf"
@@ -529,8 +529,8 @@
   {
     "id": "bool-include-legend-string-false",
     "lang": "pt",
-    "intent": "invalido",
-    "note": "include_legend:'false' (string) deveria desligar a legenda; bool('false') é True em Python.",
+    "intent": "legitimo",
+    "note": "include_legend:'false' (string) desliga a legenda: as_flag aceita uma lista fechada de grafias inequívocas e registra nota; bool('false') nunca é usado.",
     "params": {
       "layer_ids": [
         "@uf"
@@ -542,8 +542,8 @@
   {
     "id": "bool-include-north-string-nao",
     "lang": "pt",
-    "intent": "invalido",
-    "note": "include_north_arrow:'não' deveria desligar a seta norte.",
+    "intent": "legitimo",
+    "note": "include_north_arrow:'não' desliga a seta norte (grafia inequívoca aceita por as_flag, com nota).",
     "params": {
       "layer_ids": [
         "@uf"
@@ -555,8 +555,8 @@
   {
     "id": "bool-include-grid-string-zero",
     "lang": "pt",
-    "intent": "invalido",
-    "note": "include_grid:'0' (string) deveria desligar a grade; bool('0') é True.",
+    "intent": "legitimo",
+    "note": "include_grid:'0' (string) desliga a grade (grafia inequívoca aceita por as_flag, com nota).",
     "params": {
       "layer_ids": [
         "@uf"
@@ -568,8 +568,8 @@
   {
     "id": "bool-round-scale-string-false",
     "lang": "pt",
-    "intent": "invalido",
-    "note": "round_scale:'false' deveria desligar o arredondamento de escala.",
+    "intent": "legitimo",
+    "note": "round_scale:'false' desliga o arredondamento (grafia inequívoca aceita por as_flag, com nota).",
     "params": {
       "layer_ids": [
         "@uf"
@@ -611,8 +611,8 @@
   {
     "id": "null-title-vira-none-literal",
     "lang": "pt",
-    "intent": "invalido",
-    "note": "title:null deveria equivaler a omitir; em vez disso aparece o texto 'None' no mapa.",
+    "intent": "legitimo",
+    "note": "title:null equivale a omitir: entra o título padrão ('Mapa' na língua do mapa), nunca o texto 'None'.",
     "params": {
       "layer_ids": [
         "@uf"
@@ -637,8 +637,8 @@
   {
     "id": "null-map-crs-mensagem-confusa",
     "lang": "pt",
-    "intent": "invalido",
-    "note": "map_crs:null deveria equivaler a omitir; em vez disso é tratado como a string 'None' e recusado com mensagem confusa.",
+    "intent": "legitimo",
+    "note": "map_crs:null equivale a omitir: vale o CRS do projeto.",
     "params": {
       "layer_ids": [
         "@uf"
@@ -650,8 +650,8 @@
   {
     "id": "null-format-mensagem-enganosa",
     "lang": "pt",
-    "intent": "invalido",
-    "note": "format:null; a mensagem de recusa culpa a extensão do output_path (que é válida) em vez do format nulo.",
+    "intent": "legitimo",
+    "note": "format:null equivale a omitir: a extensão de output_path decide.",
     "params": {
       "layer_ids": [
         "@uf"
@@ -663,8 +663,8 @@
   {
     "id": "null-data-source-autor-vira-none",
     "lang": "pt",
-    "intent": "invalido",
-    "note": "data_source e map_author nulos viram o texto 'None' na linha de crédito.",
+    "intent": "legitimo",
+    "note": "data_source/map_author nulos equivalem a omitidos: a linha de crédito não imprime 'None' (e CART007 acusa a falta de procedência, que é o comportamento certo).",
     "params": {
       "layer_ids": [
         "@uf"
@@ -679,7 +679,7 @@
     "id": "file-overwrite-sem-confirmar-generico",
     "lang": "pt",
     "intent": "invalido",
-    "note": "Escrever por cima de arquivo existente sem confirm_overwrite algum (usa o default do compose_map, não o do runner).",
+    "note": "Escrever por cima de arquivo existente sem confirm_overwrite algum: o padrão do compositor é recusar (o runner não injeta confirmação quando o cenário traz o próprio output_path).",
     "params": {
       "layer_ids": [
         "@uf"
@@ -713,14 +713,15 @@
         "@uf"
       ],
       "title": "Mapa",
-      "output_path": "/tmp/img_erros/relatorio_MAIUSCULO.PNG"
+      "output_path": "/tmp/img_erros/relatorio_MAIUSCULO.PNG",
+      "confirm_overwrite": true
     }
   },
   {
     "id": "file-caminho-relativo",
     "lang": "pt",
     "intent": "invalido",
-    "note": "output_path relativo, sem pasta existente; deve recusar com clareza.",
+    "note": "output_path relativo: recusa pedindo caminho absoluto (antes: 'a pasta de saída não existe', sem dizer que o problema era o caminho relativo).",
     "params": {
       "layer_ids": [
         "@uf"
@@ -732,8 +733,8 @@
   {
     "id": "file-caminho-dotdot",
     "lang": "pt",
-    "intent": "invalido",
-    "note": "output_path com .. subindo diretórios.",
+    "intent": "legitimo",
+    "note": "output_path absoluto com '..' é normalizado (/tmp/img_erros/../x.png -> /tmp/x.png) e aceito.",
     "params": {
       "layer_ids": [
         "@uf"
@@ -747,7 +748,7 @@
     "id": "file-caminho-windows",
     "lang": "pt",
     "intent": "invalido",
-    "note": "Iniciante cola um caminho do Windows num servidor Linux.",
+    "note": "Iniciante cola um caminho do Windows num QGIS em Linux/macOS: recusa nomeando o sistema e pedindo um caminho absoluto deste computador (antes gravava um arquivo chamado 'C:\\Users\\...' na pasta corrente).",
     "params": {
       "layer_ids": [
         "@uf"
@@ -766,7 +767,8 @@
         "@uf"
       ],
       "title": "Mapa",
-      "output_path": "/tmp/img_erros/mapa do usuário (teste)ção.png"
+      "output_path": "/tmp/img_erros/mapa do usuário (teste)ção.png",
+      "confirm_overwrite": true
     }
   },
   {
@@ -891,8 +893,8 @@
   {
     "id": "extremo-margin-percent-95",
     "lang": "pt",
-    "intent": "invalido",
-    "note": "margin_percent=95; o mapa fica quase todo margem?",
+    "intent": "legitimo",
+    "note": "margin_percent=95 é excêntrico mas válido (limite: 0 a 100); o mapa fica pequeno no quadro, por escolha do usuário.",
     "params": {
       "layer_ids": [
         "@trilha"
@@ -1466,8 +1468,8 @@
   {
     "id": "de-page-hochformat",
     "lang": "de",
-    "intent": "invalido",
-    "note": "Usuário alemão tenta orientação em alemão (não suportado, sem sugestão útil).",
+    "intent": "legitimo",
+    "note": "'A4 Hochformat': orientação em alemão faz parte do vocabulário de 15 línguas de resolve_page.",
     "params": {
       "layer_ids": [
         "@uf"

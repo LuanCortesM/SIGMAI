@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import datetime as _datetime
 import math
+import os
+import platform
 import re
 from dataclasses import replace
 from pathlib import Path
@@ -31,6 +33,7 @@ from .maptext import MAP_TEXT, RTL_LANGUAGES, maptext, resolve_language
 from .pagespec import PageSpec, resolve_page
 from .params import ParameterError, as_flag, as_id_list, as_number, as_text
 from .qtcompat import distance_unit, layout_unit_mm, qt_enum
+from ..security import classify_output_path
 from .rulebook import SCALEBAR_MIN_LENGTH_MM, evaluate
 from .scaling import (
     SCALEBAR_MIN_FRACTION,
@@ -577,8 +580,53 @@ def _find_north_arrow_svg(imports: dict[str, Any]) -> str:
     return ""
 
 
-def _format_scale(denominator: int) -> str:
-    return f"1:{denominator:,}".replace(",", ".")
+def _resolve_output_path(params: dict[str, Any]) -> Path | None:
+    """Caminho de saída absoluto e nativo do sistema, ou None quando não há.
+
+    Dois acidentes que a versão anterior deixava passar, ambos vindos de
+    usuário colando um caminho de outra máquina ou escrevendo só o nome:
+
+    * um caminho do Windows ("C:\\Users\\...\\mapa.png") num QGIS em Linux/macOS
+      é, para o POSIX, um nome de arquivo relativo com barras invertidas — a
+      exportação criava um arquivo chamado literalmente ``C:\\Users\\...`` na
+      pasta corrente e reportava sucesso;
+    * um caminho relativo ("mapa.png", "saida/mapa.png") ia parar na pasta
+      corrente do processo do QGIS, que o usuário não conhece.
+
+    Os dois viram recusa com o caminho absoluto pedido de volta.
+    """
+    raw = params.get("output_path")
+    if not raw:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    problem = classify_output_path(text)
+    if problem == "foreign":
+        raise CompositionError(
+            f"output_path parece um caminho do Windows ({text!r}), mas este QGIS roda em "
+            f"{platform.system() or 'outro sistema'}. Informe um caminho absoluto deste computador, "
+            f"por exemplo {Path.home() / 'mapa.png'}."
+        )
+    path = Path(os.path.expandvars(os.path.expanduser(text)))
+    if problem == "relative":
+        raise CompositionError(
+            f"output_path precisa ser um caminho absoluto; recebido {text!r}, que seria gravado "
+            f"na pasta corrente do QGIS, sem que o usuário saiba onde. Informe a pasta completa, "
+            f"por exemplo {Path.home() / text}."
+        )
+    return Path(os.path.normpath(str(path)))
+
+
+def _format_scale(denominator: int, map_language: str = "pt-BR") -> str:
+    """"1:250.000" em português, "1:250,000" em inglês, "1:250 000" em francês.
+
+    O separador de milhar vem de maptext.py (símbolo de agrupamento do CLDR
+    por língua). Sem o parâmetro cai em pt-BR, que é o que os laudos e as
+    notas — escritos em português — continuam usando; a versão localizada só
+    vai para o que o compositor escreve no papel.
+    """
+    return f"1:{int(denominator):,}".replace(",", maptext(map_language, "separador_milhar"))
 
 
 #: Resolução do nível 0 do esquema Web Mercator, em metros por pixel no
@@ -764,12 +812,13 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # disso caía no ramo que força restilo em TODAS as camadas em silêncio —
     # symbology.apply_default_symbology recusa isso explicitamente.
     apply_style_value = as_text(params, "apply_style", default="missing", label="apply_style").strip().lower()
-    # dry_run precisa chegar aqui, ANTES de qualquer mutação: era esta chamada
-    # — feita cedo demais, sem olhar para context["dry_run"] — que fazia uma
-    # simulação de compose_map reestilizar de verdade as camadas do projeto
-    # aberto na tela do usuário, mesmo com o SIGMAI em Somente leitura.
+    # Aqui só a PRÉVIA (dry_run=True): valida apply_style e diz o que seria
+    # reestilizado, sem tocar em nenhuma camada. A aplicação de verdade fica
+    # para depois da última validação de parâmetro — uma página inexistente
+    # ou um dpi absurdo recusados mais abaixo não podem deixar para trás o
+    # projeto do usuário com a simbologia trocada por um mapa que não saiu.
     composing_dry_run = bool(context.get("dry_run"))
-    styling = apply_default_symbology(styling_targets, apply_style_value, dry_run=composing_dry_run)
+    styling = apply_default_symbology(styling_targets, apply_style_value, dry_run=True)
     styling_verb = "seria reestilizada" if composing_dry_run else "foi reestilizada"
     styling_notes = [
         f"A camada {entry['layer']!r} {styling_verb}: {entry['note']}."
@@ -796,13 +845,20 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # map_language escolhe a língua dos textos que o PRÓPRIO compositor
     # escreve — "Fonte:"/"Elaboração:", o título padrão quando ninguém pede
     # um, "Legenda", "Painel A/B", o crédito da ferramenta (ver maptext.py).
-    # Não recusa por língua desconhecida — cai em português, resolvida com a
-    # mesma tolerância de grafia que o resto do pacote aplica a entrada de
-    # agente de IA (ver params.py) — mas registra uma nota (mais abaixo,
-    # quando `notes` já existe) quando o código não foi reconhecido, para o
-    # pedido de língua não evaporar em silêncio.
+    # A grafia é tolerante ("EN", "en_US", "jp", "zh-TW" resolvem; ver
+    # resolve_language), mas um código que não bate com nenhuma língua coberta
+    # é recusado com a lista — o mesmo tratamento de page/template. Cair em
+    # português com uma nota, como se fazia, entregava ao usuário um mapa
+    # em língua que ele não pediu e que só o assistente ficava sabendo.
     map_language_raw = as_text(params, "map_language", default="pt-BR", label="map_language").strip() or "pt-BR"
     map_language, map_language_known = resolve_language(map_language_raw)
+    if not map_language_known:
+        raise CompositionError(
+            f"map_language={map_language_raw!r} não corresponde a nenhuma língua coberta pelos textos do "
+            "mapa. Línguas reconhecidas: " + ", ".join(sorted(MAP_TEXT)) + " (códigos regionais como "
+            "en-US, zh-TW ou pt-PT também resolvem). Escolha uma delas; os textos do usuário (título, "
+            "fonte, autor) podem estar em qualquer língua."
+        )
     map_language_rtl = map_language in RTL_LANGUAGES
 
     # As bandeiras nunca usam bool() do Python: bool("false") vale True, e foi
@@ -863,13 +919,6 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
 
     # --- sistema de referência ------------------------------------------
     notes: list[str] = list(plan.notes) + styling_notes + flag_notes
-    if not map_language_known:
-        notes.append(
-            f"map_language={map_language_raw!r} não foi reconhecido; os textos que o compositor "
-            "escreve sozinho (título padrão, 'Fonte:'/'Elaboração:', 'Legenda', rótulos de painel, "
-            "crédito da ferramenta) saíram em português (pt-BR). Línguas reconhecidas: "
-            + ", ".join(sorted(MAP_TEXT)) + "."
-        )
     requested_crs = _resolve_map_crs_text(params)
     if requested_crs:
         map_crs = imports["QgsCoordinateReferenceSystem"](requested_crs)
@@ -963,7 +1012,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # margin_percent: "cinco" ou null estouravam ValueError cru dentro de
     # fit_extent_to_frame; negativo era só grampeado a 0 em silêncio por
     # max(0.0, ...) lá dentro — minimum=0.0 aqui recusa antes disso.
-    margin_percent_value = as_number(params, "margin_percent", default=5.0, minimum=0.0, label="margin_percent")
+    margin_percent_value = as_number(params, "margin_percent", default=5.0, minimum=0.0, maximum=100.0, label="margin_percent")
 
     # dpi só era lido na hora de exportar. Sem output_path, um valor absurdo
     # passava calado — e um parâmetro aceito sem efeito é o mesmo defeito de
@@ -1010,12 +1059,15 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     if requested_scale:
         minimum_scale = fitted.raw_scale_denominator / (1.0 + 2.0 * max(0.0, margin_percent_value) / 100.0)
         if requested_scale < minimum_scale * 0.999:
+            # Os denominadores passam por _format_scale: um .replace(",", ".")
+            # na frase inteira trocava também as vírgulas do texto por pontos
+            # ("ocupam. cortando parte deles.") — recusa certa, redigida errada.
             raise CompositionError(
-                f"A escala pedida (1:{int(requested_scale):,}) não cabe: nessa escala o quadro "
+                f"A escala pedida ({_format_scale(int(requested_scale))}) não cabe: nessa escala o quadro "
                 f"mostraria menos terreno do que os dados ocupam, cortando parte deles. "
                 f"A maior escala que ainda contém tudo é aproximadamente "
-                f"1:{int(math.ceil(minimum_scale)):,}. Peça essa ou uma mais aberta, ou omita "
-                f"'scale' para o SIGMAI escolher.".replace(",", ".")
+                f"{_format_scale(int(math.ceil(minimum_scale)))}. Peça essa ou uma mais aberta, ou omita "
+                f"'scale' para o SIGMAI escolher."
             )
         if int(requested_scale) != int(fitted.scale_denominator):
             fitted = _rescale(fitted, int(requested_scale))
@@ -1079,13 +1131,21 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
 
     layout_name = as_text(params, "layout_name", default="", label="layout_name").strip()
     layout_name = layout_name or _unique_layout_name(project, title_value or "Mapa SIGMAI")
-    output_path = Path(str(params.get("output_path", ""))).expanduser() if params.get("output_path") else None
+    output_path = _resolve_output_path(params)
 
     # format e a extensão de output_path podem discordar (output_path
     # "mapa.png" com format "pdf"): antes disso gerava um PDF chamado .png sem
     # avisar. explicit_format sempre vence quando não há conflito; quando os
     # dois discordam, a composição é recusada em vez de escolher por conta.
     explicit_format = as_text(params, "format", default="", label="format").strip().lower()
+    # Um format que não existe é recusado mesmo sem output_path: sem isto,
+    # format='imagen' numa chamada só de layout era aceito calado — e o
+    # assistente repetia o valor na exportação seguinte, aí sim para quebrar.
+    if explicit_format and explicit_format not in SUPPORTED_FORMATS:
+        raise CompositionError(
+            f"Formato de saída inválido: {explicit_format!r}. "
+            f"Use um destes: {', '.join(sorted(SUPPORTED_FORMATS))}."
+        )
     suffix_format = output_path.suffix.lstrip(".").lower() if output_path is not None else ""
     if output_path is not None and explicit_format and suffix_format and explicit_format != suffix_format:
         raise CompositionError(
@@ -1148,6 +1208,11 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
             raise CompositionError(
                 f"O arquivo já existe: {output_path}. Passe confirm_overwrite=true para substituí-lo."
             )
+
+    # --- simbologia -------------------------------------------------------
+    # Primeira e única mutação do projeto: todos os parâmetros já foram
+    # aceitos, o que sai daqui para a frente é um mapa ou uma falha de QGIS.
+    styling = apply_default_symbology(styling_targets, apply_style_value, dry_run=False)
 
     # --- layout -----------------------------------------------------------
     layout = imports["QgsPrintLayout"](project)
@@ -1264,7 +1329,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         scale_caption = (
             maptext(map_language, "escalas_por_painel")
             if (comparison_plan or {}).get("per_panel_scale")
-            else f"{maptext(map_language, 'escala_prefixo')}{_format_scale(fitted.scale_denominator)}"
+            else f"{maptext(map_language, 'escala_prefixo')}{_format_scale(fitted.scale_denominator, map_language)}"
         )
         _add_label(
             layout, "scale_text", scale_caption,
@@ -1785,12 +1850,31 @@ def _add_scalebar(layout: Any, map_item: Any, spec: Any, plan: LayoutPlan, impor
     except Exception:
         pass
     slot = plan.slots["scale_bar"]
+    # A altura do item de barra é própria (segmento + espaço até o rótulo +
+    # texto + folga da caixa) e ignora a faixa reservada: com os padrões do
+    # QGIS ela dá ~10,6 mm, e numa faixa de 7 mm (A5 paisagem, template
+    # minimalista) o excedente invadia o rodapé — CART042 acusava a barra
+    # sobre a linha de crédito. Segmento e folgas são derivados da faixa.
+    font_pt = max(6.0, float(plan.fonts["scale_text"]) - 1.0)
+    text_h = font_pt * 0.3528 * 1.25
+    box_space = 0.5
+    label_space = 1.2
+    segment_h = max(1.2, min(3.0, slot.height - text_h - label_space - 2 * box_space))
+    _try(lambda: bar.setBoxContentSpace(box_space))
+    _try(lambda: bar.setLabelBarSpace(label_space))
+    _try(lambda: bar.setHeight(segment_h))
     _place(bar, slot, imports, mm)
     try:
         bar.update()
         # O item de barra cresce para caber os rótulos. Se estourar a faixa
         # reservada, recua para a esquerda em vez de invadir a margem (CART041).
         actual = bar.sizeWithUnits()
+        bar_x, bar_y = slot.x, slot.y
+        vertical_overflow = float(actual.height()) - slot.height
+        if vertical_overflow > 0.1:
+            # O que ainda sobrar sobe para dentro da calha acima da faixa, que
+            # é folga entre itens, nunca desce sobre o rodapé.
+            bar_y = slot.y - vertical_overflow
         overflow = float(actual.width()) - slot.width
         if overflow > 0.1 and page is not None:
             # Se ainda assim transbordar, empurra para a ESQUERDA apenas até o
@@ -1800,7 +1884,9 @@ def _add_scalebar(layout: Any, map_item: Any, spec: Any, plan: LayoutPlan, impor
             right_edge = page.content_x_mm + page.content_width_mm
             new_x = min(slot.x, right_edge - float(actual.width()))
             new_x = max(new_x, slot.x - overflow)
-            bar.attemptMove(imports["QgsLayoutPoint"](max(page.content_x_mm, new_x), slot.y, mm))
+            bar_x = max(page.content_x_mm, new_x)
+        if (bar_x, bar_y) != (slot.x, slot.y):
+            bar.attemptMove(imports["QgsLayoutPoint"](bar_x, bar_y, mm))
     except Exception:
         pass
     return bar
@@ -2048,14 +2134,14 @@ def _plan_comparison(
     # second_map.margin_percent é opcional; sem ele, herda o margin_percent do
     # mapa principal (já validado). float(spec.get(..., params.get(...))) cru
     # estourava ValueError sem contexto quando "muita" chegava como texto.
-    main_margin = as_number(params, "margin_percent", default=5.0, minimum=0.0, label="margin_percent")
+    main_margin = as_number(params, "margin_percent", default=5.0, minimum=0.0, maximum=100.0, label="margin_percent")
     frame = plan.slots["map_2"]
     extent = _combined_extent(extent_layers, map_crs, imports)
     fitted = fit_extent_to_frame(
         extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum(),
         frame.width, frame.height,
         margin_percent=as_number(
-            spec, "margin_percent", default=main_margin, minimum=0.0, label="second_map.margin_percent",
+            spec, "margin_percent", default=main_margin, minimum=0.0, maximum=100.0, label="second_map.margin_percent",
         ),
         snap_to_round_scale=as_flag(params, "round_scale", True)[0],
         map_units_per_metre=_map_units_per_metre(map_crs, extent, imports),
@@ -2137,9 +2223,13 @@ def _build_comparison_map(
     _apply_grid(second, fitted, map_crs, plan, imports, [], grid_style)
     _verify_placement(second, frame, "comparison_map", notes)
 
+    # Sem panel_title os dois painéis recebem rótulos simétricos ("Painel A"/
+    # "Painel B" na língua do mapa). Repetir o título da folha sobre o painel
+    # da esquerda, como se fazia, punha o mesmo texto duas vezes a 2 cm de
+    # distância e deixava a direita com um rótulo genérico ao lado de um
+    # específico — o leitor lia hierarquia onde só havia omissão.
     left = (
         as_text(params, "panel_title", default="", label="panel_title").strip()
-        or as_text(params, "title", default="", label="title").strip()
         or maptext(map_language, "painel_a")
     )
     right = (
@@ -2147,8 +2237,8 @@ def _build_comparison_map(
         or maptext(map_language, "painel_b")
     )
     if comparison.get("per_panel_scale"):
-        left = f"{left} — {_format_scale(comparison['main_scale'])}"
-        right = f"{right} — {_format_scale(fitted.scale_denominator)}"
+        left = f"{left} — {_format_scale(comparison['main_scale'], map_language)}"
+        right = f"{right} — {_format_scale(fitted.scale_denominator, map_language)}"
     for slot_name, item_id, text in (
         ("map_caption", "panel_caption_a", left),
         ("map_2_caption", "panel_caption_b", right),

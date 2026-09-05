@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from ..cartography.qtcompat import distance_unit, geometry_type as _geometry_type, layout_unit_mm
+from ..cartography.qtcompat import distance_unit, geometry_type as _geometry_type, layout_unit_mm, qt_enum
 from ..security import ensure_parent_exists, normalize_output_path, reject_existing_path_without_confirmation
 from ..validators import ValidationError, require_param
 from .common import crs_authid, extent_to_dict, layer_type_name, project
@@ -82,7 +82,7 @@ LAYOUT_TEMPLATES: dict[str, dict[str, Any]] = {
 }
 
 
-STYLE_PROFILES: dict[str, dict[str, str | float]] = {
+STYLE_PROFILES: dict[str, dict[str, str | float | bool]] = {
     "scientific_soft": {"fill_color": "#D8E1E8", "stroke_color": "#075D68", "stroke_width": 0.35, "opacity": 0.82},
     "environmental_green": {"fill_color": "#BFE7D4", "stroke_color": "#006B4A", "stroke_width": 0.38, "opacity": 0.78},
     "technical_blue": {"fill_color": "#CFE3EF", "stroke_color": "#003B5C", "stroke_width": 0.42, "opacity": 0.82},
@@ -91,6 +91,22 @@ STYLE_PROFILES: dict[str, dict[str, str | float]] = {
     "terrain_context": {"fill_color": "#D9E3C3", "stroke_color": "#6F7F45", "stroke_width": 0.35, "opacity": 0.80},
     "biodiversity_report": {"fill_color": "#CDEAD7", "stroke_color": "#00A86B", "stroke_width": 0.45, "opacity": 0.76},
     "protected_area_map": {"fill_color": "#D8F3DC", "stroke_color": "#1B5E20", "stroke_width": 0.50, "opacity": 0.72},
+    # Contorno escuro e grosso, sem preenchimento: é o traço de limite/fronteira
+    # (municipal, de unidade de conservação, de área de estudo), não o
+    # preenchimento translúcido dos perfis científicos acima. "fill_color"
+    # ainda existe porque set_layer_style sempre lê a chave, mas outline_only
+    # descarta o preenchimento antes de qualquer pintura acontecer.
+    "boundary_highlight": {"fill_color": "#000000", "stroke_color": "#1A1A1A", "stroke_width": 1.2, "opacity": 1.0, "outline_only": True},
+}
+
+#: Geometria exigida por cada apply_scientific_* — o nome da ação promete o
+#: tipo, e a auditoria pediu que ela recuse uma camada de outro tipo em vez de
+#: aplicar o mesmo estilo em cima de qualquer coisa (o defeito original: as
+#: quatro ações produziam saída idêntica porque nenhuma olhava para o nome).
+SCIENTIFIC_STYLE_GEOMETRY: dict[str, str] = {
+    "apply_scientific_polygon_style": "Polygon",
+    "apply_scientific_line_style": "Line",
+    "apply_scientific_point_style": "Point",
 }
 
 
@@ -694,6 +710,53 @@ def apply_cartographic_palette(params: dict[str, Any], context: dict[str, Any]):
     return set_layer_style(style, context)
 
 
+def apply_boundary_highlight(params: dict[str, Any], context: dict[str, Any]):
+    """Contorno escuro e grosso, sem preenchimento — para limites/fronteiras.
+
+    Antes esta ação era um alias direto de apply_cartographic_palette sem
+    perfil próprio em STYLE_PROFILES, então caía no padrão scientific_soft —
+    a mesma saída que apply_scientific_polygon_style produzia, byte a byte.
+    """
+    layer_id = require_param(params, "layer_id", str)
+    result = apply_cartographic_palette({"layer_id": layer_id, "style_profile": "boundary_highlight"}, context)
+    result["style_profile"] = "boundary_highlight"
+    return result
+
+
+def _apply_scientific_style(params: dict[str, Any], context: dict[str, Any], action_name: str) -> dict[str, Any]:
+    geometry_name = SCIENTIFIC_STYLE_GEOMETRY[action_name]
+    layer_id = require_param(params, "layer_id", str)
+    layer = _layer(layer_id)
+    if layer_type_name(layer) != "vector":
+        raise ValidationError("VECTOR_LAYER_REQUIRED", f"{action_name} requires a vector layer.", {"layer_id": layer_id})
+    imports = _imports()
+    actual_geometry = layer.geometryType()
+    expected_geometry = _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], geometry_name)
+    if actual_geometry != expected_geometry:
+        raise ValidationError(
+            "GEOMETRY_TYPE_MISMATCH",
+            f"{action_name} requires a {geometry_name.lower()} layer, but layer_id {layer_id} has a "
+            "different geometry type.",
+            {"layer_id": layer_id, "required_geometry": geometry_name, "actual_geometry_type": int(actual_geometry)},
+        )
+    result = apply_cartographic_palette({"layer_id": layer_id, "style_profile": "scientific_soft"}, context)
+    result["style_profile"] = "scientific_soft"
+    result["required_geometry"] = geometry_name
+    return result
+
+
+def apply_scientific_polygon_style(params: dict[str, Any], context: dict[str, Any]):
+    return _apply_scientific_style(params, context, "apply_scientific_polygon_style")
+
+
+def apply_scientific_line_style(params: dict[str, Any], context: dict[str, Any]):
+    return _apply_scientific_style(params, context, "apply_scientific_line_style")
+
+
+def apply_scientific_point_style(params: dict[str, Any], context: dict[str, Any]):
+    return _apply_scientific_style(params, context, "apply_scientific_point_style")
+
+
 def _template(name: str) -> dict[str, Any]:
     return LAYOUT_TEMPLATES.get(name, LAYOUT_TEMPLATES["scientific_basic"])
 
@@ -792,7 +855,7 @@ def generate_professional_map(params: dict[str, Any], context: dict[str, Any]):
             "template": template_name,
             "style_profile": profile,
             "output_path": str(output_path),
-            "items_planned": ["main_map", "title", "subtitle", "legend", "scale_bar", "north_arrow", "source", "logo"],
+            "items_previewed": ["main_map", "title", "subtitle", "legend", "scale_bar", "north_arrow", "source", "logo"],
             "credits": build_product_credit(params, context),
         }
     imports = _imports()
@@ -1219,12 +1282,12 @@ def generate_basic_map(params: dict[str, Any], context: dict[str, Any]):
     scale_strategy = str(params.get("scale_strategy", "auto"))
     prefer_projected_scale = bool(params.get("prefer_projected_scale", True))
     if context.get("dry_run"):
-        planned = ["main_map", "title", "legend", "scale_bar", "north_arrow", "source"]
+        previewed = ["main_map", "title", "legend", "scale_bar", "north_arrow", "source"]
         if include_grid:
-            planned.append("grid")
+            previewed.append("grid")
         if logo_path:
-            planned.append("logo")
-        return {"dry_run": True, "layout_name": layout_name, "output_path": str(output_path), "items_planned": planned, "legend_layers": legend_layers, "layout_template": layout_template, "scale_strategy": scale_strategy, "credits": build_product_credit(params, context)}
+            previewed.append("logo")
+        return {"dry_run": True, "layout_name": layout_name, "output_path": str(output_path), "items_previewed": previewed, "legend_layers": legend_layers, "layout_template": layout_template, "scale_strategy": scale_strategy, "credits": build_product_credit(params, context)}
     imports = _imports()
     layout = imports["QgsPrintLayout"](project())
     layout.initializeDefaults()

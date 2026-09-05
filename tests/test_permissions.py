@@ -85,12 +85,20 @@ class PermissionTests(unittest.TestCase):
             validate_command({"action": "status", "params": {"script": "__import__('os')"}})
 
     def test_atlas_report_actions_are_capability_wrapped(self):
+        # create_atlas (e o resto da família de atlas) foi desabilitado na
+        # auditoria de catálogo pré-1.0: o registro em memória nunca virava
+        # um QgsLayoutAtlas de verdade — ver tests/test_catalogue_is_reality.py
+        # para o motivo completo e a prova de que a desabilitação fecha o
+        # ciclo (fora de groups/dry_run_supported/atlas_report_capabilities,
+        # dentro de disabled_actions, com uma razão em limitations).
         payload = capabilities_payload()
         self.assertIn("atlas_reports", payload["groups"])
-        self.assertIn("create_atlas", payload["groups"]["atlas_reports"])
+        self.assertIn("create_report", payload["groups"]["atlas_reports"])
         self.assertIn("export_report_html", payload["groups"]["atlas_reports"])
-        self.assertIn("create_atlas", payload["dry_run_supported"])
-        self.assertIn("create_atlas", payload["atlas_report_capabilities"])
+        self.assertIn("create_report", payload["dry_run_supported"])
+        self.assertIn("create_report", payload["atlas_report_capabilities"])
+        self.assertIn("create_atlas", payload["disabled_actions"])
+        self.assertNotIn("create_atlas", payload["groups"]["atlas_reports"])
 
     def test_data_source_actions_are_capability_wrapped(self):
         payload = capabilities_payload()

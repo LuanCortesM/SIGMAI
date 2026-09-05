@@ -74,7 +74,7 @@ Eleven MCP tools, deliberately few, each with a validated input schema:
 | `sigmai_capabilities` | ✓ | | Full command catalogue with permission levels |
 | `sigmai_run_command` | ✓ | ✓ | Any catalogued command: vector, raster, Processing, symbology, workflows |
 
-Behind them sit 221 catalogued commands. `sigmai_run_command` reaches all of them; the dedicated tools exist because a typed schema produces fewer wrong calls than a free-form escape hatch.
+Behind them sit 221 catalogued commands, 208 of them enabled. `sigmai_run_command` reaches all of the enabled ones; the dedicated tools exist because a typed schema produces fewer wrong calls than a free-form escape hatch. The 13 disabled commands (the atlas family, the PostGIS family and `create_map_hierarchy`) are refused by the bridge as if they did not exist and listed in `get_capabilities` with the reason — the catalogue describes what the plugin does, not what it might do one day.
 
 ## Access control
 
@@ -137,13 +137,13 @@ The split between `cartography` and the rest is deliberate: `pagespec`, `scaling
 ```bash
 git clone https://github.com/LuanCortesM/SIGMAI.git
 cd SIGMAI
-python -m pytest tests -q          # 438 tests, no QGIS required
+python -m pytest tests -q          # 501 tests; the 32 that need PyQGIS skip themselves without QGIS
 python tools/package_qgis_plugin_zip.py
 ```
 
-Tests that need a live QGIS live in `tools/run_sigmai_*.py` and are run against a real instance. Everything in `tests/` runs on plain Python.
+Tests that need a live QGIS live in `tools/` and run against a real instance: `exercise_commands.py`, `exercise_plugins_and_basemaps.py`, `exercise_third_party_plugin.py`, `scenario_runner.py` (243 multilingual scenarios in `tests/cenarios/`) and `release_battery.py`, the gate a version has to pass before it ships — 672 checks across every template, page, orientation, format, data type and map language. Everything in `tests/` runs on plain Python.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for how to propose changes, report a problem or ask for help, and [docs/ARCHITECTURE.md](docs/MCP_SERVER.md) for the internals.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to propose changes, report a problem or ask for help, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the internals.
 
 ## Security model
 
@@ -169,7 +169,7 @@ Developed by Luan da Silva Cortes Maciel as a research product associated with H
 @software{maciel_sigmai,
   author  = {Maciel, Luan da Silva Cortes},
   title   = {{SIGMAI}: Secure {GIS}-{AI} Interface},
-  version = {0.2.2},
+  version = {1.0.0},
   url     = {https://github.com/LuanCortesM/SIGMAI},
   license = {GPL-3.0-or-later}
 }
