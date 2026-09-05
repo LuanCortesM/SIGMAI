@@ -51,6 +51,11 @@ _PT_BR: dict[str, str] = {
     "painel_b": "Painel B",
     "titulo_padrao": "Mapa",
     "norte_reserva": "N",
+    # Separador de milhar do denominador da escala ("1:250.000"). Um leitor
+    # anglófono lê "1:250.000" como duzentos e cinquenta; o símbolo de
+    # agrupamento é dado por língua a partir do Unicode CLDR (número
+    # "group" de cada locale), a mesma fonte que Qt/QLocale e ICU usam.
+    "separador_milhar": ".",
 }
 
 #: Línguas cobertas com confiança. Cada uma é um dicionário parcial: só as
@@ -71,6 +76,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_a": "Panel A",
         "painel_b": "Panel B",
         "titulo_padrao": "Map",
+        "separador_milhar": ",",
     },
     "es": {
         "fonte": "Fuente: ",
@@ -82,6 +88,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_a": "Panel A",
         "painel_b": "Panel B",
         "titulo_padrao": "Mapa",
+        "separador_milhar": ".",
     },
     "fr": {
         "fonte": "Source : ",
@@ -93,6 +100,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_a": "Panneau A",
         "painel_b": "Panneau B",
         "titulo_padrao": "Carte",
+        "separador_milhar": "\u202f",
     },
     "de": {
         "fonte": "Quelle: ",
@@ -104,6 +112,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_a": "Kartenfeld A",
         "painel_b": "Kartenfeld B",
         "titulo_padrao": "Karte",
+        "separador_milhar": ".",
     },
     "it": {
         "fonte": "Fonte: ",
@@ -115,6 +124,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_a": "Pannello A",
         "painel_b": "Pannello B",
         "titulo_padrao": "Mappa",
+        "separador_milhar": ".",
     },
     "ja": {
         "fonte": "出典：",
@@ -126,6 +136,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_a": "パネルA",
         "painel_b": "パネルB",
         "titulo_padrao": "地図",
+        "separador_milhar": ",",
         "norte_reserva": "北",
     },
     "zh-Hans": {
@@ -138,6 +149,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_a": "图A",
         "painel_b": "图B",
         "titulo_padrao": "地图",
+        "separador_milhar": ",",
         "norte_reserva": "北",
     },
     "zh-Hant": {
@@ -150,6 +162,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_a": "圖A",
         "painel_b": "圖B",
         "titulo_padrao": "地圖",
+        "separador_milhar": ",",
         "norte_reserva": "北",
     },
     "ko": {
@@ -162,6 +175,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_a": "패널 A",
         "painel_b": "패널 B",
         "titulo_padrao": "지도",
+        "separador_milhar": ",",
     },
     "ru": {
         "fonte": "Источник: ",
@@ -173,6 +187,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_a": "Панель А",
         "painel_b": "Панель Б",
         "titulo_padrao": "Карта",
+        "separador_milhar": "\u00a0",
         "norte_reserva": "С",
     },
     # Árabe e hebraico: só o CONTEÚDO destes textos é traduzido aqui. A
@@ -191,6 +206,10 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_a": "اللوحة أ",
         "painel_b": "اللوحة ب",
         "titulo_padrao": "خريطة",
+        # O mapa escreve a escala com algarismos ocidentais (os mesmos da
+        # grade); o CLDR dá "," para o sistema numérico latn em árabe — o
+        # "٬" (U+066C) só acompanha os algarismos arábico-índicos.
+        "separador_milhar": ",",
         "norte_reserva": "ش",
     },
     "he": {
@@ -203,6 +222,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_a": "פאנל א",
         "painel_b": "פאנל ב",
         "titulo_padrao": "מפה",
+        "separador_milhar": ",",
         "norte_reserva": "צ",
     },
     "el": {
@@ -215,6 +235,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_a": "Πλαίσιο Α",
         "painel_b": "Πλαίσιο Β",
         "titulo_padrao": "Χάρτης",
+        "separador_milhar": ".",
         "norte_reserva": "Β",
     },
     "th": {
@@ -227,6 +248,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_a": "แผง A",
         "painel_b": "แผง B",
         "titulo_padrao": "แผนที่",
+        "separador_milhar": ",",
     },
 }
 

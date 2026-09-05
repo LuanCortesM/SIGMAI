@@ -2,6 +2,46 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.0.0] — 2026-09-05
+
+Primeira versão estável. O que separa a 1.0.0 da 0.2.2 não é uma funcionalidade nova, e sim uma propriedade: **o catálogo é igual à realidade**. Toda ação que o `get_capabilities` anuncia executa o que o nome diz; toda ação que não executa foi desabilitada com o motivo escrito; e uma bateria de liberação reproduzível decide se a versão sai.
+
+### Catálogo igual à realidade — 24 esqueletos resolvidos
+
+A auditoria da 0.2.2 encontrou 24 ações que só recusavam com uma marca de "planejado" ou devolviam sucesso sem fazer nada. Dezenove passaram a fazer o que o nome diz; treze foram desabilitadas (208 ações habilitadas de 221 catalogadas):
+
+- **`execute_workflow` executa** passo a passo pelo mesmo `CommandRegistry.execute` da ponte — o mesmo `validate_command`, consentimento, confirmação e `dry_run` por passo que uma chamada direta atravessa. Para no primeiro passo que falha e devolve o que executou e o que falta. Um passo não pode apontar de volta para `execute_workflow`/`run_workflow_template` (`WORKFLOW_UNSAFE_ACTION`). `run_workflow_job` e `run_map_export_job` honram o `dry_run` do chamador em vez de responder "completed" sem ter executado nada.
+- **`export_report_pdf` gera PDF** com o `QTextDocument`/`QPdfWriter` que o próprio QGIS traz; `create_report` descreve o projeto real (camadas com tipo, CRS, contagem de feições e extensão; layouts existentes) em vez de duas seções fixas.
+- **`repair_data_source_path`, `test_service_connection`, `list_ogc_connections`, `list_database_connections`, `gpx_track_length`, `map_gpx_track`** fazem o que o nome diz: repontam a fonte de uma camada quebrada, testam um serviço com tempo-limite curto, listam as conexões OGC e de banco gravadas nas configurações do QGIS (sem expor credencial), medem uma trilha GPX no elipsoide e a compõem num mapa pelo `compose_map`.
+- **`apply_scientific_polygon_style`, `_line_style`, `_point_style`** recusam camada de outra geometria (`GEOMETRY_TYPE_MISMATCH`) — as quatro ações eram aliases do mesmo perfil e produziam saída idêntica; **`apply_boundary_highlight`** ganhou perfil próprio (contorno escuro, sem preenchimento).
+- **Desabilitadas, com o motivo em `capabilities.limitations`:** a família de atlas (`create_atlas`, `configure_atlas_coverage_layer`, `set_atlas_filter_expression`, `set_atlas_sort_expression`, `export_atlas_pdf`, `export_atlas_images`, `generate_map_book`) — um atlas de verdade exige `QgsLayoutAtlas`, que esta versão não implementa, e o que existia era um registro em memória fingindo ser um; a família PostGIS (`inspect_database_connection`, `test_postgis_connection`, `list_postgis_tables`, `load_postgis_layer`, `inspect_postgis_layer`) — um teste real contra o provedor `postgres` mostrou `QgsProviderConnectionException` devolvendo a string de conexão inteira, **senha em texto puro incluída**, e sem um servidor PostGIS para validar a redação em todos os caminhos de erro, cinco ações desabilitadas são mais seguras que cinco que ninguém testou; e `create_map_hierarchy`, um nome de escrita para um alias de leitura. Uma ação desabilitada não existe para o assistente: a ponte a recusa com `ACTION_NOT_ALLOWED`, e `requires_confirmation`/`dry_run_supported` deixam de listá-la. Um teste varre as ações habilitadas atrás de marcas de esqueleto para que a classe de defeito não volte.
+
+### Bateria de liberação — `tools/release_battery.py`
+
+Os testes unitários provam cada peça e os exercitadores provam cada caminho; o que nenhum deles prova é a combinação. A bateria é a matriz: **7 portões, 672 verificações, todas obrigatórias** — as 384 combinações de template × página × orientação × formato × elemento omitido (grade, legenda, inserto); 15 tipos de dado (ponto solto, linha, GPX, KML, multipolígono, raster, CRS misturados, estado inteiro, assunto pequeno em contexto grande, escala imposta, comparação com escala igual e própria, rótulos, camada vazia recusada); as 15 línguas de `map_language`, com a auditoria lendo a língua escrita; 16 recusas nomeadas (página, orientação, dpi, formato, template, campo, língua, escala, camada, parâmetro, pasta, sobrescrita, margem, flag ambígua — nunca traceback, nunca arquivo); folhas de comparação em 10 escritas; o catálogo contra a ponte (toda ação habilitada tem função registrada sem marca de esqueleto, toda desabilitada é recusada); e idempotência. A primeira corrida encontrou os defeitos abaixo. `--full` roda a matriz inteira em pouco mais de um minuto.
+
+### Corrigido — o que a bateria encontrou
+
+- **A auditoria fabricava uma grade-fantasma.** `QgsLayoutItemMap.grid()` *cria* uma grade (habilitada, intervalo zero) quando o quadro não tem nenhuma. O inspetor lia por esse caminho: num mapa pedido com `include_grid=false`, a própria observação criava a grade, CART026/CART027 reprovavam o mapa e CART010 aprovava uma grade que não existia. A leitura passa pela pilha (`grids()`), que não altera o layout inspecionado.
+- **A barra de escala invadia o rodapé.** O item de barra tem altura própria (segmento + espaço até o rótulo + texto + folga), ~10,6 mm com os padrões do QGIS, e ignorava a faixa reservada — em A5 paisagem, template minimalista, a faixa tem 7 mm e o excedente caía sobre a linha de crédito (CART042). Segmento e folgas passam a ser derivados da faixa; o que ainda sobrar sobe para a calha, nunca desce sobre o rodapé.
+- **CART007 acusava falta de fonte em mapas completos em japonês, chinês e francês.** O marcador de procedência era derivado tirando o `:` ASCII; "出典：" (dois-pontos de largura inteira) e "Source : " (espaço francês antes do dois-pontos) viravam marcadores que nunca batem. A comparação passa a normalizar os dois lados.
+- **CART043 contava só o quadro principal** numa folha de dois painéis (27% da área útil, "apoio consumindo a página") quando os mapas ocupam mais da metade. Soma todos os quadros; o inserto continua fora, porque é apoio.
+- **`output_path` do Windows num QGIS em Linux/macOS gravava um arquivo chamado literalmente `C:\Users\...\mapa.png` na pasta corrente e reportava sucesso** — para o POSIX aquilo é um nome relativo com barras invertidas. Um caminho relativo ia parar na pasta corrente do processo do QGIS, que o usuário não conhece. `normalize_output_path` (toda ação da ponte que escreve arquivo) e `compose_map` passam a recusar os dois, nomeando o sistema e pedindo o caminho absoluto; a ponte devolve a recusa como `BAD_REQUEST`, não como erro interno. `..` num caminho absoluto é normalizado.
+- **`format='imagen'` sem `output_path` era aceito calado** — o formato só era validado na hora de exportar. Passa a ser recusado com a lista sempre que informado.
+- **`map_language` desconhecido caía em português com uma nota.** O assistente via a nota; o usuário via um mapa em língua que não pediu. Passa a recusar com a lista das quinze línguas, o mesmo tratamento de `page` e `template` (a grafia continua tolerante: `EN`, `en_US`, `jp`, `zh-TW` resolvem).
+- **A simbologia era aplicada antes da última validação de parâmetro.** Uma página inexistente recusada deixava o projeto do usuário com a simbologia trocada por um mapa que não saiu. A prévia (sem mutação) continua no início; a aplicação de verdade vai para depois da última recusa.
+- **Uma recusa redigida errado:** `.replace(",", ".")` na frase inteira da recusa de `scale` trocava as vírgulas do texto por pontos ("ocupam. cortando parte deles."). O mesmo padrão em CART064 e CART066. Os números passam por um formatador; a frase, não.
+
+### Melhorado
+
+- **O denominador da escala segue a língua do mapa:** `1:250,000` em inglês, `1:250 000` em francês e russo, `1:250.000` em português, espanhol, alemão, italiano e grego — o símbolo de agrupamento do Unicode CLDR de cada língua, conferido contra o `QLocale` do Qt. Um leitor anglófono lia "1:250.000" como duzentos e cinquenta.
+- **Painéis sem `panel_title` recebem rótulos simétricos** ("Painel A"/"Painel B" na língua do mapa). Repetir o título da folha sobre o painel da esquerda punha o mesmo texto duas vezes a dois centímetros de distância.
+- `margin_percent` limitado a 0–100. O runner de cenários pré-cria os alvos de sobrescrita e só injeta confirmação na saída que ele mesmo inventou, para que os cenários de sobrescrita testem o padrão real do compositor.
+
+### O que esta versão não verificou
+
+Duas coisas não têm como ser provadas do ambiente em que a bateria roda: a abertura do plugin dentro de um QGIS 4.1 com interface (o painel é construído contra PyQt6 de verdade em `tools/qt6_panel_check.py`, mas sem a janela do QGIS), e o download ao vivo de `plugins.qgis.org` e de tiles XYZ (a rede é bloqueada; os carregadores são exercitados contra servidores locais). Os dois constam na lista de verificação manual antes do upload.
+
 ## [0.2.2] — 2026-09-04
 
 Rodada de estresse com mapas duplos, trilhas, GPX, raster, CRS misturados, camadas filtradas e páginas de A5 a A2. Nove defeitos, quatro deles do tipo que entrega ao usuário um mapa diferente do que o assistente descreveu.

@@ -97,6 +97,11 @@ def _skip(detail: str, **evidence: Any) -> CheckOutcome:
     return CheckOutcome(STATUS_SKIP, detail, evidence)
 
 
+def _num(value: float) -> str:
+    """Inteiro com ponto de milhar, em português — só o número, nunca a frase."""
+    return f"{float(value):,.0f}".replace(",", ".")
+
+
 # ---------------------------------------------------------------------------
 # Auxiliares de leitura da observação
 # ---------------------------------------------------------------------------
@@ -307,12 +312,24 @@ def _localized_credit_markers(key: str) -> tuple[str, ...]:
     """
     from .maptext import MAP_TEXT
 
+    # Japonês e chinês pontuam com dois-pontos de largura inteira ("出典：") e
+    # o francês põe um espaço antes ("Source : "). Tirar só o ":" ASCII deixava
+    # "出典：" e "Source " inteiros, os marcadores viravam "出典：:" e "source :"
+    # — que nunca batem — e CART007 acusava falta de fonte em mapas japoneses
+    # e franceses com data_source preenchido. Aqui o marcador é a palavra
+    # seguida de ":"; _check_source_credit normaliza o texto do mesmo jeito.
     markers: set[str] = set()
     for table in MAP_TEXT.values():
-        value = str(table.get(key, "")).strip().rstrip(":").strip().lower()
+        value = _normalise_credit_text(str(table.get(key, ""))).strip().rstrip(":").strip()
         if value:
             markers.add(f"{value}:")
     return tuple(sorted(markers))
+
+
+def _normalise_credit_text(text: str) -> str:
+    """Minúsculas, dois-pontos ASCII e sem espaço antes dele — para que
+    "Source : X", "出典：X" e "Fonte: X" sejam comparáveis com um só marcador."""
+    return str(text).lower().replace("：", ":").replace(" :", ":")
 
 
 #: Marcadores de procedência aceitos na linha de crédito: os originais em pt
@@ -340,10 +357,10 @@ def _check_source_credit(observation: dict[str, Any]) -> CheckOutcome:
     "Produzido com SIGMAI/QGIS", um mapa sem nenhuma fonte declarada passava com
     nota A — e chegava ao usuário parecendo citável sem ser.
     """
-    textos = [str(item.get("text", "")).lower() for item in _texts(observation)]
+    textos = [_normalise_credit_text(item.get("text", "")) for item in _texts(observation)]
     fonte_item = _item_by_role(observation, "source")
     if fonte_item:
-        textos.append(str(fonte_item.get("text", "")).lower())
+        textos.append(_normalise_credit_text(fonte_item.get("text", "")))
     junto = " · ".join(t for t in textos if t.strip())
     if not junto.strip():
         return _fail("Falta a linha de fonte dos dados e autoria. Sem procedência o mapa não é citável.")
@@ -508,18 +525,22 @@ def _check_no_overlaps(observation: dict[str, Any]) -> CheckOutcome:
 def _check_map_dominance(observation: dict[str, Any]) -> CheckOutcome:
     page = observation.get("page") or {}
     content = page.get("content_area_mm") or {}
-    map_item = _item_by_role(observation, "map")
-    if not map_item or not content:
+    # Numa folha de comparação o assunto são os DOIS quadros; contar só o
+    # principal dava 27% e acusava de "apoio consumindo a página" um layout
+    # em que os mapas ocupam mais da metade. O inserto não entra: ele é apoio.
+    map_items = [item for item in _items(observation) if item.get("role") == "map"]
+    if not map_items or not content:
         return _skip("Sem quadro de mapa ou área útil para comparar.")
     content_area = float(content.get("width", 0)) * float(content.get("height", 0))
-    map_area = float(map_item.get("width", 0)) * float(map_item.get("height", 0))
+    map_area = sum(float(item.get("width", 0)) * float(item.get("height", 0)) for item in map_items)
     if content_area <= 0:
         return _skip("Área útil nula.")
     ratio = map_area / content_area
+    quadros = "O quadro do mapa ocupa" if len(map_items) == 1 else f"Os {len(map_items)} quadros de mapa ocupam"
     if ratio >= MAP_DOMINANCE_MIN:
-        return _pass(f"O quadro do mapa ocupa {ratio:.0%} da área útil.")
+        return _pass(f"{quadros} {ratio:.0%} da área útil.")
     return _fail(
-        f"O quadro do mapa ocupa apenas {ratio:.0%} da área útil. "
+        f"{quadros} apenas {ratio:.0%} da área útil. "
         "Os elementos de apoio estão consumindo a página.",
         map_area_ratio=round(ratio, 3),
     )
@@ -588,12 +609,13 @@ def _check_crs_suits_extent(observation: dict[str, Any]) -> CheckOutcome:
     xmin, xmax = float(extent.get("xmin", 0)), float(extent.get("xmax", 0))
     low, high = UTM_EASTING_RANGE
     if low <= xmin and xmax <= high:
-        return _pass(f"As coordenadas E ({xmin:,.0f} a {xmax:,.0f}) estão dentro da faixa da zona.".replace(",", "."))
+        return _pass(f"As coordenadas E ({_num(xmin)} a {_num(xmax)}) estão dentro da faixa da zona.")
+    # Os números passam por _num, e não a frase inteira por .replace(",", "."):
+    # a versão anterior trocava também a vírgula de ", fora da faixa" por ponto.
     return _fail(
-        f"O mapa está em UTM mas cobre coordenadas E de {xmin:,.0f} a {xmax:,.0f}, fora da faixa "
-        f"utilizável da zona ({low:,.0f} a {high:,.0f}). A escala impressa não vale para toda a folha. "
-        "Para recortes estaduais ou maiores use uma projeção cônica ou a Policônica do Brasil."
-        .replace(",", "."),
+        f"O mapa está em UTM mas cobre coordenadas E de {_num(xmin)} a {_num(xmax)}, fora da faixa "
+        f"utilizável da zona ({_num(low)} a {_num(high)}). A escala impressa não vale para toda a folha. "
+        "Para recortes estaduais ou maiores use uma projeção cônica ou a Policônica do Brasil.",
         easting_range=[xmin, xmax],
     )
 
@@ -606,7 +628,7 @@ def _check_comparison_panels(observation: dict[str, Any]) -> CheckOutcome:
     if len(scales) < 2:
         return _skip("Não foi possível medir a escala dos quadros.")
     if max(scales) / min(scales) <= 1.02:
-        return _pass(f"Os {len(frames)} quadros estão na mesma escala (1:{min(scales):,.0f}).".replace(",", "."))
+        return _pass(f"Os {len(frames)} quadros estão na mesma escala (1:{_num(min(scales))}).")
 
     has_bar = bool((observation.get("scalebar") or {}).get("item_id"))
     captions = [
@@ -617,9 +639,8 @@ def _check_comparison_panels(observation: dict[str, Any]) -> CheckOutcome:
         return _pass("Os quadros têm escalas diferentes e cada um anuncia a sua.")
     return _fail(
         f"O layout tem {len(frames)} quadros de mapa em escalas diferentes "
-        f"(1:{min(scales):,.0f} a 1:{max(scales):,.0f}) e uma indicação de escala única. "
-        "O leitor vai comparar tamanhos entre os painéis e a comparação não se sustenta."
-        .replace(",", "."),
+        f"(1:{_num(min(scales))} a 1:{_num(max(scales))}) e uma indicação de escala única. "
+        "O leitor vai comparar tamanhos entre os painéis e a comparação não se sustenta.",
         scales=scales,
     )
 
@@ -664,7 +685,7 @@ def _check_output_written(observation: dict[str, Any]) -> CheckOutcome:
     size = int(output.get("size_bytes") or 0)
     floor = 10_000 if str(output.get("format", "")).lower() == "png" else 5_000
     if size >= floor:
-        return _pass(f"Saída gravada com {size:,} bytes.".replace(",", "."))
+        return _pass(f"Saída gravada com {_num(size)} bytes.")
     return _fail(f"A saída tem apenas {size} bytes, abaixo do piso de {floor}; provável exportação vazia.", size_bytes=size)
 
 

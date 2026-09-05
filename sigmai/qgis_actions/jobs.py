@@ -174,7 +174,16 @@ def run_processing_job(params: dict[str, Any], context: dict[str, Any]):
 
 
 def run_workflow_job(params: dict[str, Any], context: dict[str, Any]):
-    return start_job({"action": "dry_run_workflow", "params": params, "dry_run": False, "name": "SIGMAI workflow dry-run job"}, context)
+    # Honra o dry_run do chamador em vez de sempre despachar dry_run_workflow
+    # com dry_run=False: aquele padrão antigo respondia "completed" sem nunca
+    # ter executado nada de verdade. Sem dry_run, a ação despachada é
+    # execute_workflow (que agora executa passo a passo de verdade); se o
+    # runner de jobs não permitir isso ainda (mutações reais em background
+    # continuam restritas a leitura/dry-run — ver _validate_job_action), a
+    # recusa chega explicando o motivo, e não como sucesso fingido.
+    dry_run = bool(params.get("dry_run", True))
+    name = "SIGMAI workflow dry-run job" if dry_run else "SIGMAI workflow execution job"
+    return start_job({"action": "execute_workflow", "params": params, "dry_run": dry_run, "name": name}, context)
 
 
 def run_raster_job(params: dict[str, Any], context: dict[str, Any]):
@@ -185,7 +194,14 @@ def run_raster_job(params: dict[str, Any], context: dict[str, Any]):
 
 
 def run_map_export_job(params: dict[str, Any], context: dict[str, Any]):
+    # Honra o dry_run do chamador (antes era fixo em True, então um export
+    # pedido de verdade nunca acontecia e a ponte respondia sucesso mesmo
+    # assim). Sem dry_run, a ação de mapa roda para valer; se o runner de
+    # jobs recusar (mutação real fora de dry-run — ver _validate_job_action),
+    # a recusa explica o motivo em vez de fingir que o export ocorreu.
     action = str(params.get("map_action", "generate_professional_map"))
     command_params = dict(params)
     command_params.pop("map_action", None)
-    return start_job({"action": action, "params": command_params, "dry_run": True, "name": f"SIGMAI map export dry-run job {action}"}, context)
+    dry_run = bool(params.get("dry_run", True))
+    name = f"SIGMAI map export job {action}" if dry_run else f"SIGMAI map export execution job {action}"
+    return start_job({"action": action, "params": command_params, "dry_run": dry_run, "name": name}, context)

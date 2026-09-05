@@ -214,10 +214,32 @@ def _role_for(item_id: str, type_name: str, text: str) -> str:
     return type_name
 
 
+def _existing_grid(map_item: Any) -> Any:
+    """Primeira grade já existente no quadro, ou None.
+
+    ``QgsLayoutItemMap.grid()`` *cria* uma grade quando o quadro não tem
+    nenhuma — habilitada e com intervalo zero. Observar um mapa sem grade por
+    esse caminho fabricava uma grade-fantasma: o regulamento passava a acusar
+    CART026/CART027 num mapa que o usuário pediu explicitamente sem grade, e
+    CART010 aprovava uma grade que não existia. A leitura passa pela pilha
+    (``grids()``), que não altera o layout inspecionado.
+    """
+    grids = getattr(map_item, "grids", None)
+    stack = _safe(grids) if callable(grids) else None
+    if stack is None:
+        return None
+    try:
+        if int(stack.size()) <= 0:
+            return None
+        return stack.grid(0)
+    except Exception:
+        return None
+
+
 def _observe_map(map_item: Any, data_extent: dict[str, float] | None, ink_fraction: float | None) -> dict[str, Any]:
     crs = _safe(map_item.crs)
     layers = _safe(map_item.layers, []) or []
-    grid = _safe(map_item.grid)
+    grid = _existing_grid(map_item)
 
     info: dict[str, Any] = {
         "item_id": _safe(map_item.id, "") or "",

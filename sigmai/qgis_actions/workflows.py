@@ -17,6 +17,14 @@ def _workflow_dir() -> Path:
     return path
 
 
+#: Ações de orquestração de workflow: um passo apontando de volta para uma
+#: destas recriaria a própria pilha de execução (execute_workflow chamando
+#: execute_workflow chamando...) sem nunca terminar. jobs.py já bloqueia a
+#: recursão equivalente para start_job/run_*_job; este é o mesmo bloqueio
+#: para workflows, agora que execute_workflow de fato executa passo a passo.
+WORKFLOW_RECURSION_BLOCKED = frozenset({"execute_workflow", "run_workflow_template"})
+
+
 def _validate_steps(steps: Any, registered_actions: list[str]) -> list[dict[str, Any]]:
     if not isinstance(steps, list) or not steps:
         raise ValidationError("BAD_REQUEST", "workflow steps must be a non-empty list.", {"steps_type": type(steps).__name__})
@@ -30,6 +38,8 @@ def _validate_steps(steps: Any, registered_actions: list[str]) -> list[dict[str,
             raise ValidationError("BAD_REQUEST", "workflow step action is required.", {"index": index})
         if action not in allowed:
             raise ValidationError("ACTION_NOT_ALLOWED", "workflow step action is not registered.", {"index": index, "action": action})
+        if action in WORKFLOW_RECURSION_BLOCKED:
+            raise ValidationError("WORKFLOW_UNSAFE_ACTION", "A workflow step cannot itself trigger workflow execution.", {"index": index, "action": action})
         permission = permission_for(action)
         if permission and permission.permission_level in {"dangerous_plugin_write", "unsafe_developer"}:
             raise ValidationError("WORKFLOW_UNSAFE_ACTION", "Dangerous actions are not allowed inside workflows.", {"index": index, "action": action})
@@ -58,29 +68,85 @@ def plan_workflow(params: dict[str, Any], context: dict[str, Any]):
         "workflow_name": params.get("name", "SIGMAI workflow"),
         "step_count": len(steps),
         "steps": steps,
-        "planned_outputs": outputs,
+        "step_outputs": outputs,
         "warnings": warnings,
-        "execution_policy": "planning_only_until_job_runner_is_enabled",
+        "execution_policy": "dry_run_preview_or_step_by_step_execution",
     }
 
 
 def dry_run_workflow(params: dict[str, Any], context: dict[str, Any]):
     plan = plan_workflow(params, context)
     plan["dry_run"] = True
-    plan["changes"] = ["Validate workflow structure and report the planned command sequence without executing QGIS mutations."]
+    plan["changes"] = ["Validate workflow structure and report the step sequence without executing QGIS mutations."]
     return plan
 
 
 def execute_workflow(params: dict[str, Any], context: dict[str, Any]):
+    """Executa um workflow passo a passo pelo mesmo caminho validado da ponte.
+
+    Cada passo vira um comando completo despachado por
+    ``context["command_executor"]`` (o ``CommandRegistry.execute`` da própria
+    ponte) — o mesmo ``validate_command`` que qualquer chamada direta atra-
+    vessa, então consentimento, confirmação e ``dry_run`` por passo valem
+    exatamente como valeriam se o passo tivesse sido pedido sozinho. Para no
+    primeiro passo que falhar e devolve o que já executou e o que ainda falta,
+    em vez de abortar o workflow inteiro sem dizer onde parou.
+    """
     plan = plan_workflow(params, context)
     if context.get("dry_run"):
         plan["dry_run"] = True
         return plan
-    raise ValidationError(
-        "WORKFLOW_EXECUTION_NOT_ENABLED",
-        "Workflow execution is intentionally disabled until the SIGMAI job runner is available. Use dry_run_workflow or execute individual steps.",
-        {"step_count": plan["step_count"]},
-    )
+    executor = context.get("command_executor")
+    if executor is None:
+        raise ValidationError(
+            "WORKFLOW_EXECUTOR_UNAVAILABLE",
+            "Workflow execution requires the bridge's command dispatcher (context['command_executor']), "
+            "which this call context does not provide.",
+            {"step_count": plan["step_count"]},
+        )
+    executed_steps: list[dict[str, Any]] = []
+    for step in plan["steps"]:
+        command = {
+            "schema_version": "0.3",
+            "action": step["action"],
+            "params": step["params"],
+            "dry_run": step["dry_run"],
+        }
+        response = executor(command)
+        entry = {
+            "step": step["index"],
+            "action": step["action"],
+            "dry_run": step["dry_run"],
+            "ok": bool(response.get("ok")),
+        }
+        if response.get("ok"):
+            entry["result"] = response.get("data")
+            executed_steps.append(entry)
+            continue
+        entry["errors"] = response.get("errors", [])
+        executed_steps.append(entry)
+        pending_steps = [
+            {"step": pending["index"], "action": pending["action"]}
+            for pending in plan["steps"]
+            if pending["index"] > step["index"]
+        ]
+        return {
+            "workflow_name": plan["workflow_name"],
+            "step_count": plan["step_count"],
+            "executed_steps": executed_steps,
+            "pending_steps": pending_steps,
+            "stopped_at_step": step["index"],
+            "ok": False,
+            "dry_run": False,
+        }
+    return {
+        "workflow_name": plan["workflow_name"],
+        "step_count": plan["step_count"],
+        "executed_steps": executed_steps,
+        "pending_steps": [],
+        "ok": True,
+        "dry_run": False,
+    }
 
 
 def save_workflow_template(params: dict[str, Any], context: dict[str, Any]):

@@ -333,8 +333,9 @@ TOOLS: list[dict[str, Any]] = [
                 "crédito da ferramenta. NÃO afeta title/subtitle/legend_title/data_source/map_author, "
                 "que já saem na língua em que você os escreveu. Padrão 'pt-BR'. Aceita 'pt-BR', 'en', "
                 "'es', 'fr', 'de', 'it', 'ja', 'zh-Hans', 'zh-Hant', 'ko', 'ru', 'ar', 'he', 'el', 'th' "
-                "(e variantes tolerantes como 'pt', 'zh-CN', 'PT-br'). Uma língua desconhecida cai em "
-                "pt-BR sem recusar. Use a mesma língua em que o usuário está conversando — não pergunte, "
+                "(e variantes tolerantes como 'pt', 'zh-CN', 'PT-br'). Uma língua fora dessa lista é "
+                "recusada com a lista — escolha então a mais próxima (em geral 'en'). Use a mesma língua "
+                "em que o usuário está conversando — não pergunte, "
                 "escolha pela língua da conversa; um mapa não deve sair com metade do texto em "
                 "português quando o pedido foi feito noutra língua."
             )},

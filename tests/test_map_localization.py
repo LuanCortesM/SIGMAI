@@ -120,7 +120,13 @@ class VarreduraDeTodasAsChavesEmTodasAsLinguas(unittest.TestCase):
                 with self.subTest(lingua=lingua, chave=chave):
                     texto = maptext(lingua, chave)
                     self.assertIsInstance(texto, str)
-                    self.assertTrue(texto.strip(), f"{lingua}/{chave} devolveu vazio")
+                    if chave == "separador_milhar":
+                        # O separador de milhar do francês e do russo é um
+                        # espaço (fino/inseparável, pelo CLDR): não vazio,
+                        # mas legitimamente "só espaço".
+                        self.assertEqual(len(texto), 1, f"{lingua}/{chave} devolveu {texto!r}")
+                    else:
+                        self.assertTrue(texto.strip(), f"{lingua}/{chave} devolveu vazio")
 
     def test_nenhuma_lingua_declara_chave_que_pt_br_nao_tem(self) -> None:
         # Uma chave órfã (só numa língua, ausente do fallback) quebraria a
@@ -416,17 +422,31 @@ class MarcadoresDeProcedenciaAcompanhamMapLanguage(unittest.TestCase):
             with self.subTest(original=original):
                 self.assertIn(original, SOURCE_MARKERS + AUTHOR_MARKERS)
 
+    # O marcador é a palavra normalizada (minúsculas, dois-pontos ASCII, sem o
+    # espaço francês antes dele) seguida de ":" — a mesma normalização que
+    # _check_source_credit aplica ao texto do rodapé. "出典：" e "Source : "
+    # precisam bater tanto quanto "Fonte: ".
+    @staticmethod
+    def _marcador(texto: str) -> str:
+        from sigmai.cartography.rulebook import _normalise_credit_text
+
+        return _normalise_credit_text(texto).strip().rstrip(":").strip() + ":"
+
     def test_fonte_traduzida_e_reconhecida_como_marcador_de_procedencia(self) -> None:
         for lingua in MAP_TEXT:
-            marcador_fonte = maptext(lingua, "fonte").strip().rstrip(":").strip().lower() + ":"
             with self.subTest(lingua=lingua):
-                self.assertIn(marcador_fonte, SOURCE_MARKERS)
+                self.assertIn(self._marcador(maptext(lingua, "fonte")), SOURCE_MARKERS)
 
     def test_elaboracao_traduzida_e_reconhecida_como_marcador_de_autoria(self) -> None:
         for lingua in MAP_TEXT:
-            marcador_autor = maptext(lingua, "elaboracao").strip().rstrip(":").strip().lower() + ":"
             with self.subTest(lingua=lingua):
-                self.assertIn(marcador_autor, AUTHOR_MARKERS)
+                self.assertIn(self._marcador(maptext(lingua, "elaboracao")), AUTHOR_MARKERS)
+
+    def test_pontuacao_de_largura_inteira_e_espaco_frances_sao_normalizados(self) -> None:
+        from sigmai.cartography.rulebook import _normalise_credit_text
+
+        self.assertEqual(_normalise_credit_text("出典：IBGE"), "出典:ibge")
+        self.assertEqual(_normalise_credit_text("Source : IBGE"), "source: ibge")
 
 
 if __name__ == "__main__":
