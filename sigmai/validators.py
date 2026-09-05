@@ -1,4 +1,11 @@
+"""Validação do envelope de comando: ação conhecida, parâmetros bem formados, confirmações e Modo DEV."""
+
 from __future__ import annotations
+
+#: A palavra de confirmação do Modo DEV. "SIM" para a interface em português,
+#: "YES" para a interface em inglês — a caixa de diálogo mostra a da língua
+#: ativa, e o código aceita as duas.
+DEV_MODE_CONFIRMATION_WORDS = frozenset({"SIM", "YES"})
 
 from typing import Any
 
@@ -93,7 +100,7 @@ def validate_command(command: Any, unsafe_developer_mode: bool = False) -> dict[
                 params.get("confirm_action"),
                 params.get(f"confirm_{action}"),
                 params.get("confirm_plugin_write"),
-                str(params.get("confirm_dev_python", "")).strip().upper() == "SIM",
+                str(params.get("confirm_dev_python", "")).strip().upper() in DEV_MODE_CONFIRMATION_WORDS,
             )
         )
         if not confirmed:

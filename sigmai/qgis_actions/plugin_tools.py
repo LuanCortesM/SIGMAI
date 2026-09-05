@@ -31,7 +31,7 @@ PLUGIN_PACKAGE_EXCLUDES = {
 }
 PLUGIN_FILE_EXCLUDES = {".pyc", ".pyo", ".log", ".jsonl"}
 ICON_EXTENSIONS = {".svg", ".png", ".ico", ".jpg", ".jpeg"}
-SELF_NAMES = {"sigmai", "SIGMAI".lower(), "sigmai", "sigmai ai", "sigmai", "SIGMAI".lower()}
+SELF_NAMES = {"sigmai", "sigmai ai", "sigmai-ai", "sigmai_ai"}
 OFFICIAL_PLUGIN_REPOSITORY_URL = "https://plugins.qgis.org/plugins/plugins.xml"
 OFFICIAL_PLUGIN_HOSTS = {"plugins.qgis.org"}
 MAX_SAFE_REPOSITORY_XML_BYTES = 25_000_000
@@ -523,7 +523,7 @@ def list_qgis_plugins_extended(params: dict[str, Any], context: dict[str, Any]):
         except Exception:
             pass
         risk_level = "medium" if has_provider else "low"
-        if plugin_name.lower() in {"sigmai", "sigmai"}:
+        if plugin_name.lower() in SELF_NAMES:
             risk_level = "self_management_required"
         plugins.append(
             {
@@ -743,61 +743,62 @@ BRIEFING_FULL_CONTRACT_LIMIT = 12
 def _provider_health(plugin_name: str, display_name: str) -> dict[str, Any]:
     """Diagnostica o registro do provedor de Processing daquele plugin.
 
-    Dizer "este plugin não tem algoritmos" quando o provedor existe mas está
+    Dizer "este plugin não tem algorithms" quando o provedor existe mas está
     mal registrado leva quem está depurando o próprio plugin para o caminho
     errado. Os dois modos de falha que aparecem na prática:
 
     * provedor com ``id()`` vazio — o objeto Python foi coletado depois de
       ``addProvider`` (a referência não foi guardada em ``self``), e o que
       sobrou no registro não responde mais aos métodos virtuais;
-    * provedor registrado e com zero algoritmos — ``loadAlgorithms`` não
+    * provedor registrado e com zero algorithms — ``loadAlgorithms`` não
       chamou ``addAlgorithm``, ou levantou exceção silenciosa.
     """
-    saude: dict[str, Any] = {"registered": False, "algorithm_count": 0, "warnings": []}
+    health: dict[str, Any] = {"registered": False, "algorithm_count": 0, "warnings": []}
     try:
         from qgis.core import QgsApplication  # type: ignore
 
         registry = QgsApplication.processingRegistry()
         providers = list(registry.providers() or [])
     except Exception as exc:
-        saude["warnings"].append(f"Não foi possível ler o registro do Processing: {exc}")
-        return saude
+        health["warnings"].append(f"Não foi possível ler o registro do Processing: {exc}")
+        return health
 
-    anonimos = [item for item in providers if not str(_safe_call(item.id) or "").strip()]
-    if anonimos:
-        saude["warnings"].append(
-            f"Há {len(anonimos)} provedor(es) no registro do Processing sem id. Isso costuma "
+    anonymous = [item for item in providers if not str(_safe_call(item.id) or "").strip()]
+    if anonymous:
+        health["warnings"].append(
+            f"Há {len(anonymous)} provedor(es) no registro do Processing sem id. Isso costuma "
             "significar que o objeto do provedor foi coletado pelo Python depois de "
             "addProvider(): guarde-o num atributo do plugin (self.provider = ...) em initGui, "
             "senão o registro fica com um objeto que não responde mais."
         )
     for item in providers:
-        identificador = str(_safe_call(item.id) or "")
-        nome = str(_safe_call(item.name) or "")
-        if not _matches_plugin_provider(plugin_name, display_name, identificador, nome):
+        identifier = str(_safe_call(item.id) or "")
+        name = str(_safe_call(item.name) or "")
+        if not _matches_plugin_provider(plugin_name, display_name, identifier, name):
             continue
-        saude["registered"] = True
-        saude["provider_id"] = identificador
-        saude["provider_name"] = nome
+        health["registered"] = True
+        health["provider_id"] = identifier
+        health["provider_name"] = name
         try:
-            algoritmos = list(item.algorithms() or [])
+            algorithms = list(item.algorithms() or [])
         except Exception:
-            algoritmos = []
-        saude["algorithm_count"] = len(algoritmos)
-        if not algoritmos:
-            saude["warnings"].append(
-                f"O provedor {identificador!r} está registrado e não expõe nenhum algoritmo. "
+            algorithms = []
+        health["algorithm_count"] = len(algorithms)
+        if not algorithms:
+            health["warnings"].append(
+                f"O provedor {identifier!r} está registrado e não expõe nenhum algoritmo. "
                 "Confira se loadAlgorithms() chama addAlgorithm() e se createInstance() do "
                 "algoritmo devolve uma instância nova."
             )
-    return saude
+    return health
 
 
 def _safe_call(metodo: Any) -> Any:
-    try:
-        return metodo()
-    except Exception:
-        return None
+    """Chama sem argumentos e engole a exceção. É o mesmo ajudante de
+    ``cartography.inspector._safe``; fica aqui só como nome local."""
+    from ..cartography.inspector import _safe
+
+    return _safe(metodo, None)
 
 
 def _briefing_test_plan(plugin_name: str, algoritmos: list[dict[str, Any]],

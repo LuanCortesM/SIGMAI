@@ -575,7 +575,6 @@ class MCPServer:
     def __init__(self) -> None:
         self.transport = StdioTransport()
         self.protocol_version = FALLBACK_PROTOCOL_VERSION
-        self.initialized = False
 
     # -- laço principal ---------------------------------------------------
     def run(self) -> int:
@@ -607,7 +606,6 @@ class MCPServer:
         # Notificações não recebem resposta, nunca.
         if message_id is None:
             if method == "notifications/initialized":
-                self.initialized = True
                 log("cliente inicializado")
             return
 
@@ -701,6 +699,15 @@ class MCPServer:
 
 
 def _plugin_version() -> str:
+    """Versão do plugin. Este servidor roda como processo separado, então tenta
+    o leitor único do pacote e, se o pacote não estiver importável, lê o
+    metadata.txt direto — a mesma regra, num só lugar de reserva."""
+    try:
+        from sigmai.bridge_server import plugin_version  # type: ignore
+
+        return plugin_version()
+    except Exception:
+        pass
     metadata = _ROOT / "metadata.txt"
     if not metadata.exists():
         metadata = _ROOT / "sigmai" / "metadata.txt"

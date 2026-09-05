@@ -184,10 +184,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "step3_running": "Testing…",
         "step3_never": "Not tested yet.",
 
-        "access_title": "What the AI may do in this QGIS",
+        "access_title": "What the AI may do in this QGIS project",
         "access_hint": "Read commands and dry runs always work. This choice governs actions that change the project or write files.",
         "mode_read_only": "Read only",
-        "mode_read_only_hint": "The AI inspects and simulates; nothing is changed or written. Recommended to start.",
+        "mode_read_only_hint": "The AI inspects and simulates; nothing is changed or written. Recommended when you are getting started.",
         "mode_ask": "Ask every time",
         "mode_ask_hint": "Every changing action opens a confirmation showing exactly what will happen.",
         "mode_allow": "Allow for this session",
@@ -229,7 +229,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "advanced_write_session": "Write the session file so AI clients can find the bridge",
         "advanced_persist_token": "Keep the same token across QGIS sessions",
         "advanced_persist_hint": "Without this the token changes every time QGIS starts and the client configuration must be redone.",
-        "advanced_token_warning": "Treat the token as a password. Anyone holding it can drive this QGIS through the local bridge.",
+        "advanced_token_warning": "Treat the token as a password. Anyone holding it can control this QGIS instance through the local bridge.",
 
         "dev_title": "Developer Mode",
         "dev_hint": "Enables Python execution inside QGIS for plugin development. Off by default.",
@@ -239,12 +239,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "dev_enable": "Enable DEV mode",
         "dev_disable": "Disable DEV mode",
         "dev_dialog_title": "Enable SIGMAI DEV mode",
-        "dev_dialog_prompt": "Type SIM to confirm:",
+        "dev_dialog_prompt": "Type YES to confirm:",
 
         "help_title": "How SIGMAI works",
         "help_what_title": "What this is",
         "help_what": (
-            "SIGMAI opens a door between QGIS and an AI assistant. You talk to the assistant in "
+            "SIGMAI opens a channel between QGIS and an AI assistant. You talk to the assistant in "
             "plain language; it drives QGIS for you and hands back the finished map. You do not "
             "need to know where the QGIS menus are, nor what scale, projection or legend mean — "
             "SIGMAI handles that and tells you what it did."
@@ -261,7 +261,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "help_ask_title": "Two things the assistant will ask you",
         "help_ask": (
             "Where the data came from and who signs the map. Without those two, the map cannot be "
-            "cited in a paper, and SIGMAI refuses to grade it top marks. Map authorship is yours "
+            "cited in a paper, and SIGMAI will not give it a top grade. Map authorship is yours "
             "(or whoever made it) — it is not the authorship of this plugin."
         ),
         "help_quality_title": "The map grade",

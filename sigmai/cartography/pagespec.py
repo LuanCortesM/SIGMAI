@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import difflib
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -105,7 +105,7 @@ _ORIENTATION_VOCAB: dict[str, str] = {
     "橫向": "landscape",
     "横式": "landscape",
     "纵向": "portrait",
-    "縱向": "portrait",
+    "縱向": "portrait", "直向": "portrait",
     "直式": "portrait",
 
     # Coreano.
@@ -204,7 +204,7 @@ def _extract_orientation(text: str) -> tuple[str | None, list[str]]:
                 break
 
     remaining: list[str] = []
-    for word, word_folded, used in zip(words, folded, consumed):
+    for word, word_folded, used in zip(words, folded, consumed, strict=True):
         if used:
             continue
         hit = _ORIENTATION_TERMS.get(word_folded)

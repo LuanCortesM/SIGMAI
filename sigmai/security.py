@@ -1,3 +1,5 @@
+"""Guardas de segurança: varredura de tokens perigosos em campos que carregam código e normalização de caminhos de saída."""
+
 from __future__ import annotations
 
 import os

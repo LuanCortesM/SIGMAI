@@ -43,7 +43,6 @@ MODES = (MODE_READ_ONLY, MODE_ASK, MODE_ALLOW_SESSION)
 
 DECISION_ALLOWED = "allowed"
 DECISION_DENIED = "denied"
-DECISION_PENDING = "pending"
 
 #: Ações que nunca são liberadas por consentimento genérico. Instalar, remover
 #: ou atualizar plugins e executar Python arbitrário mexem no próprio ambiente

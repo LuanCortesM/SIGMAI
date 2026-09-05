@@ -70,7 +70,7 @@ def _check_output(output: str, confirm_overwrite: bool) -> str:
 def _processing_run(algorithm: str, parameters: dict[str, Any]) -> dict[str, Any]:
     if algorithm not in PROCESSING_ALLOWLIST:
         raise ValidationError("PROCESSING_ALGORITHM_BLOCKED", "Algorithm is not in the SIGMAI Processing allowlist.", {"algorithm": algorithm})
-    imports = qgis_imports()
+    qgis_imports()  # só confirma que o PyQGIS está disponível; levanta se não estiver
     resolve_algorithm(algorithm)
     return run_algorithm(algorithm, parameters)
 

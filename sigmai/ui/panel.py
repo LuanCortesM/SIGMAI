@@ -61,7 +61,7 @@ EVENT_LABELS: dict[str, dict[str, str]] = {
 
 try:  # pragma: no cover - só falha fora do QGIS
     from qgis.PyQt.QtCore import Qt  # type: ignore
-    from qgis.PyQt.QtGui import QFont, QIcon, QPixmap  # type: ignore
+    from qgis.PyQt.QtGui import QPixmap  # type: ignore
     from qgis.PyQt.QtWidgets import (  # type: ignore
         QAbstractItemView,
         QCheckBox,
@@ -97,7 +97,6 @@ ALIGN_CENTER = qt_enum(Qt, "AlignmentFlag", "AlignCenter")
 ALIGN_LEFT = qt_enum(Qt, "AlignmentFlag", "AlignLeft")
 ALIGN_RIGHT = qt_enum(Qt, "AlignmentFlag", "AlignRight")
 ALIGN_TOP = qt_enum(Qt, "AlignmentFlag", "AlignTop")
-ALIGN_VCENTER = qt_enum(Qt, "AlignmentFlag", "AlignVCenter")
 SMOOTH = qt_enum(Qt, "TransformationMode", "SmoothTransformation")
 # Texto da Ajuda selecionável: a pessoa precisa poder copiar as frases de exemplo.
 TEXT_SELECTABLE = qt_enum(Qt, "TextInteractionFlag", "TextSelectableByMouse")
@@ -110,8 +109,6 @@ STRETCH = qt_enum(QHeaderView, "ResizeMode", "Stretch")
 # some e vira QSizePolicy.Policy.Fixed. Era o que impedia o painel de abrir
 # no QGIS 4.
 SIZE_FIXED = qt_enum(QSizePolicy, "Policy", "Fixed")
-SIZE_PREFERRED = qt_enum(QSizePolicy, "Policy", "Preferred")
-SIZE_EXPANDING = qt_enum(QSizePolicy, "Policy", "Expanding")
 RESIZE_CONTENTS = qt_enum(QHeaderView, "ResizeMode", "ResizeToContents")
 
 

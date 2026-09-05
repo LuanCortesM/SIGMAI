@@ -4,7 +4,7 @@ import contextlib
 import io
 from typing import Any
 
-from ..validators import ValidationError, require_param
+from ..validators import DEV_MODE_CONFIRMATION_WORDS, ValidationError, require_param
 
 
 BLOCKED_DEV_TOKENS = {
@@ -23,7 +23,7 @@ def dev_mode_status(params: dict[str, Any], context: dict[str, Any]):
     return {
         "enabled": bool(context.get("unsafe_developer_mode", False)),
         "risk_level": "critical",
-        "confirmation_phrase": "SIM",
+        "confirmation_phrase": "SIM ou YES",
         "python_execution_command": "dev_execute_qgis_python",
         "warning": "DEV mode can corrupt the current QGIS session or project. Use only for plugin development and controlled tests.",
     }
@@ -49,7 +49,7 @@ def execute_qgis_python(params: dict[str, Any], context: dict[str, Any]):
                 "Original files are not protected unless the code protects them.",
             ],
         }
-    if str(params.get("confirm_dev_python", "")).strip().upper() != "SIM":
+    if str(params.get("confirm_dev_python", "")).strip().upper() not in DEV_MODE_CONFIRMATION_WORDS:
         raise ValidationError(
             "DEV_CONFIRMATION_REQUIRED",
             "Type SIM in confirm_dev_python to execute QGIS Python in DEV mode.",
