@@ -10,6 +10,7 @@ DEV_MODE_CONFIRMATION_WORDS = frozenset({"SIM", "YES"})
 from typing import Any
 
 from .permissions import (
+    COMMAND_PERMISSIONS,
     DANGEROUS_PLUGIN_WRITE,
     PLUGIN_WRITE,
     READ_ONLY,
@@ -63,7 +64,30 @@ def validate_command(command: Any, unsafe_developer_mode: bool = False) -> dict[
         raise ValidationError("BAD_REQUEST", "Command must include a non-empty action.")
 
     if action not in ALLOWED_ACTIONS:
-        raise ValidationError("ACTION_NOT_ALLOWED", f"Action is not allowed: {action}", {"action": action})
+        # Dois casos que a mensagem antiga ("Action is not allowed") misturava:
+        # um nome que não existe no catálogo — quase sempre um chute do
+        # assistente ("get_features") — e uma ação catalogada mas desabilitada.
+        # O primeiro ganha sugestões pelo nome; o segundo, o motivo.
+        if action in COMMAND_PERMISSIONS:
+            raise ValidationError(
+                "ACTION_NOT_ALLOWED",
+                f"Action is disabled in this version: {action}. See get_capabilities()['maturity_level']['limitations'] for the reason.",
+                {"action": action, "disabled": True},
+            )
+        import difflib
+
+        close = difflib.get_close_matches(action, sorted(ALLOWED_ACTIONS), n=5, cutoff=0.55)
+        by_words = [
+            name for name in sorted(ALLOWED_ACTIONS)
+            if any(word and word in name for word in action.lower().replace("-", "_").split("_") if len(word) > 3)
+        ][:8]
+        suggestions = list(dict.fromkeys(close + by_words))[:8]
+        hint = (" Did you mean: " + ", ".join(suggestions) + "?") if suggestions else ""
+        raise ValidationError(
+            "UNKNOWN_ACTION",
+            f"Unknown action: {action}.{hint} Use get_capabilities(search=...) to find the exact name.",
+            {"action": action, "suggestions": suggestions},
+        )
 
     schema_version = command.get("schema_version", SCHEMA_VERSION)
     if not isinstance(schema_version, str) or not schema_version:

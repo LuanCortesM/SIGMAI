@@ -1,7 +1,7 @@
 [general]
 name=SIGMAI
 description=Secure local bridge between AI assistants and QGIS, with cartographic quality control.
-version=1.0.1
+version=1.0.2
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=MACIEL, L. S. C.
@@ -16,7 +16,15 @@ homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=GPL-3.0-or-later
-changelog=1.0.1
+changelog=1.0.2
+    - Teste com um assistente de IA emulado sem acesso ao computador, falando com o SIGMAI só pelo MCP: mapa nota A nas duas rodadas; o que o obrigou a adivinhar virou correção.
+    - Novo: sigmai_capabilities aceita group, search e names_only, e cada comando lista os parâmetros que lê (parameters, parameters_complete). Parâmetro que um comando não lê volta em warnings em vez de ser ignorado em silêncio.
+    - Novo: sigmai_layer_details devolve de fato amostra de feições, estilo e validade das geometrias; inspect_layer_style mostra o símbolo (cores, contorno, preenchimento) e a origem do estilo; list_layouts descreve páginas, itens e quadros.
+    - Corrigido: nome de comando inexistente recebia ACTION_NOT_ALLOWED; agora UNKNOWN_ACTION com sugestões pelo nome. sigmai_plan_map e sigmai_compose_map publicam o esquema completo do compositor (production_date, auto_projected_crs, margin_mm, round_scale, include_logo…).
+    - Corrigido: um estilo aplicado por apply_single_symbol (ou pela paleta da composição anterior) é preservado por apply_style=missing; a nota do inserto dizia "12x" quando o inserto tinha sido ajustado ao estado inteiro; layout_name existente é substituído em vez de acumular "(2)".
+    - Nova regra CART067: o inserto tem de mostrar a camada de contexto inteira e conter o recorte principal. O nome do CRS na linha de crédito sai na língua do mapa ("UTM zona 24S").
+    - Novo: tools/remote_ai_lab.py e tools/mcp_call.py reproduzem o cenário "IA remota + QGIS local" para qualquer um repetir o teste.
+    1.0.1
     - Corrigido: no tema escuro do QGIS (Night Mapping, Blend of Gray) o painel ficava ilegível — rádios com fundo preto, rótulos cinza sobre cartão branco, faixas escuras dentro dos cartões. O painel passa a seguir o tema do QGIS com uma paleta escura própria (contraste WCAG AA conferido em teste) e a reaplicar o tema quando ele muda; Avançado > Aparência força claro ou escuro.
     - Novo: a interface do painel em nove línguas — português (Brasil), inglês, espanhol, francês, alemão, italiano, japonês, chinês simplificado e chinês tradicional — escolhidas numa lista no cabeçalho, com o nome de cada língua escrito nela mesma. O autoteste, o diálogo de consentimento, a trilha de atividade e as instruções de cada cliente de IA também são traduzidos; antes ficavam em português mesmo em inglês.
     - Corrigido: o negrito das abas era pintado pela folha de estilo mas medido em regular, e o rótulo saía cortado ("Verbindung"); num dock estreito as abas passam a rolar em vez de sumir. O cabeçalho quebra a linha em vez de impor 600 px de largura mínima ao painel.

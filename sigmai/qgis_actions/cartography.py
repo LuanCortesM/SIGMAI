@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from ..cartography.qtcompat import distance_unit, geometry_type as _geometry_type, layout_unit_mm, qt_enum
+from ..cartography.symbology import STYLE_ORIGIN_USER, mark_style_origin
 from ..security import ensure_parent_exists, normalize_output_path, reject_existing_path_without_confirmation
 from ..validators import ValidationError, require_param
 from .common import crs_authid, extent_to_dict, layer_type_name, project
@@ -660,6 +661,7 @@ def set_layer_style(params: dict[str, Any], context: dict[str, Any]):
         symbol = imports["QgsFillSymbol"].createSimple({"color": fill, "style": style, "outline_color": stroke, "outline_width": str(stroke_width)})
         _apply_symbol_layer_color(symbol, fill, stroke, fill_opacity, stroke_opacity, stroke_width, outline_only)
     layer.setRenderer(imports["QgsSingleSymbolRenderer"](symbol))
+    mark_style_origin(layer, STYLE_ORIGIN_USER)
     try:
         layer.setOpacity(opacity if geometry_type != _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Polygon") else 1.0)
     except Exception:
@@ -718,7 +720,15 @@ def apply_boundary_highlight(params: dict[str, Any], context: dict[str, Any]):
     a mesma saída que apply_scientific_polygon_style produzia, byte a byte.
     """
     layer_id = require_param(params, "layer_id", str)
-    result = apply_cartographic_palette({"layer_id": layer_id, "style_profile": "boundary_highlight"}, context)
+    style: dict[str, Any] = dict(STYLE_PROFILES["boundary_highlight"])
+    # Cor e espessura do traço podem ser ajustadas; antes eram aceitas e
+    # ignoradas em silêncio, e a resposta devolvia o preto padrão.
+    if params.get("stroke_color") is not None:
+        style["stroke_color"] = _valid_hex(str(params["stroke_color"]))
+    if params.get("stroke_width") is not None:
+        style["stroke_width"] = float(params["stroke_width"])
+    style["layer_id"] = layer_id
+    result = set_layer_style(style, context)
     result["style_profile"] = "boundary_highlight"
     return result
 

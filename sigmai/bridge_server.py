@@ -189,6 +189,23 @@ class SIGMAIServer:
             self._thread = None
         self.logger.record("bridge_stopped", host=self.host, port=self.port)
 
+    @staticmethod
+    def _project_state() -> dict[str, Any]:
+        try:
+            from qgis.core import QgsProject  # type: ignore
+
+            project = QgsProject.instance()
+            layer_count = len(project.mapLayers())
+            file_name = str(project.fileName() or "")
+            return {
+                "project_loaded": bool(file_name) or layer_count > 0,
+                "project_path": file_name,
+                "project_title": str(project.title() or ""),
+                "layer_count": layer_count,
+            }
+        except Exception:
+            return {"project_loaded": False, "project_path": "", "project_title": "", "layer_count": 0}
+
     def status(self) -> dict[str, Any]:
         current = self._current_command_snapshot()
         return {
@@ -529,13 +546,21 @@ class SIGMAIServer:
                     "host": self.host,
                     "port": self.port,
                     "qgis_version": self.qgis_version,
-                    "project_loaded": None,
+                    # Antes era None — nem true nem false — e o assistente não
+                    # sabia se havia projeto. Agora: há camadas ou há arquivo.
+                    **self._project_state(),
                     "consent": self.consent.status(),
                     **self.status(),
                 }
             elif action == "get_capabilities":
                 data = get_capabilities({"developer_mode": self.unsafe_developer_mode, "unsafe_developer_mode": self.unsafe_developer_mode})
                 data["registered_actions"] = self.registry.actions()
+                # Os parâmetros de cada comando, lidos do próprio manipulador:
+                # sem isto o assistente descobria nomes por tentativa e erro.
+                for name, entry in self.registry.parameter_catalogue().items():
+                    if name in data.get("commands", {}):
+                        data["commands"][name]["parameters"] = entry["reads"]
+                        data["commands"][name]["parameters_complete"] = entry["complete"]
             elif action == "get_bridge_config":
                 data = {
                     "host": self.host,

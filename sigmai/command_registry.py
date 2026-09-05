@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from .parameter_introspection import declared_parameters, unread_parameters
 from .permissions import SCHEMA_VERSION, permission_for
 from .security import OutputPathError
 from .validators import ValidationError, validate_command
@@ -25,6 +26,19 @@ class CommandRegistry:
     def actions(self) -> list[str]:
         return sorted(self._handlers)
 
+    def parameter_catalogue(self) -> dict[str, dict[str, Any]]:
+        """Para cada ação registrada, os parâmetros que o manipulador lê.
+
+        ``complete=True`` quando a lista é exatamente o que a ação lê (e a
+        ponte avisa sobre nomes fora dela); ``False`` quando o manipulador
+        repassa ``params`` a outra função e a lista é só uma dica.
+        """
+        catalogue: dict[str, dict[str, Any]] = {}
+        for action, handler in self._handlers.items():
+            names, closed = declared_parameters(handler)
+            catalogue[action] = {"reads": list(names), "complete": closed}
+        return catalogue
+
     def execute(self, command: dict[str, Any]) -> dict[str, Any]:
         started = time.perf_counter()
         action = command.get("action", "unknown")
@@ -42,7 +56,17 @@ class CommandRegistry:
             handler_context["registered_actions"] = sorted(self._handlers)
             handler_context["command_executor"] = self.execute
             data = handler(normalized.get("params", {}), handler_context)
-            return make_response(True, action, data, [], [], started, self._qgis_context, request_id)
+            # Parâmetro que o manipulador não lê é avisado — nunca engolido.
+            # Só para manipuladores "fechados" (ver parameter_introspection);
+            # um aviso errado seria pior que nenhum.
+            unread, known = unread_parameters(handler, normalized.get("params", {}))
+            warnings: list[str] = []
+            if unread:
+                warnings.append(
+                    f"Parameters not read by '{action}' and therefore ignored: {', '.join(unread)}. "
+                    + (f"This command reads: {', '.join(known)}." if known else "This command takes no parameters.")
+                )
+            return make_response(True, action, data, warnings, [], started, self._qgis_context, request_id)
         except ValidationError as exc:
             return make_response(
                 False,

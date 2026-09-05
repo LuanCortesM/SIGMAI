@@ -21,6 +21,20 @@ Environment variables override the session file field by field: `SIGMAI_HOST`, `
 
 If no session is found, every tool call fails with a message telling the user to open the SIGMAI panel and press **Start bridge** — the server never guesses a token or port.
 
+## Where the pieces run — and what a phone can and cannot do
+
+Three things take part in a conversation, and only one of them is remote:
+
+| Piece | Where it runs | Talks to |
+|---|---|---|
+| The language model (Claude, GPT, …) | the vendor's servers | the MCP client, through the vendor's app |
+| The MCP client (Claude Desktop, Cursor, Codex CLI, Claude Code) | **the computer with QGIS** | launches `sigmai_mcp.py` as a subprocess over stdio |
+| The bridge (the plugin) | inside QGIS, on `127.0.0.1` only | the MCP server, with a bearer token |
+
+The model never touches the computer: everything it knows about the project comes back from tool calls, and everything it does goes through the bridge's validation, consent and audit trail. `tools/remote_ai_lab.py` + `tools/mcp_call.py` reproduce exactly this situation — a headless QGIS with the bridge up, and an "assistant" that may only issue MCP calls — and were used to test the plugin from the model's point of view.
+
+What this means for a person chatting **on their phone** while QGIS runs on their desk: the app on the phone does not contain the MCP client, and the bridge is deliberately unreachable from anything but the computer's own loopback interface (a request from any other address is refused before it reaches a socket; there is no relay, no tunnel and no cloud endpoint). So the phone alone cannot drive QGIS. What does work is keeping the chat *client* on the computer — Claude Desktop, Cursor, Claude Code or Codex open next to QGIS. If you want to type from the phone, the route that certainly works is a remote-desktop app controlling that computer; whether a vendor's mobile app can hand a tool call to an MCP server hosted by its desktop app is up to that vendor, changes over time, and has not been verified here. Exposing the bridge to the network on purpose (a tunnel, a public MCP endpoint) would turn a local, consent-gated interface into a remotely operable one, and is not something SIGMAI will do quietly on the user's behalf.
+
 ## Calling the bridge
 
 Every tool call becomes one HTTP `POST /command` to the bridge, with the bearer token from the session as `Authorization: Bearer <token>` and a JSON body `{"schema_version": "0.3", "action": ..., "params": ..., "dry_run": ...}`. The server refuses to contact any host other than `127.0.0.1`, `localhost` or `::1`, even if a session file or environment variable claims otherwise.
@@ -38,9 +52,9 @@ Eleven tools, each with a JSON Schema `inputSchema` and MCP annotations (`readOn
 | `sigmai_plan_map` | ✓ | | Simulates `compose_map` — page, computed slot positions, fitted extent, rounded scale, participating layers — without touching the project or writing a file. Works in every access mode, including read-only |
 | `sigmai_compose_map` | | ✓ | Composes, exports and audits a complete map; returns the audit report. Requires write access to be unlocked in the panel |
 | `sigmai_audit_layout` | ✓ | | Runs the rulebook against an existing print layout, including one built by hand, and returns grade, score and per-rule findings |
-| `sigmai_list_layouts` | ✓ | | Print layouts already in the project, with page size and item list |
+| `sigmai_list_layouts` | ✓ | | Print layouts already in the project: pages, items and every map frame's CRS, scale, layers and overviews |
 | `sigmai_brief_plugin` | ✓ | | Everything needed to drive *another* installed QGIS plugin from one call: identity and load state, Processing provider health, the full parameter contract of every algorithm it registers, which parts of its interface are not programmatically reachable and why, and a safe test order. No source code leaves the machine |
-| `sigmai_capabilities` | ✓ | | The full command catalogue `sigmai_run_command` can reach, with group, permission level, dry-run and confirmation support for each |
+| `sigmai_capabilities` | ✓ | | The command catalogue `sigmai_run_command` can reach — filter with `group`, `search` or `names_only`; each command lists the parameters it reads (`parameters`, `parameters_complete`) |
 | `sigmai_run_command` | ✓ | ✓ | Executes any catalogued command by name — vector and raster operations, Processing algorithms, symbology, plugin management, GPX and database tooling, workflows. The dedicated tools above exist because a typed schema produces fewer wrong calls than a free-form escape hatch; this is the escape hatch for everything else |
 
 `sigmai_plan_map` and `sigmai_compose_map` share `compose_map`'s parameters — page and template, `map_crs`/`margin_percent`/`scale`, `subject_layer_id`/`include_inset`/`label_field`, `second_map` for a two-panel comparison layout, and `map_language` for the text the compositor writes on the frame itself. See the parameter descriptions returned by `tools/list`, or [CARTOGRAPHIC_QUALITY_MODEL.md](CARTOGRAPHIC_QUALITY_MODEL.md) for what the engine decides and why.

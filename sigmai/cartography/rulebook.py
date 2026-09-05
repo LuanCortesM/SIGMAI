@@ -446,6 +446,41 @@ def _check_graticule_annotations(observation: dict[str, Any]) -> CheckOutcome:
 
 
 # ---------------------------------------------------------------------------
+# Regras — inserto de localização
+# ---------------------------------------------------------------------------
+
+#: Fração mínima da extensão de cada camada de contexto que o inserto precisa
+#: mostrar. Um localizador que corta o estado ao meio não localiza.
+INSET_MIN_COVERAGE = 0.95
+
+
+def _check_inset_locates(observation: dict[str, Any]) -> CheckOutcome:
+    inset = observation.get("inset")
+    if not inset:
+        return _skip("Sem inserto de localização.")
+    coverage = inset.get("layer_coverage") or {}
+    if not coverage:
+        return _skip("Inserto sem camada de contexto mensurável.")
+    cortadas = {name: value for name, value in coverage.items() if float(value) < INSET_MIN_COVERAGE}
+    if not cortadas:
+        detail = "O inserto mostra a extensão inteira das camadas de contexto"
+        detail += " e contém o recorte principal." if inset.get("shows_main_frame") else "."
+        if inset.get("shows_main_frame") is False:
+            return _fail(
+                "O inserto mostra o contexto inteiro mas o recorte principal fica fora dele — "
+                "o retângulo de localização não aparece no inserto.",
+                shows_main_frame=False,
+            )
+        return _pass(detail)
+    return _fail(
+        "O inserto corta a camada de contexto: "
+        + ", ".join(f"{name!r} ({value:.0%} visível)" for name, value in cortadas.items())
+        + ". Um localizador que mostra metade do estado não diz onde o recorte fica.",
+        layer_coverage=coverage,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Regras — geometria do layout
 # ---------------------------------------------------------------------------
 
@@ -801,6 +836,14 @@ RULES: tuple[Rule, ...] = (
          "Ative show_annotations em add_layout_grid.",
          "QGIS Documentation — Grid annotations",
          _check_graticule_annotations),
+    Rule("CART067", "elementos", SEVERITY_WARNING,
+         "O inserto localiza", "Inset locates the frame",
+         "O inserto existe para responder 'onde fica'. Se ele corta a camada de contexto ao meio, ou "
+         "se o recorte principal cai fora dele, o leitor vê um segundo mapa solto, não um localizador.",
+         "Passe inset_layer_ids com o limite (estado, município, bacia) inteiro; compose_map ajusta o inserto "
+         "à extensão inteira dessa camada.",
+         "QGIS Documentation — Overview frames; Brewer, Designing Better Maps — locator maps",
+         _check_inset_locates),
     Rule("CART040", "geometria", SEVERITY_ERROR,
          "Itens dentro da página", "Items inside the page",
          "Item posicionado fora da página simplesmente não é impresso, e o layout parece "

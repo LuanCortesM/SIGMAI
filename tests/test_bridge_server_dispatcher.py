@@ -46,7 +46,7 @@ class BridgeServerDispatcherTests(unittest.TestCase):
             response = server._execute_or_enqueue({"action": "not_existing_command"}, "127.0.0.1")
 
             self.assertFalse(response["ok"])
-            self.assertEqual(response["errors"][0]["code"], "ACTION_NOT_ALLOWED")
+            self.assertEqual(response["errors"][0]["code"], "UNKNOWN_ACTION")
 
     def test_confirmation_required_fails_before_queue(self):
         with tempfile.TemporaryDirectory() as tmp:

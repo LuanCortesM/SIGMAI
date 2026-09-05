@@ -618,6 +618,26 @@ def _resolve_output_path(params: dict[str, Any]) -> Path | None:
     return Path(os.path.normpath(str(path)))
 
 
+#: Trechos do nome oficial do CRS (registro EPSG, em inglês) que ganham
+#: tradução na linha de crédito de mapas nas línguas latinas. "UTM zone 24S"
+#: num mapa em português lia-se como mistura de línguas; o código EPSG, que é
+#: o que se cita, continua ao lado.
+_CRS_LABEL_TRANSLATIONS: dict[str, tuple[tuple[str, str], ...]] = {
+    "pt-BR": (("UTM zone", "UTM zona"), ("Brazil Polyconic", "Policônica do Brasil"), ("Polyconic", "Policônica")),
+    "es": (("UTM zone", "UTM zona"), ("Brazil Polyconic", "Policónica de Brasil"), ("Polyconic", "Policónica")),
+    "it": (("UTM zone", "UTM zona"), ("Brazil Polyconic", "Policonica del Brasile"), ("Polyconic", "Policonica")),
+    "fr": (("Brazil Polyconic", "Polyconique du Brésil"), ("Polyconic", "Polyconique")),
+}
+
+
+def _localised_crs_label(crs: Any, map_language: str = "pt-BR") -> str:
+    description = str(crs.description() or crs.authid() or "")
+    for source, target in _CRS_LABEL_TRANSLATIONS.get(map_language, ()):
+        description = description.replace(source, target)
+    authid = str(crs.authid() or "")
+    return f"{description} ({authid})" if authid else description
+
+
 def _format_scale(denominator: int, map_language: str = "pt-BR") -> str:
     """"1:250.000" em português, "1:250,000" em inglês, "1:250 000" em francês.
 
@@ -1129,8 +1149,13 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
                 "e a barra única foi substituída por essa indicação.".replace(",", ".")
             )
 
-    layout_name = as_text(params, "layout_name", default="", label="layout_name").strip()
-    layout_name = layout_name or _unique_layout_name(project, title_value or "Mapa SIGMAI")
+    explicit_layout_name = as_text(params, "layout_name", default="", label="layout_name").strip()
+    layout_name = explicit_layout_name or _unique_layout_name(project, title_value or "Mapa SIGMAI")
+    # Um layout_name que já existe no projeto é SUBSTITUÍDO — é o que quem
+    # itera sobre o mesmo mapa quer. Sem nome explícito, cada composição cria
+    # "Título (2)", "Título (3)"…, e o projeto acumula layouts órfãos que o
+    # usuário não pediu; a nota abaixo avisa disso.
+    replace_layout = explicit_layout_name and project.layoutManager().layoutByName(explicit_layout_name) is not None
     output_path = _resolve_output_path(params)
 
     # format e a extensão de output_path podem discordar (output_path
@@ -1215,6 +1240,17 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     styling = apply_default_symbology(styling_targets, apply_style_value, dry_run=False)
 
     # --- layout -----------------------------------------------------------
+    if replace_layout:
+        try:
+            project.layoutManager().removeLayout(project.layoutManager().layoutByName(layout_name))
+            notes.append(f"O layout {layout_name!r} já existia no projeto e foi substituído.")
+        except Exception as exc:
+            raise CompositionError(f"Não foi possível substituir o layout {layout_name!r}: {exc}") from exc
+    elif not explicit_layout_name and layout_name != (title_value or "Mapa SIGMAI"):
+        notes.append(
+            f"Layout criado como {layout_name!r} porque já havia um com o nome do título; passe "
+            "layout_name para substituir o anterior em vez de acumular layouts no projeto."
+        )
     layout = imports["QgsPrintLayout"](project)
     layout.initializeDefaults()
     layout.setName(layout_name)
@@ -1350,7 +1386,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # versão do QGIS não expõe (a outra metade — a ordem interna dos
     # pedaços — é resolvida dentro de _credit_line). Alinhar à direita aqui
     # é o mínimo defensável citado no relatório da correção.
-    crs_label = f"{map_crs.description() or map_crs.authid()} ({map_crs.authid()})"
+    crs_label = _localised_crs_label(map_crs, map_language)
     date_label = (
         as_text(params, "production_date", default="", label="production_date").strip()
         or _datetime.date.today().strftime("%d/%m/%Y")
@@ -2326,9 +2362,15 @@ def _add_inset_map(
     # Havendo camada de contexto, o inserto mostra a extensão INTEIRA dela: um
     # localizador que corta o estado ao meio não localiza. O múltiplo do
     # recorte só vale quando não há contexto.
+    context_layer_name = ""
     if widest is not None and widest.width() > fitted.width * 1.5:
         context = imports["QgsRectangle"](widest)
         context.grow(max(context.width(), context.height()) * 0.04)
+        context_layer_name = next(
+            (layer.name() for layer in inset_layers
+             if (_layer_extent_in_crs(layer, map_crs, imports) or imports["QgsRectangle"]()).width() == widest.width()),
+            "",
+        )
 
     inset.zoomToExtent(context)
     inset.setFrameEnabled(True)
@@ -2355,10 +2397,20 @@ def _add_inset_map(
 
     inset.refresh()
     _verify_placement(inset, slot, "inset_map", notes)
-    notes.append(
-        f"Inserto de localização com {factor:g}x a largura do recorte principal, "
-        "com o retângulo do recorte desenhado por cima."
-    )
+    # A nota dizia "12x a largura do recorte" mesmo quando o inserto tinha sido
+    # ajustado à extensão inteira da camada de contexto — e um assistente,
+    # lendo isso, refez o mapa com um fator maior sem necessidade.
+    if context_layer_name:
+        notes.append(
+            f"Inserto de localização ajustado à extensão inteira de {context_layer_name!r}, "
+            "com o retângulo do recorte principal desenhado por cima (inset_zoom_factor não se aplica)."
+        )
+    else:
+        notes.append(
+            f"Inserto de localização com {factor:g}x a largura do recorte principal, "
+            "com o retângulo do recorte desenhado por cima. Passe inset_layer_ids com um limite "
+            "(estado, município) para que ele mostre esse limite inteiro."
+        )
 
     # Um localizador que mostra só o próprio assunto ampliado não localiza
     # nada: precisa de uma feição de referência que o leitor reconheça.

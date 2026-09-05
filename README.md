@@ -73,7 +73,7 @@ Eleven MCP tools, deliberately few, each with a validated input schema:
 | `sigmai_compose_map` | | ✓ | Compose, export and audit a complete map |
 | `sigmai_audit_layout` | ✓ | | Audit any layout in the project, including hand-made ones |
 | `sigmai_list_layouts` | ✓ | | Print layouts in the project |
-| `sigmai_capabilities` | ✓ | | Full command catalogue with permission levels |
+| `sigmai_capabilities` | ✓ | | Command catalogue, filterable, with the parameters each command reads |
 | `sigmai_run_command` | ✓ | ✓ | Any catalogued command: vector, raster, Processing, symbology, workflows |
 
 Behind them sit 221 catalogued commands, 208 of them enabled. `sigmai_run_command` reaches all of the enabled ones; the dedicated tools exist because a typed schema produces fewer wrong calls than a free-form escape hatch. The 13 disabled commands (the atlas family, the PostGIS family and `create_map_hierarchy`) are refused by the bridge as if they did not exist and listed in `get_capabilities` with the reason — the catalogue describes what the plugin does, not what it might do one day.
@@ -106,7 +106,7 @@ Then it audits what it produced and returns the report.
 
 ## The cartographic rulebook
 
-28 rules across nine categories — elements, scale, orientation, provenance, grid, geometry, typography, projection, data. Each carries its severity, the reason it exists, its reference, and the command that satisfies it. `sigmai_cartographic_rulebook` returns the whole thing as data, so an assistant can read the rules before composing rather than discovering them by failing.
+29 rules across nine categories — elements, scale, orientation, provenance, grid, geometry, typography, projection, data. Each carries its severity, the reason it exists, its reference, and the command that satisfies it. `sigmai_cartographic_rulebook` returns the whole thing as data, so an assistant can read the rules before composing rather than discovering them by failing.
 
 A worked example of why this matters is in [docs/CARTOGRAPHIC_QUALITY_MODEL.md](docs/CARTOGRAPHIC_QUALITY_MODEL.md): the same map that the 0.1.1 evaluator graded *"A — Professional map"* with zero warnings scores **E — invalid** under the rulebook, with three blocking errors that a reader would have spotted immediately.
 
@@ -139,7 +139,7 @@ The split between `cartography` and the rest is deliberate: `pagespec`, `scaling
 ```bash
 git clone https://github.com/LuanCortesM/SIGMAI.git
 cd SIGMAI
-python -m pytest tests -q          # 519 tests; the 32 that need PyQGIS skip themselves without QGIS
+python -m pytest tests -q          # 540 tests; the 33 that need PyQGIS skip themselves without QGIS
 python tools/package_qgis_plugin_zip.py
 ```
 
@@ -171,7 +171,7 @@ Developed by Luan da Silva Cortes Maciel as a research product associated with H
 @software{maciel_sigmai,
   author  = {Maciel, Luan da Silva Cortes},
   title   = {{SIGMAI}: Secure {GIS}-{AI} Interface},
-  version = {1.0.1},
+  version = {1.0.2},
   url     = {https://github.com/LuanCortesM/SIGMAI},
   license = {GPL-3.0-or-later}
 }

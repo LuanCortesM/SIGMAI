@@ -215,6 +215,82 @@ def bridge_call(action: str, params: dict[str, Any] | None = None, dry_run: bool
 # Ferramentas
 # ---------------------------------------------------------------------------
 
+
+def filter_capabilities(response: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
+    """Recorta o catálogo antes de devolvê-lo ao cliente.
+
+    A resposta inteira tem ~70 KB: num cliente pequeno ela não cabe no
+    contexto e o assistente acaba adivinhando nomes de comando — foi assim
+    que um assistente tentou get_features e get_attribute_table, que não
+    existem, em vez de sample_features. Filtrar aqui, e não na ponte, mantém
+    a ação get_capabilities inalterada para os clientes que a chamam direto.
+    """
+    data = response.get("data") if isinstance(response, dict) else None
+    if not isinstance(data, dict) or "commands" not in data:
+        return response
+    group = str(args.get("group") or "").strip().lower()
+    search = str(args.get("search") or "").strip().lower()
+    names_only = bool(args.get("names_only"))
+    commands = {
+        name: meta for name, meta in data["commands"].items()
+        if (not group or str(meta.get("group", "")).lower() == group) and (not search or search in name.lower())
+    }
+    groups = {}
+    for name, meta in commands.items():
+        groups.setdefault(str(meta.get("group", "")), []).append(name)
+    filtered = {
+        "schema_version": data.get("schema_version"),
+        "groups": {key: sorted(value) for key, value in sorted(groups.items())},
+        "command_count": len(commands),
+        "disabled_actions": [name for name in data.get("disabled_actions", []) if name in commands or not (group or search)],
+    }
+    if not names_only:
+        filtered["commands"] = commands
+        filtered["requires_confirmation"] = [name for name in data.get("requires_confirmation", []) if name in commands]
+        filtered["dry_run_supported"] = [name for name in data.get("dry_run_supported", []) if name in commands]
+    if not (group or search or names_only):
+        # Sem filtro, a resposta completa continua igual à da ponte.
+        return response
+    if group and not commands:
+        filtered["hint"] = "Nenhum comando neste grupo. Grupos existentes: " + ", ".join(sorted({str(m.get("group", "")) for m in data["commands"].values()}))
+    return {**response, "data": filtered}
+
+
+def layer_details(args: dict[str, Any]) -> dict[str, Any]:
+    """Uma chamada, quatro leituras: metadados, amostra, estilo e validade.
+
+    A versão anterior só chamava get_layer_info e descartava sample_size — a
+    descrição prometia amostra, simbologia e validade e não entregava nenhum
+    dos três. O assistente que precisava ler o atributo 'Nome_UC' de um KML
+    para saber em que estado o parque fica não tinha como.
+    """
+    layer_id = str(args.get("layer_id", ""))
+    sample_size = int(args.get("sample_size", 5) or 0)
+    sample_size = max(0, min(50, sample_size))
+    info = bridge_call("get_layer_info", {"layer_id": layer_id})
+    if not info.get("ok"):
+        return info
+    data = dict(info.get("data") or {})
+    warnings = list(info.get("warnings") or [])
+    is_vector = str(data.get("layer_type", data.get("type", ""))).lower() == "vector" or "geometry_type" in data
+    if is_vector and sample_size > 0:
+        sample = bridge_call("sample_features", {"layer_id": layer_id, "max_features": sample_size})
+        if sample.get("ok"):
+            data["sample"] = sample.get("data")
+        else:
+            warnings.append("amostra indisponível: " + str((sample.get("errors") or [{}])[0].get("message", "")))
+    style = bridge_call("inspect_layer_style", {"layer_id": layer_id})
+    if style.get("ok"):
+        data["style"] = style.get("data")
+    if is_vector:
+        validity = bridge_call("validate_geometries", {"layer_id": layer_id})
+        if validity.get("ok"):
+            data["geometry_validity"] = validity.get("data")
+        else:
+            warnings.append("validade das geometrias indisponível: " + str((validity.get("errors") or [{}])[0].get("message", "")))
+    return {**info, "data": data, "warnings": warnings}
+
+
 def _obj(properties: dict[str, Any], required: list[str] | None = None, additional: bool = False) -> dict[str, Any]:
     schema: dict[str, Any] = {"type": "object", "properties": properties, "additionalProperties": additional}
     if required:
@@ -226,6 +302,123 @@ _S = {"type": "string"}
 _B = {"type": "boolean"}
 _N = {"type": "number"}
 _SA = {"type": "array", "items": {"type": "string"}}
+
+#: Parâmetros de compose_map, publicados UMA vez para sigmai_plan_map e
+#: sigmai_compose_map. O esquema tem additionalProperties=false: um parâmetro
+#: que o compositor aceita mas não estiver aqui é INALCANÇÁVEL pelo cliente —
+#: e foi o que aconteceu com production_date e auto_projected_crs, que o
+#: regulamento manda usar e o esquema não deixava passar. Um teste confere esta
+#: tabela contra compose.KNOWN_PARAMETERS.
+COMPOSE_PROPERTIES: dict[str, Any] = {
+    "layer_ids": {**_SA, "description": "Camadas a exibir, na ordem de desenho (a última fica por cima)."},
+    "title": {**_S, "description": "Título do mapa."},
+    "subtitle": _S,
+    "map_language": {**_S, "description": (
+        "Língua dos textos que o PRÓPRIO compositor escreve na moldura — 'Fonte:'/"
+        "'Elaboração:', título padrão quando 'title' é omitido, 'Legenda', 'Painel A/B' e o "
+        "crédito da ferramenta. NÃO afeta title/subtitle/legend_title/data_source/map_author, "
+        "que já saem na língua em que você os escreveu. Padrão 'pt-BR'. Aceita 'pt-BR', 'en', "
+        "'es', 'fr', 'de', 'it', 'ja', 'zh-Hans', 'zh-Hant', 'ko', 'ru', 'ar', 'he', 'el', 'th' "
+        "(e variantes tolerantes como 'pt', 'zh-CN', 'PT-br'). Uma língua fora dessa lista é "
+        "recusada com a lista — escolha então a mais próxima (em geral 'en'). Use a mesma língua "
+        "em que o usuário está conversando — não pergunte, escolha pela língua da conversa; um "
+        "mapa não deve sair com metade do texto em português quando o pedido foi feito noutra língua."
+    )},
+    "output_path": {**_S, "description": (
+        "Caminho absoluto do ARQUIVO de saída, com nome e extensão — não a pasta, não um caminho "
+        "relativo, não um caminho de outro sistema operacional. A extensão define o formato quando "
+        "'format' não é informado. Ignorado em sigmai_plan_map."
+    )},
+    "format": {"type": "string", "enum": ["pdf", "png", "svg"]},
+    "page": {**_S, "description": (
+        "Formato e orientação, ex.: 'A4 landscape', 'A3 retrato', 'A2 portrait'. "
+        "Formatos: A0-A5, B4, B5, LETTER, LEGAL, TABLOID. Um formato desconhecido é recusado."
+    )},
+    "orientation": {**_S, "description": "'landscape'/'portrait' (ou retrato/paisagem), quando não vier junto de 'page'."},
+    "margin_mm": {"description": "Margens da página em mm: um número, ou um objeto {top, right, bottom, left}, ou uma lista [topo, direita, base, esquerda].",
+                  "anyOf": [{"type": "number"}, {"type": "object"}, {"type": "array"}]},
+    "template": {"type": "string", "enum": ["cientifico", "publicacao", "relatorio_ambiental", "minimalista"]},
+    "map_crs": {**_S, "description": "CRS do mapa, ex.: EPSG:31983. Se omitido e o projeto for geográfico, o SIGMAI escolhe UTM ou Policônica conforme a extensão."},
+    "auto_projected_crs": {**_B, "description": "Padrão true: projeto em coordenadas geográficas é reprojetado para o UTM/Policônica adequado, para que escala e barra sejam métricas. false mantém o CRS do projeto."},
+    "margin_percent": {**_N, "description": "Folga em torno dos dados, em porcentagem da extensão (0 a 100). Padrão 5."},
+    "round_scale": {**_B, "description": "Padrão true: fecha a escala na série cartográfica (1:250.000 em vez de 1:257.090)."},
+    "scale": {**_N, "description": (
+        "Denominador da escala impressa, quando ela é imposta (norma da dissertação, "
+        "folha de uma série). Ex.: 25000 para 1:25.000. Omita para o SIGMAI escolher na "
+        "série cartográfica. Uma escala que cortaria os dados é recusada, dizendo qual é "
+        "a maior que ainda os contém."
+    )},
+    "dpi": {**_N, "description": "Entre 50 e 1200. Padrão 300."},
+    "data_source": {**_S, "description": "Fonte dos dados, obrigatória para o mapa ser citável (CART007)."},
+    "map_author": {**_S, "description": "Autoria do mapa, obrigatória para o mapa ser citável (CART007). NÃO é o autor do plugin."},
+    "map_author_email": _S,
+    "organization": _S,
+    "production_date": {**_S, "description": "Data de elaboração, como texto (ex.: '2026-09-05' ou 'setembro de 2026'). Padrão: a data de hoje."},
+    "notes_text": {**_S, "description": "Observação livre acrescentada à linha de crédito."},
+    "legend_title": _S,
+    "grid_style": {"type": "string", "enum": ["solid", "cross", "markers", "frame"]},
+    "apply_style": {"type": "string", "enum": ["missing", "all", "none"], "description": (
+        "'missing' (padrão): reestiliza com a paleta segura só as camadas que ainda têm o símbolo único "
+        "padrão do QGIS (sorteado ao carregar) ou um estilo embutido de KML sem amostra de legenda; uma "
+        "camada com estilo temático (graduado, categorizado) ou um símbolo único que VOCÊ acabou de "
+        "aplicar por apply_single_symbol é preservada. 'all' força a paleta em todas; 'none' não toca "
+        "em nenhuma. A resposta lista camada a camada o que foi feito e por quê."
+    )},
+    "subject_layer_id": {**_S, "description": (
+        "Camada que define o recorte; as demais entram como contexto. É assim que se pede "
+        "'mapa DO parque MOSTRANDO os municípios em volta' — sem isso o recorte vira a união "
+        "de todas as camadas e o assunto some."
+    )},
+    "include_inset": {**_B, "description": (
+        "Acrescenta um inserto de localização com o retângulo do recorte principal desenhado "
+        "por cima. É o elemento que responde 'onde fica' — indispensável em escala grande para "
+        "quem não conhece a região."
+    )},
+    "inset_layer_ids": {**_SA, "description": (
+        "Camadas do inserto. Use um limite municipal, estadual ou de bacia: o inserto passa a mostrar a "
+        "EXTENSÃO INTEIRA dessa camada (o estado inteiro, não um recorte dele), e inset_zoom_factor é "
+        "ignorado. Com mais de uma camada, manda a de extensão mais larga. Sem contexto o inserto não "
+        "localiza nada."
+    )},
+    "inset_zoom_factor": {**_N, "description": "Só vale SEM inset_layer_ids: quantas vezes mais largo que o recorte principal. Padrão 12."},
+    "label_field": {**_S, "description": (
+        "Campo cujos valores viram rótulos das feições, com halo branco. Um campo que não "
+        "existe é recusado com a lista dos campos disponíveis — consulte sigmai_layer_details antes."
+    )},
+    "label_layer_id": {**_S, "description": "Camada a rotular. Se omitido, a primeira que tiver o campo."},
+    "label_font_size": {**_N, "description": "Corpo dos rótulos em pontos (3 a 72)."},
+    "second_map": {
+        "type": "object",
+        "description": (
+            "Segundo quadro de mapa na mesma folha, para comparação. Os dois painéis são "
+            "igualados na escala mais aberta por padrão, porque comparar tamanhos entre "
+            "painéis de escalas diferentes é falso."
+        ),
+        "properties": {
+            "layer_ids": _SA,
+            "subject_layer_id": _S,
+            "panel_title": {**_S, "description": "Legenda do painel direito/inferior."},
+            "margin_percent": _N,
+        },
+        "required": ["layer_ids"],
+        "additionalProperties": False,
+    },
+    "comparison_same_scale": {**_B, "description": "Padrão true. Se false, cada painel anuncia a própria escala e a barra única é removida."},
+    "panel_title": {**_S, "description": "Legenda do painel esquerdo/superior num mapa duplo. Sem ela, 'Painel A' na língua do mapa."},
+    "include_legend": {**_B, "description": "Padrão true. Sem legenda num mapa de mais de uma camada, CART002 reprova — é uma omissão deliberada que a auditoria aponta."},
+    "include_scale_bar": _B,
+    "include_scale_text": _B,
+    "include_north_arrow": _B,
+    "include_grid": {**_B, "description": "Padrão true. Sem grade, CART010 avisa."},
+    "include_logo": _B,
+    "logo_path": {**_S, "description": "Caminho absoluto de uma imagem (PNG/SVG) para o canto da folha, quando include_logo=true."},
+    "layout_name": {**_S, "description": (
+        "Nome do layout no projeto do QGIS. Se já existir um com esse nome, ele é SUBSTITUÍDO — use o "
+        "mesmo layout_name ao refazer um mapa, senão cada composição acumula 'Título (2)', 'Título (3)'… "
+        "no projeto do usuário. Padrão: derivado do título."
+    )},
+    "confirm_overwrite": {**_B, "description": "Necessário para substituir um ARQUIVO existente (o layout no projeto é regido por layout_name)."},
+}
 
 READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}
 WRITES = {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False}
@@ -262,16 +455,17 @@ TOOLS: list[dict[str, Any]] = [
         "name": "sigmai_layer_details",
         "title": "Detalhes de uma camada",
         "description": (
-            "Metadados detalhados de uma camada: campos e tipos, extensão, CRS, simbologia atual, "
-            "validade das geometrias e uma amostra de feições. Use quando precisar decidir simbologia, "
-            "expressões de rótulo ou classificação temática."
+            "Metadados detalhados de uma camada numa chamada: campos e tipos, extensão, CRS, simbologia "
+            "atual, validade das geometrias e uma amostra de feições com os valores dos atributos. Use "
+            "para decidir simbologia, expressões de rótulo, classificação temática — ou para ler o que "
+            "uma camada diz de si mesma (nome da unidade, fonte, municípios) antes de responder ao usuário."
         ),
         "inputSchema": _obj({
             "layer_id": {**_S, "description": "Id da camada, obtido em sigmai_project_overview."},
             "sample_size": {**_N, "description": "Quantas feições amostrar (0 a 50)."},
         }, ["layer_id"]),
         "annotations": {"title": "Detalhes da camada", **READ_ONLY},
-        "handler": lambda args: bridge_call("get_layer_info", {"layer_id": args.get("layer_id", ""), "sample_size": args.get("sample_size", 5)}),
+        "handler": lambda args: layer_details(args),
     },
     {
         "name": "sigmai_cartographic_rulebook",
@@ -292,22 +486,12 @@ TOOLS: list[dict[str, Any]] = [
         "description": (
             "Simula a composição de um mapa sem tocar no projeto nem gravar arquivo: devolve a página "
             "escolhida, a posição calculada de cada elemento, a extensão ajustada, a escala arredondada "
-            "para a série cartográfica e as camadas que entrariam. Funciona em qualquer modo de acesso, "
-            "inclusive somente leitura. Use para mostrar ao usuário o que será feito antes de pedir "
-            "autorização para executar."
+            "para a série cartográfica, as camadas que entrariam e o que a simbologia faria. Aceita "
+            "EXATAMENTE os mesmos parâmetros de sigmai_compose_map — o que você simular aqui é o que "
+            "será composto lá. Funciona em qualquer modo de acesso, inclusive somente leitura. Use para "
+            "mostrar ao usuário o que será feito antes de pedir autorização para executar."
         ),
-        "inputSchema": _obj({
-            "layer_ids": {**_SA, "description": "Camadas a exibir, na ordem de desenho (a última fica por cima)."},
-            "subject_layer_id": {**_S, "description": "Camada que define o recorte. As demais entram como contexto. Use para 'mapa DO parque MOSTRANDO os municípios'."},
-            "title": _S,
-            "subtitle": _S,
-            "page": {**_S, "description": "Ex.: 'A4 landscape', 'A3 retrato', 'A5 portrait'. Padrão A4 paisagem."},
-            "template": {**_S, "description": "cientifico, publicacao, relatorio_ambiental ou minimalista."},
-            "margin_percent": _N,
-            "map_crs": {**_S, "description": "CRS do mapa, ex.: EPSG:31983. Se omitido e o projeto for geográfico, o SIGMAI escolhe UTM ou Policônica conforme a extensão."},
-            "include_inset": {**_B, "description": "Inserto de localização com o recorte principal marcado."},
-            "label_field": {**_S, "description": "Campo cujos valores viram rótulos das feições."},
-        }, ["layer_ids"]),
+        "inputSchema": _obj(dict(COMPOSE_PROPERTIES), ["layer_ids"]),
         "annotations": {"title": "Planejar mapa", **READ_ONLY},
         "handler": lambda args: bridge_call("compose_map", dict(args), dry_run=True),
     },
@@ -323,89 +507,7 @@ TOOLS: list[dict[str, Any]] = [
             "ESTA AÇÃO GRAVA ARQUIVO: exige que o usuário tenha liberado escrita no painel do SIGMAI. "
             "Se vier recusada, use sigmai_plan_map para mostrar o plano e peça a liberação."
         ),
-        "inputSchema": _obj({
-            "layer_ids": {**_SA, "description": "Camadas a exibir, na ordem de desenho."},
-            "title": {**_S, "description": "Título do mapa."},
-            "subtitle": _S,
-            "map_language": {**_S, "description": (
-                "Língua dos textos que o PRÓPRIO compositor escreve na moldura — 'Fonte:'/"
-                "'Elaboração:', título padrão quando 'title' é omitido, 'Legenda', 'Painel A/B' e o "
-                "crédito da ferramenta. NÃO afeta title/subtitle/legend_title/data_source/map_author, "
-                "que já saem na língua em que você os escreveu. Padrão 'pt-BR'. Aceita 'pt-BR', 'en', "
-                "'es', 'fr', 'de', 'it', 'ja', 'zh-Hans', 'zh-Hant', 'ko', 'ru', 'ar', 'he', 'el', 'th' "
-                "(e variantes tolerantes como 'pt', 'zh-CN', 'PT-br'). Uma língua fora dessa lista é "
-                "recusada com a lista — escolha então a mais próxima (em geral 'en'). Use a mesma língua "
-                "em que o usuário está conversando — não pergunte, "
-                "escolha pela língua da conversa; um mapa não deve sair com metade do texto em "
-                "português quando o pedido foi feito noutra língua."
-            )},
-            "output_path": {**_S, "description": (
-                "Caminho absoluto do ARQUIVO de saída, com nome e extensão — não a pasta. "
-                "A extensão define o formato quando 'format' não é informado."
-            )},
-            "format": {"type": "string", "enum": ["pdf", "png", "svg"]},
-            "page": {**_S, "description": (
-                "Formato e orientação, ex.: 'A4 landscape', 'A3 retrato', 'A2 portrait'. "
-                "Formatos: A0-A5, B4, B5, LETTER, LEGAL, TABLOID. Um formato desconhecido é recusado."
-            )},
-            "template": {"type": "string", "enum": ["cientifico", "publicacao", "relatorio_ambiental", "minimalista"]},
-            "map_crs": _S,
-            "margin_percent": _N,
-            "scale": {**_N, "description": (
-                "Denominador da escala impressa, quando ela é imposta (norma da dissertação, "
-                "folha de uma série). Ex.: 25000 para 1:25.000. Omita para o SIGMAI escolher na "
-                "série cartográfica. Uma escala que cortaria os dados é recusada, dizendo qual é "
-                "a maior que ainda os contém."
-            )},
-            "dpi": {**_N, "description": "Entre 50 e 1200. Padrão 300."},
-            "data_source": {**_S, "description": "Fonte dos dados, obrigatória para o mapa ser citável."},
-            "map_author": {**_S, "description": "Autoria do mapa. NÃO é o autor do plugin."},
-            "organization": _S,
-            "legend_title": _S,
-            "grid_style": {"type": "string", "enum": ["solid", "cross", "markers", "frame"]},
-            "apply_style": {"type": "string", "enum": ["missing", "all", "none"], "description": "'missing' (padrão) só estiliza camadas sem simbologia temática definida."},
-            "subject_layer_id": {**_S, "description": (
-                "Camada que define o recorte; as demais entram como contexto. É assim que se pede "
-                "'mapa DO parque MOSTRANDO os municípios em volta' — sem isso o recorte vira a união "
-                "de todas as camadas e o assunto some."
-            )},
-            "include_inset": {**_B, "description": (
-                "Acrescenta um inserto de localização com o retângulo do recorte principal desenhado "
-                "por cima. É o elemento que responde 'onde fica' — indispensável em escala grande para "
-                "quem não conhece a região."
-            )},
-            "inset_layer_ids": {**_SA, "description": "Camadas do inserto. Use um limite municipal, estadual ou de bacia; sem contexto o inserto não localiza nada."},
-            "inset_zoom_factor": {**_N, "description": "Quantas vezes mais largo que o recorte principal, quando não há camada de contexto. Padrão 12."},
-            "label_field": {**_S, "description": (
-                "Campo cujos valores viram rótulos das feições, com halo branco. Um campo que não "
-                "existe é recusado com a lista dos campos disponíveis — consulte layer_info antes."
-            )},
-            "label_layer_id": {**_S, "description": "Camada a rotular. Se omitido, a primeira que tiver o campo."},
-            "label_font_size": _N,
-            "second_map": {
-                "type": "object",
-                "description": (
-                    "Segundo quadro de mapa na mesma folha, para comparação. Os dois painéis são "
-                    "igualados na escala mais aberta por padrão, porque comparar tamanhos entre "
-                    "painéis de escalas diferentes é falso."
-                ),
-                "properties": {
-                    "layer_ids": _SA,
-                    "subject_layer_id": _S,
-                    "panel_title": {**_S, "description": "Legenda do painel direito/inferior."},
-                    "margin_percent": _N,
-                },
-                "required": ["layer_ids"],
-                "additionalProperties": False,
-            },
-            "comparison_same_scale": {**_B, "description": "Padrão true. Se false, cada painel anuncia a própria escala e a barra única é removida."},
-            "panel_title": {**_S, "description": "Legenda do painel esquerdo/superior num mapa duplo."},
-            "include_legend": _B,
-            "include_scale_bar": _B,
-            "include_north_arrow": _B,
-            "include_grid": _B,
-            "confirm_overwrite": {**_B, "description": "Necessário para substituir um arquivo existente."},
-        }, ["layer_ids", "title", "output_path"]),
+        "inputSchema": _obj(dict(COMPOSE_PROPERTIES), ["layer_ids", "title", "output_path"]),
         "annotations": {"title": "Compor mapa", **WRITES},
         "handler": lambda args: bridge_call("compose_map", dict(args), dry_run=False),
     },
@@ -428,7 +530,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "sigmai_list_layouts",
         "title": "Listar layouts do projeto",
-        "description": "Layouts de impressão existentes no projeto, com tamanho de página e itens de cada um.",
+        "description": "Layouts de impressão existentes no projeto: tamanho e orientação da página, os itens de cada um (mapa, legenda, barra de escala, inserto…) e o CRS/escala de cada quadro de mapa.",
         "inputSchema": _obj({}),
         "annotations": {"title": "Listar layouts", **READ_ONLY},
         "handler": lambda args: bridge_call("list_layouts"),
@@ -460,22 +562,30 @@ TOOLS: list[dict[str, Any]] = [
         "name": "sigmai_capabilities",
         "title": "Comandos disponíveis",
         "description": (
-            "Catálogo completo dos comandos que a instalação do SIGMAI expõe, com grupo, nível de permissão, "
-            "se aceita simulação e se exige confirmação. Use quando precisar de uma operação que não tem "
-            "ferramenta MCP dedicada — depois execute-a por sigmai_run_command."
+            "Catálogo dos comandos que a instalação do SIGMAI expõe (mais de duzentos), com grupo, nível de "
+            "permissão, se aceita simulação e se exige confirmação. O catálogo inteiro é grande: comece por "
+            "names_only=true para ver os grupos e os nomes, ou filtre com group/search. Para ler feições e "
+            "atributos: grupo attribute_table (sample_features, inspect_attribute_table, unique_values, "
+            "field_statistics) e expressions (query_features). Depois execute por sigmai_run_command."
         ),
-        "inputSchema": _obj({}),
+        "inputSchema": _obj({
+            "group": {**_S, "description": "Só os comandos deste grupo (ex.: attribute_table, symbology, processing, cartography, raster, layers)."},
+            "search": {**_S, "description": "Só os comandos cujo nome contém este texto (ex.: 'feature', 'style', 'buffer')."},
+            "names_only": {**_B, "description": "Devolve só a lista de grupos com os nomes dos comandos, sem os metadados de cada um — cabe em qualquer contexto."},
+        }),
         "annotations": {"title": "Comandos disponíveis", **READ_ONLY},
-        "handler": lambda args: bridge_call("get_capabilities"),
+        "handler": lambda args: filter_capabilities(bridge_call("get_capabilities"), args),
     },
     {
         "name": "sigmai_run_command",
         "title": "Executar um comando do SIGMAI",
         "description": (
-            "Executa qualquer comando do catálogo do SIGMAI (veja sigmai_capabilities). Comandos de leitura "
-            "rodam sempre; comandos de escrita passam pelo controle de acesso configurado no painel. "
-            "Prefira as ferramentas dedicadas quando existirem — elas têm esquema de entrada validado. "
-            "Use esta para operações de vetor, raster, Processing, simbologia e fluxos de trabalho."
+            "Executa qualquer comando do catálogo do SIGMAI. Descubra o nome e os PARÂMETROS em "
+            "sigmai_capabilities (cada comando lista os parâmetros que lê; 'parameters_complete' diz se a "
+            "lista é exata). Um parâmetro que o comando não lê volta em 'warnings' — nunca é aplicado em "
+            "silêncio. Comandos de leitura rodam sempre; comandos de escrita passam pelo controle de acesso "
+            "configurado no painel. Prefira as ferramentas dedicadas quando existirem — elas têm esquema de "
+            "entrada validado. Use esta para operações de vetor, raster, Processing, simbologia e fluxos."
         ),
         "inputSchema": _obj({
             "action": {**_S, "description": "Nome do comando, ex.: 'buffer', 'apply_graduated_style', 'run_processing'."},

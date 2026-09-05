@@ -72,7 +72,7 @@ E então audita o que produziu.
 
 ## O regulamento cartográfico
 
-28 regras em nove categorias — elementos, escala, orientação, procedência, grade, geometria, tipografia, projeção, dados. Cada uma carrega a severidade, o motivo de existir, a referência que a sustenta e o comando que a satisfaz. O `sigmai_cartographic_rulebook` devolve tudo como dado, para o assistente ler as regras antes de compor em vez de descobri-las falhando.
+29 regras em nove categorias — elementos, escala, orientação, procedência, grade, geometria, tipografia, projeção, dados. Cada uma carrega a severidade, o motivo de existir, a referência que a sustenta e o comando que a satisfaz. O `sigmai_cartographic_rulebook` devolve tudo como dado, para o assistente ler as regras antes de compor em vez de descobri-las falhando.
 
 O exemplo trabalhado está em [CARTOGRAPHIC_QUALITY_MODEL.md](../CARTOGRAPHIC_QUALITY_MODEL.md): o mesmo mapa que o avaliador da 0.1.1 classificava como *"A — Professional map"*, com zero avisos, recebe **E — inválido** no regulamento, com três erros bloqueantes que qualquer leitor perceberia de imediato.
 
