@@ -374,7 +374,13 @@ UTM_MAX_LATITUDE_SPAN_DEGREES = 12.0
 REGIONAL_MAX_SPAN_DEGREES = 40.0
 
 #: Caixa aproximada do território brasileiro, para escolher a Policônica.
-BRAZIL_BOUNDS = (-74.0, -34.0, -34.0, 6.0)
+#: Área de uso oficial do EPSG:5880 (SIRGAS 2000 / Policônica do Brasil) no
+#: registro EPSG: oeste −74,01°, sul −35,71°, leste −25,28°, norte 7,04°.
+#: A caixa anterior (−74, −34, −34, 6) parava no litoral continental e deixava
+#: de fora Fernando de Noronha (−32,4°), Atol das Rocas, São Pedro e São Paulo
+#: (−29,3°) e Trindade — um mapa de qualquer uma dessas unidades de conservação
+#: recebia uma LAEA genérica em vez da projeção oficial do país.
+BRAZIL_BOUNDS = (-74.01, -35.71, -25.28, 7.04)
 
 
 def _crs_identifier(crs: Any, label: str = "") -> str:
@@ -1811,7 +1817,7 @@ def _add_north_arrow(
             "Isso viola a regra CART025."
         )
         letra_norte = maptext(map_language, "norte_reserva")
-        label = _add_label(layout, "north_arrow", letra_norte, rect, 14.0, imports, mm, bold=True, align="center")
+        _add_label(layout, "north_arrow", letra_norte, rect, 14.0, imports, mm, bold=True, align="center")
         return "label"
 
     picture = imports["QgsLayoutItemPicture"](layout)
@@ -2155,18 +2161,6 @@ def _build_comparison_map(
     return second
 
 
-def _zoom_to_scale(map_item: Any, fitted: Any, scale: int, imports: dict[str, Any]) -> None:
-    """Centraliza o recorte e fixa a escala pedida, sem redimensionar o item."""
-    centre_x = (fitted.xmin + fitted.xmax) / 2.0
-    centre_y = (fitted.ymin + fitted.ymax) / 2.0
-    growth = scale / max(1.0, float(fitted.scale_denominator))
-    half_width = (fitted.xmax - fitted.xmin) * growth / 2.0
-    half_height = (fitted.ymax - fitted.ymin) * growth / 2.0
-    map_item.zoomToExtent(imports["QgsRectangle"](
-        centre_x - half_width, centre_y - half_height, centre_x + half_width, centre_y + half_height
-    ))
-
-
 def _add_inset_map(
     layout: Any, main_map: Any, layers: list[Any], plan: LayoutPlan, params: dict[str, Any],
     fitted: Any, map_crs: Any, imports: dict[str, Any], mm: Any, notes: list[str],
@@ -2391,7 +2385,7 @@ def _inset_style_overrides(inset_layers: list[Any], main_layers: list[Any]) -> d
     existe no inserto é pano de fundo e vai para o cinza.
     """
     main_ids = {layer.id() for layer in main_layers}
-    overrides = dict(_labelless_style_overrides([l for l in inset_layers if l.id() in main_ids]))
+    overrides = dict(_labelless_style_overrides([layer for layer in inset_layers if layer.id() in main_ids]))
     for layer in inset_layers:
         if layer.id() in main_ids or not hasattr(layer, "renderer"):
             continue

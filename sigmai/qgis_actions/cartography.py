@@ -425,7 +425,7 @@ def add_layout_label(params: dict[str, Any], context: dict[str, Any]):
         try:
             from qgis.PyQt.QtCore import Qt  # type: ignore
 
-            align_flag = getattr(getattr(Qt, "AlignmentFlag", Qt), "AlignHCenter")
+            align_flag = qt_enum(Qt, "AlignmentFlag", "AlignHCenter")
             item.setHAlign(align_flag)
         except Exception:
             pass

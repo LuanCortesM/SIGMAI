@@ -46,7 +46,7 @@ def handle(params: dict[str, Any], context: dict[str, Any]):
             "changes": ["Run the QGIS Processing algorithm with the provided parameters."],
         }
 
-    imports = qgis_imports()
+    qgis_imports()  # só confirma que o PyQGIS está disponível; levanta se não estiver
     resolve_algorithm(algorithm)
 
 

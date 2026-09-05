@@ -9,6 +9,11 @@ interativa do QGIS.
 
 from __future__ import annotations
 
+#: A palavra de confirmação do Modo DEV. "SIM" para a interface em português,
+#: "YES" para a interface em inglês — a caixa de diálogo mostra a da língua
+#: ativa, e o código aceita as duas.
+DEV_MODE_CONFIRMATION_WORDS = frozenset({"SIM", "YES"})
+
 import json
 import urllib.error
 import urllib.request
@@ -63,7 +68,7 @@ class SIGMAIPlugin:
             host=DEFAULT_HOST,
             port=DEFAULT_PORT,
             token=self.token,
-            log_dir=Path(__file__).resolve().parent / "logs",
+            log_dir=self._log_dir(),
         )
         self.consent = self.server.consent
         self._restore_consent_settings()
@@ -278,7 +283,7 @@ class SIGMAIPlugin:
         text, accepted = QInputDialog.getText(
             parent, self._tr("dev_dialog_title"), self._tr("dev_dialog_prompt"), echo_normal, ""
         )
-        if accepted and str(text).strip().upper() == "SIM":
+        if accepted and str(text).strip().upper() in DEV_MODE_CONFIRMATION_WORDS:
             self.server.set_unsafe_developer_mode(True)
             self._message(self._tr("dev_on"), level="critical")
 
@@ -440,16 +445,34 @@ class SIGMAIPlugin:
             self.settings_set("bridge_token", token)
 
     # -- auxiliares -------------------------------------------------------
-    def plugin_version(self) -> str:
-        metadata = Path(__file__).resolve().parent / "metadata.txt"
-        try:
-            for line in metadata.read_text(encoding="utf-8").splitlines():
-                if line.lower().startswith("version="):
-                    return line.split("=", 1)[1].strip()
-        except Exception:
-            pass
-        return "0.0.0"
+    @staticmethod
+    def _log_dir() -> Path:
+        """Os logs vão para o perfil do QGIS, não para a pasta do plugin.
 
+        Gravar dentro da pasta de instalação parecia funcionar até aparecer um
+        sigmai.jsonl de 29 KB versionado por engano na árvore-fonte — e numa
+        instalação de sistema, com a pasta de plugins somente-leitura, a
+        primeira gravação falha. O perfil do usuário é gravável por definição.
+        """
+        try:
+            from qgis.core import QgsApplication  # type: ignore
+
+            base = Path(QgsApplication.qgisSettingsDirPath()) / "sigmai" / "logs"
+        except Exception:
+            base = Path.home() / ".local" / "share" / "sigmai" / "logs"
+        try:
+            base.mkdir(parents=True, exist_ok=True)
+            return base
+        except OSError:
+            return Path(__file__).resolve().parent / "logs"
+
+    def plugin_version(self) -> str:
+        # Um único leitor de metadata.txt para todo o pacote: a lógica estava
+        # copiada em três lugares, e o docstring do primeiro contava a história
+        # de como isso já produziu uma versão publicada divergente.
+        from .bridge_server import plugin_version
+
+        return plugin_version()
     def _tr(self, key: str, **kwargs: Any) -> str:
         from .ui.strings import translate
 

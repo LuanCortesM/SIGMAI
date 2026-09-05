@@ -57,3 +57,58 @@ class SessionDiscoveryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FallbackEmbarcadoConcordaComOServidor(unittest.TestCase):
+    """O pacote publicado nunca traz core/: é o fallback de session.py que roda.
+
+    Todos os testes carregavam core/ no sys.path, então o caminho que o usuário
+    de verdade usa nunca tinha sido exercitado — e divergia do lugar onde o
+    servidor MCP procura. Este teste força o ImportError e compara os dois.
+    """
+
+    def _session_sem_core(self):
+        import builtins
+        import importlib
+        import sys
+
+        real_import = builtins.__import__
+
+        def bloqueia_core(name, *args, **kwargs):
+            if name.startswith("core"):
+                raise ImportError("core/ não está no pacote publicado")
+            return real_import(name, *args, **kwargs)
+
+        sys.modules.pop("sigmai.session", None)
+        builtins.__import__ = bloqueia_core
+        try:
+            return importlib.import_module("sigmai.session")
+        finally:
+            builtins.__import__ = real_import
+            sys.modules.pop("sigmai.session", None)
+
+    def test_a_pasta_de_sessao_e_uma_das_que_o_servidor_mcp_procura(self) -> None:
+        import importlib.util
+        from pathlib import Path
+
+        sessao = self._session_sem_core()
+        raiz = Path(__file__).resolve().parents[1]
+        spec = importlib.util.spec_from_file_location("sigmai_mcp_probe", raiz / "sigmai" / "mcp" / "sigmai_mcp.py")
+        modulo = importlib.util.module_from_spec(spec)
+        import sys
+
+        argv = sys.argv
+        sys.argv = ["x"]
+        try:
+            spec.loader.exec_module(modulo)
+        finally:
+            sys.argv = argv
+        procuradas = {p.resolve() for p in modulo._sessions_dirs()}
+        gravada = sessao.session_file_path().parent.resolve()
+        self.assertIn(gravada, procuradas, f"o plugin grava em {gravada}, o servidor procura em {sorted(procuradas)}")
+
+    def test_o_fallback_espelha_o_core(self) -> None:
+        from core.session_paths import sessions_dir as core_sessions_dir
+
+        sessao = self._session_sem_core()
+        self.assertEqual(sessao.session_file_path().parent.resolve(), core_sessions_dir().resolve())

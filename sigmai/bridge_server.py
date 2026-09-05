@@ -1,3 +1,5 @@
+"""Ponte HTTP local entre o assistente de IA e o QGIS: escuta só em 127.0.0.1, exige token, e executa cada comando na thread principal do Qt."""
+
 from __future__ import annotations
 
 import json

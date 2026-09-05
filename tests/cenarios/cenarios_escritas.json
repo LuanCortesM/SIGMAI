@@ -1,1042 +1,1042 @@
 {
-  "scenarios": [
-    {
-      "id": "ja-01-combo",
-      "lang": "ja",
-      "intent": "legitimo",
-      "note": "Combo completo em japones: titulo, subtitulo, legenda, autor, fonte, organizacao.",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "カルナウーバス州立公園",
-        "subtitle": "ピアウイ州、ブラジル",
-        "legend_title": "凡例",
-        "map_author": "コルテス・ルアン",
-        "data_source": "ブラジル地理統計院 (IBGE)、2024年",
-        "organization": "SIGMAI Laboratorio"
-      }
-    },
-    {
-      "id": "ja-02-titulo-longo",
-      "lang": "ja",
-      "intent": "legitimo",
-      "note": "Titulo japones muito longo (CJK ~2x largura de letra latina) em template estreito.",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "イタグアレの登山道と周辺の地形および水系を示す総合案内地図、ピアウイ州カルナウーバス州立公園",
-        "template": "publicacao"
-      }
-    },
-    {
-      "id": "ja-03-mapa-duplo",
-      "lang": "ja",
-      "intent": "legitimo",
-      "note": "Mapa duplo com titulos de painel em japones.",
-      "params": {
-        "layer_ids": [
-          "@parque",
-          "@trilha"
-        ],
-        "title": "カルナウーバス州立公園",
-        "panel_title": "登山道の位置",
-        "second_map": {
-          "layer_ids": [
-            "@municipios"
-          ],
-          "panel_title": "詳細図"
-        }
-      }
-    },
-    {
-      "id": "ja-04-nfc",
-      "lang": "ja",
-      "intent": "legitimo",
-      "note": "Titulo japones em forma NFC (dakuten pre-combinado).",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "がぎぐげご地図 NFC"
-      }
-    },
-    {
-      "id": "ja-05-nfd",
-      "lang": "ja",
-      "intent": "legitimo",
-      "note": "Mesmo titulo japones em forma NFD (dakuten como marca combinante separada).",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "がぎぐげご地図 NFD"
-      }
-    },
-    {
-      "id": "zhs-01-combo",
-      "lang": "zh-Hans",
-      "intent": "legitimo",
-      "note": "Combo completo em chines simplificado.",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "卡尔瑙巴斯州立公园地图",
-        "subtitle": "巴西皮奥伊州",
-        "legend_title": "图例",
-        "map_author": "路安·科尔特斯",
-        "data_source": "巴西地理统计局(IBGE),2024年"
-      }
-    },
-    {
-      "id": "zhs-02-titulo-longo",
-      "lang": "zh-Hans",
-      "intent": "legitimo",
-      "note": "Titulo chines simplificado longo em template estreito (minimalista).",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "伊塔瓜雷徒步小径及周边地形水系综合示意图,皮奥伊州卡尔瑙巴斯州立公园全览",
-        "template": "minimalista"
-      }
-    },
-    {
-      "id": "zhs-03-mapa-duplo",
-      "lang": "zh-Hans",
-      "intent": "legitimo",
-      "note": "Mapa duplo com titulos de painel em chines simplificado.",
-      "params": {
-        "layer_ids": [
-          "@parque",
-          "@trilha"
-        ],
-        "title": "卡尔瑙巴斯州立公园地图",
-        "panel_title": "小径位置图",
-        "second_map": {
-          "layer_ids": [
-            "@municipios"
-          ],
-          "panel_title": "详细图"
-        }
-      }
-    },
-    {
-      "id": "zhs-04-ideografo-raro",
-      "lang": "zh-Hans",
-      "intent": "legitimo",
-      "note": "Titulo com ideografo fora do plano basico (CJK Ext B, U+20000) misturado ao texto normal.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "地图𠀀测试 卡尔瑙巴斯"
-      }
-    },
-    {
-      "id": "zht-01-combo",
-      "lang": "zh-Hant",
-      "intent": "legitimo",
-      "note": "Combo completo em chines tradicional.",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "卡爾瑙巴斯州立公園地圖",
-        "subtitle": "巴西皮奧伊州",
-        "legend_title": "圖例",
-        "map_author": "路安·科爾特斯",
-        "data_source": "巴西地理統計局(IBGE),2024年"
-      }
-    },
-    {
-      "id": "zht-02-titulo-longo",
-      "lang": "zh-Hant",
-      "intent": "legitimo",
-      "note": "Titulo chines tradicional longo em template estreito.",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "伊塔瓜雷健行步道及周邊地形水系綜合示意圖,皮奧伊州卡爾瑙巴斯州立公園全覽",
-        "template": "publicacao"
-      }
-    },
-    {
-      "id": "zht-03-mapa-duplo",
-      "lang": "zh-Hant",
-      "intent": "legitimo",
-      "note": "Mapa duplo com titulos de painel em chines tradicional.",
-      "params": {
-        "layer_ids": [
-          "@parque",
-          "@trilha"
-        ],
-        "title": "卡爾瑙巴斯州立公園地圖",
-        "panel_title": "步道位置圖",
-        "second_map": {
-          "layer_ids": [
-            "@municipios"
-          ],
-          "panel_title": "詳細圖"
-        }
-      }
-    },
-    {
-      "id": "ko-01-combo",
-      "lang": "ko",
-      "intent": "legitimo",
-      "note": "Combo completo em coreano.",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "카르나우바스 주립공원 지도",
-        "subtitle": "브라질 피아우이 주",
-        "legend_title": "범례",
-        "map_author": "루안 코르테스",
-        "data_source": "브라질 지리통계원(IBGE), 2024년"
-      }
-    },
-    {
-      "id": "ko-02-titulo-longo",
-      "lang": "ko",
-      "intent": "legitimo",
-      "note": "Titulo coreano (hangul, largura proxima da CJK) longo em template estreito.",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "이타과레 등산로와 주변 지형 및 수계를 보여주는 카르나우바스 주립공원 종합 안내 지도",
-        "template": "minimalista"
-      }
-    },
-    {
-      "id": "ko-03-mapa-duplo",
-      "lang": "ko",
-      "intent": "legitimo",
-      "note": "Mapa duplo com titulos de painel em coreano.",
-      "params": {
-        "layer_ids": [
-          "@parque",
-          "@trilha"
-        ],
-        "title": "카르나우바스 주립공원 지도",
-        "panel_title": "등산로 위치도",
-        "second_map": {
-          "layer_ids": [
-            "@municipios"
-          ],
-          "panel_title": "상세도"
-        }
-      }
-    },
-    {
-      "id": "ko-04-nfc",
-      "lang": "ko",
-      "intent": "legitimo",
-      "note": "Titulo coreano em forma NFC (silabas hangul pre-compostas).",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "한글 지도 제목 NFC"
-      }
-    },
-    {
-      "id": "ko-05-nfd",
-      "lang": "ko",
-      "intent": "legitimo",
-      "note": "Mesmo titulo coreano em forma NFD (jamo decomposto).",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "한글 지도 제목 NFD"
-      }
-    },
-    {
-      "id": "ko-06-formato-nativo",
-      "lang": "ko",
-      "intent": "invalido",
-      "note": "Formato de pagina em coreano (가로 = paisagem); reconhecedor so entende PT/EN.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "카르나우바스 주립공원 지도",
-        "page": "A4 가로"
-      }
-    },
-    {
-      "id": "ar-01-combo",
-      "lang": "ar",
-      "intent": "legitimo",
-      "note": "Combo completo em arabe (RTL): titulo, subtitulo, legenda, autor, fonte.",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "خريطة محمية كارناوباس",
-        "subtitle": "ولاية بياوي، البرازيل",
-        "legend_title": "مفتاح الخريطة",
-        "map_author": "لوان كورتيس",
-        "data_source": "المعهد البرازيلي للجغرافيا والإحصاء (IBGE)، 2024"
-      }
-    },
-    {
-      "id": "ar-02-titulo-longo",
-      "lang": "ar",
-      "intent": "legitimo",
-      "note": "Titulo arabe longo (RTL) em template estreito.",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "خريطة شاملة لمسار إيتاغواريه ومحيطه الطبوغرافي والمائي داخل محمية كارناوباس بولاية بياوي البرازيلية",
-        "template": "publicacao"
-      }
-    },
-    {
-      "id": "ar-03-mapa-duplo",
-      "lang": "ar",
-      "intent": "legitimo",
-      "note": "Mapa duplo com titulos de painel em arabe (RTL).",
-      "params": {
-        "layer_ids": [
-          "@parque",
-          "@trilha"
-        ],
-        "title": "خريطة محمية كارناوباس",
-        "panel_title": "موقع المسار",
-        "second_map": {
-          "layer_ids": [
-            "@municipios"
-          ],
-          "panel_title": "خريطة تفصيلية"
-        }
-      }
-    },
-    {
-      "id": "ar-04-digitos-mistos",
-      "lang": "ar",
-      "intent": "legitimo",
-      "note": "Fonte de dados em arabe misturando algarismos indo-arabicos e codigo EPSG em latim (teste de bidi).",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "خريطة محمية كارناوباس",
-        "data_source": "بيانات ٢٠٢٤، نظام الإحداثيات EPSG:31984، عدد الطبقات: 3"
-      }
-    },
-    {
-      "id": "ar-05-emoji",
-      "lang": "ar",
-      "intent": "legitimo",
-      "note": "Titulo arabe com emoji misturado.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "خريطة الحديقة 🌵🗺️ الرسمية"
-      }
-    },
-    {
-      "id": "ar-06-formato-nativo",
-      "lang": "ar",
-      "intent": "invalido",
-      "note": "Formato de pagina em arabe (افقي = paisagem); reconhecedor so entende PT/EN.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "خريطة محمية كارناوباس",
-        "page": "A4 أفقي"
-      }
-    },
-    {
-      "id": "ar-07-parametro-nativo",
-      "lang": "ar",
-      "intent": "invalido",
-      "note": "Nome de parametro traduzido para arabe em vez da chave 'title' esperada.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "العنوان": "خريطة محمية كارناوباس"
-      }
-    },
-    {
-      "id": "he-01-combo",
-      "lang": "he",
-      "intent": "legitimo",
-      "note": "Combo completo em hebraico (RTL): titulo, subtitulo, legenda, autor, fonte.",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "מפת פארק קרנאובס",
-        "subtitle": "מדינת פיאווי, ברזיל",
-        "legend_title": "מקרא",
-        "map_author": "לואן קורטס",
-        "data_source": "המכון הברזילאי לגאוגרפיה וסטטיסטיקה (IBGE), 2024"
-      }
-    },
-    {
-      "id": "he-02-titulo-longo",
-      "lang": "he",
-      "intent": "legitimo",
-      "note": "Titulo hebraico longo (RTL) em template estreito.",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "מפה כוללת של שביל איטגוארה וסביבתו הטופוגרפית וההידרולוגית בפארק המדינה קרנאובס שבמדינת פיאווי",
-        "template": "publicacao"
-      }
-    },
-    {
-      "id": "he-03-mapa-duplo",
-      "lang": "he",
-      "intent": "legitimo",
-      "note": "Mapa duplo com titulos de painel em hebraico (RTL).",
-      "params": {
-        "layer_ids": [
-          "@parque",
-          "@trilha"
-        ],
-        "title": "מפת פארק קרנאובס",
-        "panel_title": "מיקום השביל",
-        "second_map": {
-          "layer_ids": [
-            "@municipios"
-          ],
-          "panel_title": "מפה מפורטת"
-        }
-      }
-    },
-    {
-      "id": "he-04-digitos-mistos",
-      "lang": "he",
-      "intent": "legitimo",
-      "note": "Fonte de dados em hebraico com numeros latinos e codigo EPSG embutidos (teste de bidi).",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "מפת פארק קרנאובס",
-        "data_source": "מקור: נתוני 2024, מערכת קואורדינטות EPSG:31984"
-      }
-    },
-    {
-      "id": "he-05-nfc",
-      "lang": "he",
-      "intent": "legitimo",
-      "note": "Titulo hebraico com nicud (pontos vocalicos) em forma NFC.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "מַפָּה מְפֹרֶטֶת"
-      }
-    },
-    {
-      "id": "he-06-nfd",
-      "lang": "he",
-      "intent": "legitimo",
-      "note": "Mesmo titulo hebraico com nicud em forma NFD (marcas combinantes separadas).",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "מַפָּה מְפֹרֶטֶת"
-      }
-    },
-    {
-      "id": "he-07-formato-nativo",
-      "lang": "he",
-      "intent": "invalido",
-      "note": "Formato de pagina em hebraico (לרוחב = paisagem); reconhecedor so entende PT/EN.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "מפת פארק קרנאובס",
-        "page": "A4 לרוחב"
-      }
-    },
-    {
-      "id": "ru-01-combo",
-      "lang": "ru",
-      "intent": "legitimo",
-      "note": "Combo completo em russo (cirilico).",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "Карта парка Карнаубас",
-        "subtitle": "Штат Пиауи, Бразилия",
-        "legend_title": "Легенда",
-        "map_author": "Луан Кортес",
-        "data_source": "Бразильский институт географии и статистики (IBGE), 2024"
-      }
-    },
-    {
-      "id": "ru-02-titulo-longo",
-      "lang": "ru",
-      "intent": "legitimo",
-      "note": "Titulo russo longo em template estreito.",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "Комплексная карта тропы Итагуаре и окружающего рельефа и гидрографии в парке Карнаубас, штат Пиауи",
-        "template": "minimalista"
-      }
-    },
-    {
-      "id": "ru-03-mapa-duplo",
-      "lang": "ru",
-      "intent": "legitimo",
-      "note": "Mapa duplo com titulos de painel em russo.",
-      "params": {
-        "layer_ids": [
-          "@parque",
-          "@trilha"
-        ],
-        "title": "Карта парка Карнаубас",
-        "panel_title": "Расположение тропы",
-        "second_map": {
-          "layer_ids": [
-            "@municipios"
-          ],
-          "panel_title": "Подробная карта"
-        }
-      }
-    },
-    {
-      "id": "ru-04-emoji",
-      "lang": "ru",
-      "intent": "legitimo",
-      "note": "Titulo russo com emoji.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "Карта парка 🌲🗻 Карнаубас"
-      }
-    },
-    {
-      "id": "ru-05-formato-nativo",
-      "lang": "ru",
-      "intent": "invalido",
-      "note": "Formato de pagina em russo (альбомная = paisagem); reconhecedor so entende PT/EN.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "Карта парка Карнаубас",
-        "page": "A4 альбомная"
-      }
-    },
-    {
-      "id": "el-01-combo",
-      "lang": "el",
-      "intent": "legitimo",
-      "note": "Combo completo em grego.",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "Χάρτης Πάρκου Καρναούμπας",
-        "subtitle": "Πολιτεία Πιαουί, Βραζιλία",
-        "legend_title": "Υπόμνημα",
-        "map_author": "Λουάν Κόρτες",
-        "data_source": "Βραζιλιάνικο Ινστιτούτο Γεωγραφίας και Στατιστικής (IBGE), 2024"
-      }
-    },
-    {
-      "id": "el-02-titulo-longo",
-      "lang": "el",
-      "intent": "legitimo",
-      "note": "Titulo grego longo em template estreito.",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "Ολοκληρωμένος χάρτης του μονοπατιού Ιταγκουαρέ και του γύρω αναγλύφου και υδρογραφικού δικτύου στο Πάρκο Καρναούμπας",
-        "template": "publicacao"
-      }
-    },
-    {
-      "id": "el-03-mapa-duplo",
-      "lang": "el",
-      "intent": "legitimo",
-      "note": "Mapa duplo com titulos de painel em grego.",
-      "params": {
-        "layer_ids": [
-          "@parque",
-          "@trilha"
-        ],
-        "title": "Χάρτης Πάρκου Καρναούμπας",
-        "panel_title": "Θέση μονοπατιού",
-        "second_map": {
-          "layer_ids": [
-            "@municipios"
-          ],
-          "panel_title": "Λεπτομερής χάρτης"
-        }
-      }
-    },
-    {
-      "id": "el-04-formato-nativo",
-      "lang": "el",
-      "intent": "invalido",
-      "note": "Formato de pagina em grego (οριζόντιος = paisagem); reconhecedor so entende PT/EN.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "Χάρτης Πάρκου Καρναούμπας",
-        "page": "A4 οριζόντιος"
-      }
-    },
-    {
-      "id": "th-01-combo",
-      "lang": "th",
-      "intent": "legitimo",
-      "note": "Combo completo em tailandes (sinais vocalicos combinantes, sem espacos entre palavras).",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "แผนที่อุทยานคาร์นาอูบัส",
-        "subtitle": "รัฐเปียวอี ประเทศบราซิล",
-        "legend_title": "คำอธิบายสัญลักษณ์",
-        "map_author": "หลวน คอร์เตส",
-        "data_source": "สถาบันภูมิศาสตร์และสถิติแห่งบราซิล (IBGE) 2567"
-      }
-    },
-    {
-      "id": "th-02-titulo-longo",
-      "lang": "th",
-      "intent": "legitimo",
-      "note": "Titulo tailandes longo, sem espacos, em template estreito.",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "แผนที่รวมของเส้นทางเดินอิตากวาเรและภูมิประเทศตลอดจนระบบน้ำโดยรอบภายในอุทยานแห่งรัฐคาร์นาอูบัส รัฐเปียวอี",
-        "template": "minimalista"
-      }
-    },
-    {
-      "id": "th-03-mapa-duplo",
-      "lang": "th",
-      "intent": "legitimo",
-      "note": "Mapa duplo com titulos de painel em tailandes.",
-      "params": {
-        "layer_ids": [
-          "@parque",
-          "@trilha"
-        ],
-        "title": "แผนที่อุทยานคาร์นาอูบัส",
-        "panel_title": "ตำแหน่งเส้นทาง",
-        "second_map": {
-          "layer_ids": [
-            "@municipios"
-          ],
-          "panel_title": "แผนที่รายละเอียด"
-        }
-      }
-    },
-    {
-      "id": "th-04-formato-nativo",
-      "lang": "th",
-      "intent": "invalido",
-      "note": "Formato de pagina em tailandes (แนวนอน = paisagem); reconhecedor so entende PT/EN.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "แผนที่อุทยานคาร์นาอูบัส",
-        "page": "A4 แนวนอน"
-      }
-    },
-    {
-      "id": "hi-01-combo",
-      "lang": "hi",
-      "intent": "legitimo",
-      "note": "Combo completo em hindi (devanagari, sinais combinantes acima/abaixo da linha).",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "कर्नाउबास राज्य उद्यान का मानचित्र",
-        "subtitle": "पियाउई राज्य, ब्राज़ील",
-        "legend_title": "मानचित्र कुंजी",
-        "map_author": "लुआन कोर्टेस",
-        "data_source": "ब्राज़ीलियाई भूगोल और सांख्यिकी संस्थान (IBGE), 2024"
-      }
-    },
-    {
-      "id": "hi-02-titulo-longo",
-      "lang": "hi",
-      "intent": "legitimo",
-      "note": "Titulo hindi longo em template estreito.",
-      "params": {
-        "layer_ids": [
-          "@municipios",
-          "@parque",
-          "@trilha"
-        ],
-        "subject_layer_id": "@parque",
-        "title": "इताग्वारे पगडंडी और कर्नाउबास राज्य उद्यान, पियाउई के आसपास की स्थलाकृति और जल प्रणाली का व्यापक मानचित्र",
-        "template": "publicacao"
-      }
-    },
-    {
-      "id": "hi-03-mapa-duplo",
-      "lang": "hi",
-      "intent": "legitimo",
-      "note": "Mapa duplo com titulos de painel em hindi.",
-      "params": {
-        "layer_ids": [
-          "@parque",
-          "@trilha"
-        ],
-        "title": "कर्नाउबास राज्य उद्यान का मानचित्र",
-        "panel_title": "पगडंडी का स्थान",
-        "second_map": {
-          "layer_ids": [
-            "@municipios"
-          ],
-          "panel_title": "विस्तृत मानचित्र"
-        }
-      }
-    },
-    {
-      "id": "hi-04-formato-nativo",
-      "lang": "hi",
-      "intent": "invalido",
-      "note": "Formato de pagina em hindi (अनुप्रस्थ = paisagem); reconhecedor so entende PT/EN.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "कर्नाउबास राज्य उद्यान का मानचित्र",
-        "page": "A4 अनुप्रस्थ"
-      }
-    },
-    {
-      "id": "hi-05-parametro-nativo",
-      "lang": "hi",
-      "intent": "invalido",
-      "note": "Nome de parametro traduzido para hindi em vez da chave 'title' esperada.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "शीर्षक": "कर्नाउबास राज्य उद्यान का मानचित्र"
-      }
-    },
-    {
-      "id": "ja-06-template-nativo",
-      "lang": "ja",
-      "intent": "invalido",
-      "note": "Nome de template traduzido para japones em vez de uma chave valida (cientifico/publicacao/...).",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "カルナウーバス州立公園",
-        "template": "科学的"
-      }
-    },
-    {
-      "id": "zhs-05-so-rodape",
-      "lang": "zh-Hans",
-      "intent": "legitimo",
-      "note": "So autor e fonte em chines, sem titulo, para medir isoladamente o texto fixo em portugues do rodape.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "map_author": "路安·科尔特斯",
-        "data_source": "巴西地理统计局(IBGE),2024年",
-        "organization": "劳安·科尔特斯实验室"
-      }
-    },
-    {
-      "id": "ar-08-so-rodape",
-      "lang": "ar",
-      "intent": "legitimo",
-      "note": "So autor e fonte em arabe, sem titulo, para medir isoladamente o texto fixo em portugues do rodape em contexto RTL.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "map_author": "لوان كورتيس",
-        "data_source": "المعهد البرازيلي للجغرافيا والإحصاء (IBGE)، 2024"
-      }
-    },
-    {
-      "id": "ko-07-legenda-com-dem",
-      "lang": "ko",
-      "intent": "legitimo",
-      "note": "Legenda coreana com camada raster (DEM) incluida, para checar rotulo de raster na legenda.",
-      "params": {
-        "layer_ids": [
-          "@dem",
-          "@parque"
-        ],
-        "legend_title": "범례",
-        "title": "카르나우바스 주립공원 지도"
-      }
-    },
-    {
-      "id": "hi-06-mapa-duplo-mesma-escala",
-      "lang": "hi",
-      "intent": "legitimo",
-      "note": "Mapa duplo em hindi com comparison_same_scale=true, testando 'Escalas indicadas em cada painel' vs escala unica.",
-      "params": {
-        "layer_ids": [
-          "@parque",
-          "@trilha"
-        ],
-        "title": "कर्नाउबास राज्य उद्यान का मानचित्र",
-        "panel_title": "पगडंडी",
-        "comparison_same_scale": true,
-        "second_map": {
-          "layer_ids": [
-            "@municipios"
-          ],
-          "panel_title": "नगर पालिकाएँ"
-        }
-      }
-    },
-    {
-      "id": "th-05-titulo-vazio-so-japones-no-resto",
-      "lang": "th",
-      "intent": "legitimo",
-      "note": "Titulo ausente (cai no padrao 'Mapa' em portugues) mas subtitulo e legenda em tailandes.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "subtitle": "รัฐเปียวอี ประเทศบราซิล",
-        "legend_title": "คำอธิบายสัญลักษณ์"
-      }
-    },
-    {
-      "id": "stress-ja-a5",
-      "lang": "ja",
-      "intent": "legitimo",
-      "note": "Titulo japones longo em pagina A5 retrato (area util bem mais estreita).",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "イタグアレの登山道と周辺の地形および水系を示す総合案内地図、ピアウイ州カルナウーバス州立公園、ブラジル北東部",
-        "page": "A5",
-        "orientation": "portrait"
-      }
-    },
-    {
-      "id": "stress-ar-a5",
-      "lang": "ar",
-      "intent": "legitimo",
-      "note": "Titulo arabe longo em pagina A5 retrato.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "خريطة شاملة لمسار إيتاغواريه ومحيطه الطبوغرافي والمائي داخل محمية كارناوباس بولاية بياوي البرازيلية الواقعة في شمال شرق البرازيل",
-        "page": "A5",
-        "orientation": "portrait"
-      }
-    },
-    {
-      "id": "stress-hi-a5",
-      "lang": "hi",
-      "intent": "legitimo",
-      "note": "Titulo hindi longo em pagina A5 retrato.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "इताग्वारे पगडंडी और कर्नाउबास राज्य उद्यान, पियाउई के आसपास की स्थलाकृति और जल प्रणाली का व्यापक और विस्तृत मानचित्र, ब्राज़ील के उत्तरपूर्व में स्थित",
-        "page": "A5",
-        "orientation": "portrait"
-      }
-    },
-    {
-      "id": "stress-zhs-extreme",
-      "lang": "zh-Hans",
-      "intent": "legitimo",
-      "note": "Titulo chines extremamente longo (90+ caracteres) em pagina A4 padrao.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "伊塔瓜雷徒步小径及周边地形水系综合示意图,皮奥伊州卡尔瑙巴斯州立公园全览,巴西东北部重要生态保护区域,包含完整水文与地貌信息说明及周边村镇分布情况总览图"
-      }
-    },
-    {
-      "id": "stress-th-a5",
-      "lang": "th",
-      "intent": "legitimo",
-      "note": "Titulo tailandes longo (sem espacos entre palavras) em pagina A5 retrato.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "แผนที่รวมของเส้นทางเดินอิตากวาเรและภูมิประเทศตลอดจนระบบน้ำโดยรอบภายในอุทยานแห่งรัฐคาร์นาอูบัสรัฐเปียวอีทางตะวันออกเฉียงเหนือของบราซิล",
-        "page": "A5",
-        "orientation": "portrait"
-      }
-    },
-    {
-      "id": "stress-ko-a5",
-      "lang": "ko",
-      "intent": "legitimo",
-      "note": "Titulo coreano longo em pagina A5 retrato.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "이타과레 등산로와 주변 지형 및 수계를 보여주는 카르나우바스 주립공원 종합 안내 지도, 브라질 북동부 피아우이 주에 위치",
-        "page": "A5",
-        "orientation": "portrait"
-      }
-    },
-    {
-      "id": "stress-pt-nospace",
-      "lang": "pt",
-      "intent": "legitimo",
-      "note": "Controle: titulo em portugues SEM espacos (uma palavra continua) em pagina A5 retrato, para provar que a causa e ausencia de pontos de quebra e nao o script.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "MapaCompletoDoParqueEstadualDasCarnaubasEArredoresNoEstadoDoPiauiComTrilhaDoItaguareEHidrografia",
-        "page": "A5",
-        "orientation": "portrait"
-      }
-    },
-    {
-      "id": "stress-ja-comespacos",
-      "lang": "ja",
-      "intent": "legitimo",
-      "note": "Mesmo titulo japones longo do stress-ja-a5, mas com espacos inseridos a cada poucos caracteres, para checar se isso basta para o motor quebrar linha.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "イタグアレの 登山道と 周辺の 地形および 水系を 示す 総合案内地図、 ピアウイ州 カルナウーバス 州立公園、 ブラジル 北東部",
-        "page": "A5",
-        "orientation": "portrait"
-      }
-    },
-    {
-      "id": "stress-zhs-painel-longo",
-      "lang": "zh-Hans",
-      "intent": "legitimo",
-      "note": "Mapa duplo, escalas independentes por painel (comparison_same_scale=false), com titulos de painel chineses moderadamente longos para testar overflow na coluna estreita do painel.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "卡尔瑙巴斯州立公园对比图",
-        "panel_title": "公园边界与步道位置总览",
-        "comparison_same_scale": false,
-        "second_map": {
-          "layer_ids": [
-            "@trilha"
-          ],
-          "panel_title": "伊塔瓜雷步道详细路线图"
-        }
-      }
-    },
-    {
-      "id": "stress-ar-painel-longo",
-      "lang": "ar",
-      "intent": "legitimo",
-      "note": "Mapa duplo em arabe com escalas independentes por painel, titulos de painel moderadamente longos (RTL) na coluna estreita.",
-      "params": {
-        "layer_ids": [
-          "@parque"
-        ],
-        "title": "خريطة مقارنة كارناوباس",
-        "panel_title": "نظرة عامة على حدود الحديقة والمسار",
-        "comparison_same_scale": false,
-        "second_map": {
-          "layer_ids": [
-            "@trilha"
-          ],
-          "panel_title": "خريطة تفصيلية لمسار إيتاغواريه"
-        }
-      }
+ "scenarios": [
+  {
+   "id": "ja-01-combo",
+   "lang": "ja",
+   "intent": "legitimo",
+   "note": "Combo completo em japones: titulo, subtitulo, legenda, autor, fonte, organizacao.",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "カルナウーバス州立公園",
+    "subtitle": "ピアウイ州、ブラジル",
+    "legend_title": "凡例",
+    "map_author": "コルテス・ルアン",
+    "data_source": "ブラジル地理統計院 (IBGE)、2024年",
+    "organization": "SIGMAI Laboratorio"
+   }
+  },
+  {
+   "id": "ja-02-titulo-longo",
+   "lang": "ja",
+   "intent": "legitimo",
+   "note": "Titulo japones muito longo (CJK ~2x largura de letra latina) em template estreito.",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "イタグアレの登山道と周辺の地形および水系を示す総合案内地図、ピアウイ州カルナウーバス州立公園",
+    "template": "publicacao"
+   }
+  },
+  {
+   "id": "ja-03-mapa-duplo",
+   "lang": "ja",
+   "intent": "legitimo",
+   "note": "Mapa duplo com titulos de painel em japones.",
+   "params": {
+    "layer_ids": [
+     "@parque",
+     "@trilha"
+    ],
+    "title": "カルナウーバス州立公園",
+    "panel_title": "登山道の位置",
+    "second_map": {
+     "layer_ids": [
+      "@municipios"
+     ],
+     "panel_title": "詳細図"
     }
-  ]
+   }
+  },
+  {
+   "id": "ja-04-nfc",
+   "lang": "ja",
+   "intent": "legitimo",
+   "note": "Titulo japones em forma NFC (dakuten pre-combinado).",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "がぎぐげご地図 NFC"
+   }
+  },
+  {
+   "id": "ja-05-nfd",
+   "lang": "ja",
+   "intent": "legitimo",
+   "note": "Mesmo titulo japones em forma NFD (dakuten como marca combinante separada).",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "がぎぐげご地図 NFD"
+   }
+  },
+  {
+   "id": "zhs-01-combo",
+   "lang": "zh-Hans",
+   "intent": "legitimo",
+   "note": "Combo completo em chines simplificado.",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "卡尔瑙巴斯州立公园地图",
+    "subtitle": "巴西皮奥伊州",
+    "legend_title": "图例",
+    "map_author": "路安·科尔特斯",
+    "data_source": "巴西地理统计局(IBGE),2024年"
+   }
+  },
+  {
+   "id": "zhs-02-titulo-longo",
+   "lang": "zh-Hans",
+   "intent": "legitimo",
+   "note": "Titulo chines simplificado longo em template estreito (minimalista).",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "伊塔瓜雷徒步小径及周边地形水系综合示意图,皮奥伊州卡尔瑙巴斯州立公园全览",
+    "template": "minimalista"
+   }
+  },
+  {
+   "id": "zhs-03-mapa-duplo",
+   "lang": "zh-Hans",
+   "intent": "legitimo",
+   "note": "Mapa duplo com titulos de painel em chines simplificado.",
+   "params": {
+    "layer_ids": [
+     "@parque",
+     "@trilha"
+    ],
+    "title": "卡尔瑙巴斯州立公园地图",
+    "panel_title": "小径位置图",
+    "second_map": {
+     "layer_ids": [
+      "@municipios"
+     ],
+     "panel_title": "详细图"
+    }
+   }
+  },
+  {
+   "id": "zhs-04-ideografo-raro",
+   "lang": "zh-Hans",
+   "intent": "legitimo",
+   "note": "Titulo com ideografo fora do plano basico (CJK Ext B, U+20000) misturado ao texto normal.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "地图𠀀测试 卡尔瑙巴斯"
+   }
+  },
+  {
+   "id": "zht-01-combo",
+   "lang": "zh-Hant",
+   "intent": "legitimo",
+   "note": "Combo completo em chines tradicional.",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "卡爾瑙巴斯州立公園地圖",
+    "subtitle": "巴西皮奧伊州",
+    "legend_title": "圖例",
+    "map_author": "路安·科爾特斯",
+    "data_source": "巴西地理統計局(IBGE),2024年"
+   }
+  },
+  {
+   "id": "zht-02-titulo-longo",
+   "lang": "zh-Hant",
+   "intent": "legitimo",
+   "note": "Titulo chines tradicional longo em template estreito.",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "伊塔瓜雷健行步道及周邊地形水系綜合示意圖,皮奧伊州卡爾瑙巴斯州立公園全覽",
+    "template": "publicacao"
+   }
+  },
+  {
+   "id": "zht-03-mapa-duplo",
+   "lang": "zh-Hant",
+   "intent": "legitimo",
+   "note": "Mapa duplo com titulos de painel em chines tradicional.",
+   "params": {
+    "layer_ids": [
+     "@parque",
+     "@trilha"
+    ],
+    "title": "卡爾瑙巴斯州立公園地圖",
+    "panel_title": "步道位置圖",
+    "second_map": {
+     "layer_ids": [
+      "@municipios"
+     ],
+     "panel_title": "詳細圖"
+    }
+   }
+  },
+  {
+   "id": "ko-01-combo",
+   "lang": "ko",
+   "intent": "legitimo",
+   "note": "Combo completo em coreano.",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "카르나우바스 주립공원 지도",
+    "subtitle": "브라질 피아우이 주",
+    "legend_title": "범례",
+    "map_author": "루안 코르테스",
+    "data_source": "브라질 지리통계원(IBGE), 2024년"
+   }
+  },
+  {
+   "id": "ko-02-titulo-longo",
+   "lang": "ko",
+   "intent": "legitimo",
+   "note": "Titulo coreano (hangul, largura proxima da CJK) longo em template estreito.",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "이타과레 등산로와 주변 지형 및 수계를 보여주는 카르나우바스 주립공원 종합 안내 지도",
+    "template": "minimalista"
+   }
+  },
+  {
+   "id": "ko-03-mapa-duplo",
+   "lang": "ko",
+   "intent": "legitimo",
+   "note": "Mapa duplo com titulos de painel em coreano.",
+   "params": {
+    "layer_ids": [
+     "@parque",
+     "@trilha"
+    ],
+    "title": "카르나우바스 주립공원 지도",
+    "panel_title": "등산로 위치도",
+    "second_map": {
+     "layer_ids": [
+      "@municipios"
+     ],
+     "panel_title": "상세도"
+    }
+   }
+  },
+  {
+   "id": "ko-04-nfc",
+   "lang": "ko",
+   "intent": "legitimo",
+   "note": "Titulo coreano em forma NFC (silabas hangul pre-compostas).",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "한글 지도 제목 NFC"
+   }
+  },
+  {
+   "id": "ko-05-nfd",
+   "lang": "ko",
+   "intent": "legitimo",
+   "note": "Mesmo titulo coreano em forma NFD (jamo decomposto).",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "한글 지도 제목 NFD"
+   }
+  },
+  {
+   "id": "ko-06-formato-nativo",
+   "lang": "ko",
+   "intent": "legitimo",
+   "note": "orientação escrita na língua do usuário — o reconhecedor entende",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "카르나우바스 주립공원 지도",
+    "page": "A4 가로"
+   }
+  },
+  {
+   "id": "ar-01-combo",
+   "lang": "ar",
+   "intent": "legitimo",
+   "note": "Combo completo em arabe (RTL): titulo, subtitulo, legenda, autor, fonte.",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "خريطة محمية كارناوباس",
+    "subtitle": "ولاية بياوي، البرازيل",
+    "legend_title": "مفتاح الخريطة",
+    "map_author": "لوان كورتيس",
+    "data_source": "المعهد البرازيلي للجغرافيا والإحصاء (IBGE)، 2024"
+   }
+  },
+  {
+   "id": "ar-02-titulo-longo",
+   "lang": "ar",
+   "intent": "legitimo",
+   "note": "Titulo arabe longo (RTL) em template estreito.",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "خريطة شاملة لمسار إيتاغواريه ومحيطه الطبوغرافي والمائي داخل محمية كارناوباس بولاية بياوي البرازيلية",
+    "template": "publicacao"
+   }
+  },
+  {
+   "id": "ar-03-mapa-duplo",
+   "lang": "ar",
+   "intent": "legitimo",
+   "note": "Mapa duplo com titulos de painel em arabe (RTL).",
+   "params": {
+    "layer_ids": [
+     "@parque",
+     "@trilha"
+    ],
+    "title": "خريطة محمية كارناوباس",
+    "panel_title": "موقع المسار",
+    "second_map": {
+     "layer_ids": [
+      "@municipios"
+     ],
+     "panel_title": "خريطة تفصيلية"
+    }
+   }
+  },
+  {
+   "id": "ar-04-digitos-mistos",
+   "lang": "ar",
+   "intent": "legitimo",
+   "note": "Fonte de dados em arabe misturando algarismos indo-arabicos e codigo EPSG em latim (teste de bidi).",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "خريطة محمية كارناوباس",
+    "data_source": "بيانات ٢٠٢٤، نظام الإحداثيات EPSG:31984، عدد الطبقات: 3"
+   }
+  },
+  {
+   "id": "ar-05-emoji",
+   "lang": "ar",
+   "intent": "legitimo",
+   "note": "Titulo arabe com emoji misturado.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "خريطة الحديقة 🌵🗺️ الرسمية"
+   }
+  },
+  {
+   "id": "ar-06-formato-nativo",
+   "lang": "ar",
+   "intent": "legitimo",
+   "note": "orientação escrita na língua do usuário — o reconhecedor entende",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "خريطة محمية كارناوباس",
+    "page": "A4 أفقي"
+   }
+  },
+  {
+   "id": "ar-07-parametro-nativo",
+   "lang": "ar",
+   "intent": "invalido",
+   "note": "Nome de parametro traduzido para arabe em vez da chave 'title' esperada.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "العنوان": "خريطة محمية كارناوباس"
+   }
+  },
+  {
+   "id": "he-01-combo",
+   "lang": "he",
+   "intent": "legitimo",
+   "note": "Combo completo em hebraico (RTL): titulo, subtitulo, legenda, autor, fonte.",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "מפת פארק קרנאובס",
+    "subtitle": "מדינת פיאווי, ברזיל",
+    "legend_title": "מקרא",
+    "map_author": "לואן קורטס",
+    "data_source": "המכון הברזילאי לגאוגרפיה וסטטיסטיקה (IBGE), 2024"
+   }
+  },
+  {
+   "id": "he-02-titulo-longo",
+   "lang": "he",
+   "intent": "legitimo",
+   "note": "Titulo hebraico longo (RTL) em template estreito.",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "מפה כוללת של שביל איטגוארה וסביבתו הטופוגרפית וההידרולוגית בפארק המדינה קרנאובס שבמדינת פיאווי",
+    "template": "publicacao"
+   }
+  },
+  {
+   "id": "he-03-mapa-duplo",
+   "lang": "he",
+   "intent": "legitimo",
+   "note": "Mapa duplo com titulos de painel em hebraico (RTL).",
+   "params": {
+    "layer_ids": [
+     "@parque",
+     "@trilha"
+    ],
+    "title": "מפת פארק קרנאובס",
+    "panel_title": "מיקום השביל",
+    "second_map": {
+     "layer_ids": [
+      "@municipios"
+     ],
+     "panel_title": "מפה מפורטת"
+    }
+   }
+  },
+  {
+   "id": "he-04-digitos-mistos",
+   "lang": "he",
+   "intent": "legitimo",
+   "note": "Fonte de dados em hebraico com numeros latinos e codigo EPSG embutidos (teste de bidi).",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "מפת פארק קרנאובס",
+    "data_source": "מקור: נתוני 2024, מערכת קואורדינטות EPSG:31984"
+   }
+  },
+  {
+   "id": "he-05-nfc",
+   "lang": "he",
+   "intent": "legitimo",
+   "note": "Titulo hebraico com nicud (pontos vocalicos) em forma NFC.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "מַפָּה מְפֹרֶטֶת"
+   }
+  },
+  {
+   "id": "he-06-nfd",
+   "lang": "he",
+   "intent": "legitimo",
+   "note": "Mesmo titulo hebraico com nicud em forma NFD (marcas combinantes separadas).",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "מַפָּה מְפֹרֶטֶת"
+   }
+  },
+  {
+   "id": "he-07-formato-nativo",
+   "lang": "he",
+   "intent": "legitimo",
+   "note": "orientação escrita na língua do usuário — o reconhecedor entende",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "מפת פארק קרנאובס",
+    "page": "A4 לרוחב"
+   }
+  },
+  {
+   "id": "ru-01-combo",
+   "lang": "ru",
+   "intent": "legitimo",
+   "note": "Combo completo em russo (cirilico).",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "Карта парка Карнаубас",
+    "subtitle": "Штат Пиауи, Бразилия",
+    "legend_title": "Легенда",
+    "map_author": "Луан Кортес",
+    "data_source": "Бразильский институт географии и статистики (IBGE), 2024"
+   }
+  },
+  {
+   "id": "ru-02-titulo-longo",
+   "lang": "ru",
+   "intent": "legitimo",
+   "note": "Titulo russo longo em template estreito.",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "Комплексная карта тропы Итагуаре и окружающего рельефа и гидрографии в парке Карнаубас, штат Пиауи",
+    "template": "minimalista"
+   }
+  },
+  {
+   "id": "ru-03-mapa-duplo",
+   "lang": "ru",
+   "intent": "legitimo",
+   "note": "Mapa duplo com titulos de painel em russo.",
+   "params": {
+    "layer_ids": [
+     "@parque",
+     "@trilha"
+    ],
+    "title": "Карта парка Карнаубас",
+    "panel_title": "Расположение тропы",
+    "second_map": {
+     "layer_ids": [
+      "@municipios"
+     ],
+     "panel_title": "Подробная карта"
+    }
+   }
+  },
+  {
+   "id": "ru-04-emoji",
+   "lang": "ru",
+   "intent": "legitimo",
+   "note": "Titulo russo com emoji.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "Карта парка 🌲🗻 Карнаубас"
+   }
+  },
+  {
+   "id": "ru-05-formato-nativo",
+   "lang": "ru",
+   "intent": "legitimo",
+   "note": "orientação escrita na língua do usuário — o reconhecedor entende",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "Карта парка Карнаубас",
+    "page": "A4 альбомная"
+   }
+  },
+  {
+   "id": "el-01-combo",
+   "lang": "el",
+   "intent": "legitimo",
+   "note": "Combo completo em grego.",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "Χάρτης Πάρκου Καρναούμπας",
+    "subtitle": "Πολιτεία Πιαουί, Βραζιλία",
+    "legend_title": "Υπόμνημα",
+    "map_author": "Λουάν Κόρτες",
+    "data_source": "Βραζιλιάνικο Ινστιτούτο Γεωγραφίας και Στατιστικής (IBGE), 2024"
+   }
+  },
+  {
+   "id": "el-02-titulo-longo",
+   "lang": "el",
+   "intent": "legitimo",
+   "note": "Titulo grego longo em template estreito.",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "Ολοκληρωμένος χάρτης του μονοπατιού Ιταγκουαρέ και του γύρω αναγλύφου και υδρογραφικού δικτύου στο Πάρκο Καρναούμπας",
+    "template": "publicacao"
+   }
+  },
+  {
+   "id": "el-03-mapa-duplo",
+   "lang": "el",
+   "intent": "legitimo",
+   "note": "Mapa duplo com titulos de painel em grego.",
+   "params": {
+    "layer_ids": [
+     "@parque",
+     "@trilha"
+    ],
+    "title": "Χάρτης Πάρκου Καρναούμπας",
+    "panel_title": "Θέση μονοπατιού",
+    "second_map": {
+     "layer_ids": [
+      "@municipios"
+     ],
+     "panel_title": "Λεπτομερής χάρτης"
+    }
+   }
+  },
+  {
+   "id": "el-04-formato-nativo",
+   "lang": "el",
+   "intent": "legitimo",
+   "note": "orientação escrita na língua do usuário — o reconhecedor entende",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "Χάρτης Πάρκου Καρναούμπας",
+    "page": "A4 οριζόντιος"
+   }
+  },
+  {
+   "id": "th-01-combo",
+   "lang": "th",
+   "intent": "legitimo",
+   "note": "Combo completo em tailandes (sinais vocalicos combinantes, sem espacos entre palavras).",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "แผนที่อุทยานคาร์นาอูบัส",
+    "subtitle": "รัฐเปียวอี ประเทศบราซิล",
+    "legend_title": "คำอธิบายสัญลักษณ์",
+    "map_author": "หลวน คอร์เตส",
+    "data_source": "สถาบันภูมิศาสตร์และสถิติแห่งบราซิล (IBGE) 2567"
+   }
+  },
+  {
+   "id": "th-02-titulo-longo",
+   "lang": "th",
+   "intent": "legitimo",
+   "note": "Titulo tailandes longo, sem espacos, em template estreito.",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "แผนที่รวมของเส้นทางเดินอิตากวาเรและภูมิประเทศตลอดจนระบบน้ำโดยรอบภายในอุทยานแห่งรัฐคาร์นาอูบัส รัฐเปียวอี",
+    "template": "minimalista"
+   }
+  },
+  {
+   "id": "th-03-mapa-duplo",
+   "lang": "th",
+   "intent": "legitimo",
+   "note": "Mapa duplo com titulos de painel em tailandes.",
+   "params": {
+    "layer_ids": [
+     "@parque",
+     "@trilha"
+    ],
+    "title": "แผนที่อุทยานคาร์นาอูบัส",
+    "panel_title": "ตำแหน่งเส้นทาง",
+    "second_map": {
+     "layer_ids": [
+      "@municipios"
+     ],
+     "panel_title": "แผนที่รายละเอียด"
+    }
+   }
+  },
+  {
+   "id": "th-04-formato-nativo",
+   "lang": "th",
+   "intent": "legitimo",
+   "note": "orientação escrita na língua do usuário — o reconhecedor entende",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "แผนที่อุทยานคาร์นาอูบัส",
+    "page": "A4 แนวนอน"
+   }
+  },
+  {
+   "id": "hi-01-combo",
+   "lang": "hi",
+   "intent": "legitimo",
+   "note": "Combo completo em hindi (devanagari, sinais combinantes acima/abaixo da linha).",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "कर्नाउबास राज्य उद्यान का मानचित्र",
+    "subtitle": "पियाउई राज्य, ब्राज़ील",
+    "legend_title": "मानचित्र कुंजी",
+    "map_author": "लुआन कोर्टेस",
+    "data_source": "ब्राज़ीलियाई भूगोल और सांख्यिकी संस्थान (IBGE), 2024"
+   }
+  },
+  {
+   "id": "hi-02-titulo-longo",
+   "lang": "hi",
+   "intent": "legitimo",
+   "note": "Titulo hindi longo em template estreito.",
+   "params": {
+    "layer_ids": [
+     "@municipios",
+     "@parque",
+     "@trilha"
+    ],
+    "subject_layer_id": "@parque",
+    "title": "इताग्वारे पगडंडी और कर्नाउबास राज्य उद्यान, पियाउई के आसपास की स्थलाकृति और जल प्रणाली का व्यापक मानचित्र",
+    "template": "publicacao"
+   }
+  },
+  {
+   "id": "hi-03-mapa-duplo",
+   "lang": "hi",
+   "intent": "legitimo",
+   "note": "Mapa duplo com titulos de painel em hindi.",
+   "params": {
+    "layer_ids": [
+     "@parque",
+     "@trilha"
+    ],
+    "title": "कर्नाउबास राज्य उद्यान का मानचित्र",
+    "panel_title": "पगडंडी का स्थान",
+    "second_map": {
+     "layer_ids": [
+      "@municipios"
+     ],
+     "panel_title": "विस्तृत मानचित्र"
+    }
+   }
+  },
+  {
+   "id": "hi-04-formato-nativo",
+   "lang": "hi",
+   "intent": "legitimo",
+   "note": "orientação escrita na língua do usuário — o reconhecedor entende",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "कर्नाउबास राज्य उद्यान का मानचित्र",
+    "page": "A4 अनुप्रस्थ"
+   }
+  },
+  {
+   "id": "hi-05-parametro-nativo",
+   "lang": "hi",
+   "intent": "invalido",
+   "note": "Nome de parametro traduzido para hindi em vez da chave 'title' esperada.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "शीर्षक": "कर्नाउबास राज्य उद्यान का मानचित्र"
+   }
+  },
+  {
+   "id": "ja-06-template-nativo",
+   "lang": "ja",
+   "intent": "invalido",
+   "note": "Nome de template traduzido para japones em vez de uma chave valida (cientifico/publicacao/...).",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "カルナウーバス州立公園",
+    "template": "科学的"
+   }
+  },
+  {
+   "id": "zhs-05-so-rodape",
+   "lang": "zh-Hans",
+   "intent": "legitimo",
+   "note": "So autor e fonte em chines, sem titulo, para medir isoladamente o texto fixo em portugues do rodape.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "map_author": "路安·科尔特斯",
+    "data_source": "巴西地理统计局(IBGE),2024年",
+    "organization": "劳安·科尔特斯实验室"
+   }
+  },
+  {
+   "id": "ar-08-so-rodape",
+   "lang": "ar",
+   "intent": "legitimo",
+   "note": "So autor e fonte em arabe, sem titulo, para medir isoladamente o texto fixo em portugues do rodape em contexto RTL.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "map_author": "لوان كورتيس",
+    "data_source": "المعهد البرازيلي للجغرافيا والإحصاء (IBGE)، 2024"
+   }
+  },
+  {
+   "id": "ko-07-legenda-com-dem",
+   "lang": "ko",
+   "intent": "legitimo",
+   "note": "Legenda coreana com camada raster (DEM) incluida, para checar rotulo de raster na legenda.",
+   "params": {
+    "layer_ids": [
+     "@dem",
+     "@parque"
+    ],
+    "legend_title": "범례",
+    "title": "카르나우바스 주립공원 지도"
+   }
+  },
+  {
+   "id": "hi-06-mapa-duplo-mesma-escala",
+   "lang": "hi",
+   "intent": "legitimo",
+   "note": "Mapa duplo em hindi com comparison_same_scale=true, testando 'Escalas indicadas em cada painel' vs escala unica.",
+   "params": {
+    "layer_ids": [
+     "@parque",
+     "@trilha"
+    ],
+    "title": "कर्नाउबास राज्य उद्यान का मानचित्र",
+    "panel_title": "पगडंडी",
+    "comparison_same_scale": true,
+    "second_map": {
+     "layer_ids": [
+      "@municipios"
+     ],
+     "panel_title": "नगर पालिकाएँ"
+    }
+   }
+  },
+  {
+   "id": "th-05-titulo-vazio-so-japones-no-resto",
+   "lang": "th",
+   "intent": "legitimo",
+   "note": "Titulo ausente (cai no padrao 'Mapa' em portugues) mas subtitulo e legenda em tailandes.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "subtitle": "รัฐเปียวอี ประเทศบราซิล",
+    "legend_title": "คำอธิบายสัญลักษณ์"
+   }
+  },
+  {
+   "id": "stress-ja-a5",
+   "lang": "ja",
+   "intent": "legitimo",
+   "note": "Titulo japones longo em pagina A5 retrato (area util bem mais estreita).",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "イタグアレの登山道と周辺の地形および水系を示す総合案内地図、ピアウイ州カルナウーバス州立公園、ブラジル北東部",
+    "page": "A5",
+    "orientation": "portrait"
+   }
+  },
+  {
+   "id": "stress-ar-a5",
+   "lang": "ar",
+   "intent": "legitimo",
+   "note": "Titulo arabe longo em pagina A5 retrato.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "خريطة شاملة لمسار إيتاغواريه ومحيطه الطبوغرافي والمائي داخل محمية كارناوباس بولاية بياوي البرازيلية الواقعة في شمال شرق البرازيل",
+    "page": "A5",
+    "orientation": "portrait"
+   }
+  },
+  {
+   "id": "stress-hi-a5",
+   "lang": "hi",
+   "intent": "legitimo",
+   "note": "Titulo hindi longo em pagina A5 retrato.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "इताग्वारे पगडंडी और कर्नाउबास राज्य उद्यान, पियाउई के आसपास की स्थलाकृति और जल प्रणाली का व्यापक और विस्तृत मानचित्र, ब्राज़ील के उत्तरपूर्व में स्थित",
+    "page": "A5",
+    "orientation": "portrait"
+   }
+  },
+  {
+   "id": "stress-zhs-extreme",
+   "lang": "zh-Hans",
+   "intent": "legitimo",
+   "note": "Titulo chines extremamente longo (90+ caracteres) em pagina A4 padrao.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "伊塔瓜雷徒步小径及周边地形水系综合示意图,皮奥伊州卡尔瑙巴斯州立公园全览,巴西东北部重要生态保护区域,包含完整水文与地貌信息说明及周边村镇分布情况总览图"
+   }
+  },
+  {
+   "id": "stress-th-a5",
+   "lang": "th",
+   "intent": "legitimo",
+   "note": "Titulo tailandes longo (sem espacos entre palavras) em pagina A5 retrato.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "แผนที่รวมของเส้นทางเดินอิตากวาเรและภูมิประเทศตลอดจนระบบน้ำโดยรอบภายในอุทยานแห่งรัฐคาร์นาอูบัสรัฐเปียวอีทางตะวันออกเฉียงเหนือของบราซิล",
+    "page": "A5",
+    "orientation": "portrait"
+   }
+  },
+  {
+   "id": "stress-ko-a5",
+   "lang": "ko",
+   "intent": "legitimo",
+   "note": "Titulo coreano longo em pagina A5 retrato.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "이타과레 등산로와 주변 지형 및 수계를 보여주는 카르나우바스 주립공원 종합 안내 지도, 브라질 북동부 피아우이 주에 위치",
+    "page": "A5",
+    "orientation": "portrait"
+   }
+  },
+  {
+   "id": "stress-pt-nospace",
+   "lang": "pt",
+   "intent": "legitimo",
+   "note": "Controle: titulo em portugues SEM espacos (uma palavra continua) em pagina A5 retrato, para provar que a causa e ausencia de pontos de quebra e nao o script.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "MapaCompletoDoParqueEstadualDasCarnaubasEArredoresNoEstadoDoPiauiComTrilhaDoItaguareEHidrografia",
+    "page": "A5",
+    "orientation": "portrait"
+   }
+  },
+  {
+   "id": "stress-ja-comespacos",
+   "lang": "ja",
+   "intent": "legitimo",
+   "note": "Mesmo titulo japones longo do stress-ja-a5, mas com espacos inseridos a cada poucos caracteres, para checar se isso basta para o motor quebrar linha.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "イタグアレの 登山道と 周辺の 地形および 水系を 示す 総合案内地図、 ピアウイ州 カルナウーバス 州立公園、 ブラジル 北東部",
+    "page": "A5",
+    "orientation": "portrait"
+   }
+  },
+  {
+   "id": "stress-zhs-painel-longo",
+   "lang": "zh-Hans",
+   "intent": "legitimo",
+   "note": "Mapa duplo, escalas independentes por painel (comparison_same_scale=false), com titulos de painel chineses moderadamente longos para testar overflow na coluna estreita do painel.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "卡尔瑙巴斯州立公园对比图",
+    "panel_title": "公园边界与步道位置总览",
+    "comparison_same_scale": false,
+    "second_map": {
+     "layer_ids": [
+      "@trilha"
+     ],
+     "panel_title": "伊塔瓜雷步道详细路线图"
+    }
+   }
+  },
+  {
+   "id": "stress-ar-painel-longo",
+   "lang": "ar",
+   "intent": "legitimo",
+   "note": "Mapa duplo em arabe com escalas independentes por painel, titulos de painel moderadamente longos (RTL) na coluna estreita.",
+   "params": {
+    "layer_ids": [
+     "@parque"
+    ],
+    "title": "خريطة مقارنة كارناوباس",
+    "panel_title": "نظرة عامة على حدود الحديقة والمسار",
+    "comparison_same_scale": false,
+    "second_map": {
+     "layer_ids": [
+      "@trilha"
+     ],
+     "panel_title": "خريطة تفصيلية لمسار إيتاغواريه"
+    }
+   }
+  }
+ ]
 }

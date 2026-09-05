@@ -1,8 +1,11 @@
+"""Arquivo de sessão que os clientes de IA leem para achar a ponte, gravado com permissões restritas e sem seguir symlink."""
+
 from __future__ import annotations
 
 import errno
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -21,8 +24,25 @@ except Exception:
     SESSION_SCHEMA_VERSION = "0.3"
 
     def sessions_dir() -> Path:
-        base = os.environ.get("LOCALAPPDATA") or os.environ.get("TEMP") or str(Path.home())
-        return Path(base) / "SIGMAI" / "sessions"
+        # Espelho exato de core/session_paths.sessions_dir(). O pacote publicado
+        # nunca traz core/, então É esta função que roda na máquina do usuário —
+        # e ela precisa concordar com onde o servidor MCP procura
+        # (sigmai_mcp._sessions_dirs). A versão anterior gravava em
+        # ~/SIGMAI/sessions no Linux e no macOS enquanto o servidor procurava
+        # em ~/.local/share/sigmai/sessions: a descoberta automática falhava
+        # em silêncio e só o SIGMAI_SESSION_FILE explícito salvava.
+        if os.name == "nt":
+            local_app_data = os.environ.get("LOCALAPPDATA")
+            if local_app_data:
+                return Path(local_app_data) / "SIGMAI" / "sessions"
+            temp = os.environ.get("TEMP")
+            if temp:
+                return Path(temp) / "SIGMAI" / "sessions"
+        if os.name == "posix":
+            if "darwin" in sys.platform:
+                return Path.home() / "Library" / "Application Support" / "SIGMAI" / "sessions"
+            return Path.home() / ".local" / "share" / "sigmai" / "sessions"
+        return Path(os.environ.get("TEMP", str(Path.home()))) / "SIGMAI" / "sessions"
 
     def fallback_sessions_dir() -> Path:
         return Path(os.environ.get("TEMP", str(Path.home()))) / "SIGMAI" / "sessions"
@@ -47,10 +67,6 @@ SCHEMA_VERSION = SESSION_SCHEMA_VERSION
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-
-def preferred_session_dir() -> Path:
-    return sessions_dir()
 
 
 def fallback_session_dir() -> Path:

@@ -147,30 +147,43 @@ def checar_numeros_da_documentacao(raiz: Path) -> list[str]:
 
 
 def checar_artefato(raiz: Path) -> list[str]:
-    """Valida o zip de verdade, e não só a árvore de trabalho."""
+    """Valida o zip de verdade, montado pelo MESMO empacotador que a ação usa.
+
+    Antes o validador montava um zip próprio, com uma lista de exclusões
+    diferente da de ``_zip_plugin``: o CI validava um artefato que não era o
+    que saía. Um log esquecido em sigmai/logs/ entrava num e não no outro.
+    """
     import io
+    import sys
+    import tempfile
     import zipfile
 
-    pacote = raiz / "sigmai"
-    ignorar = {"__pycache__", ".pytest_cache", ".mypy_cache"}
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as arquivo:
-        for caminho in sorted(pacote.rglob("*")):
-            if any(parte in ignorar for parte in caminho.parts) or caminho.suffix in {".pyc", ".pyo"}:
-                continue
-            if caminho.is_file():
-                arquivo.write(caminho, caminho.relative_to(raiz).as_posix())
-    tamanho = buffer.tell()
+    sys.path.insert(0, str(raiz))
+    try:
+        from sigmai.qgis_actions.plugin_tools import _zip_plugin
+    except Exception as exc:  # pragma: no cover
+        return [f"não foi possível importar o empacotador real: {exc}"]
+
     problemas: list[str] = []
-    if tamanho > MAX_PACKAGE_BYTES:
-        problemas.append(f"o pacote tem {tamanho / 1048576:.1f} MiB, acima do teto de 25 MiB do repositório")
-    with zipfile.ZipFile(buffer) as arquivo:
-        raizes = {nome.split("/")[0] for nome in arquivo.namelist()}
+    with tempfile.TemporaryDirectory() as pasta:
+        destino = Path(pasta) / "sigmai.zip"
+        manifesto = _zip_plugin(raiz / "sigmai", destino)
+        tamanho = destino.stat().st_size
+        if tamanho > MAX_PACKAGE_BYTES:
+            problemas.append(f"o pacote tem {tamanho / 1048576:.1f} MiB, acima do teto de 25 MiB do repositório")
+        with zipfile.ZipFile(destino) as arquivo:
+            nomes = arquivo.namelist()
+        raizes = {nome.split("/")[0] for nome in nomes}
         if raizes != {"sigmai"}:
             problemas.append(f"o zip precisa ter uma única pasta raiz chamada sigmai; tem {sorted(raizes)}")
-        if "sigmai/metadata.txt" not in arquivo.namelist():
+        if "sigmai/metadata.txt" not in nomes:
             problemas.append("o zip não contém sigmai/metadata.txt")
+        # O que não pode sair no pacote publicado, aconteça o que acontecer.
+        for nome in nomes:
+            if any(marca in nome for marca in ("__pycache__", ".pyc", "/logs/", ".jsonl", "token", "current_bridge_session")):
+                problemas.append(f"o zip carrega um arquivo que não deveria sair: {nome}")
     return problemas
+
 
 
 def main() -> int:

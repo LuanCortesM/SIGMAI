@@ -1,3 +1,5 @@
+"""Registro de ações por nome e envelope de resposta comum a todos os comandos da ponte."""
+
 from __future__ import annotations
 
 import time

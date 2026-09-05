@@ -1,3 +1,5 @@
+"""Nível de permissão de cada ação do catálogo e o que cada nível exige antes de executar."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -304,7 +306,7 @@ def capabilities_payload(developer_mode: bool = False) -> dict[str, Any]:
             "status_command": "get_dev_mode_status",
             "python_execution_command": "dev_execute_qgis_python",
             "ui_required_to_enable": True,
-            "confirmation_phrase": "SIM",
+            "confirmation_phrase": "SIM ou YES",
             "default_enabled": False,
             "warning": "DEV mode allows explicit QGIS Python execution and can corrupt the active QGIS session or project.",
         },

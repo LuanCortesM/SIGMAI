@@ -67,10 +67,20 @@ class ConfigParserSemInterpolacao(unittest.TestCase):
     self_validate_update e (por herança) self_generate_report.
     """
 
-    def test_o_proprio_metadata_txt_do_sigmai_tem_porcento_cru(self):
-        # Não é um exemplo sintético: é o arquivo real que o plugin publica.
-        texto = (plugin_tools._current_plugin_path() / "metadata.txt").read_text(encoding="utf-8")
-        self.assertIn("25%", texto)
+    def test_o_metadata_publicado_nao_carrega_porcento_cru(self) -> None:
+        """O validador do repositório oficial do QGIS (qgis-app/plugins/validator.py)
+        instancia ConfigParser SEM interpolation=None e chama items("general"): um
+        '%' cru no changelog derruba o upload com "Errors parsing metadata.txt".
+        O parser interno do SIGMAI tolera o '%' (teste acima); o pacote publicado
+        é que não pode contê-lo."""
+        import configparser
+        from pathlib import Path
+
+        texto = (Path(__file__).resolve().parents[1] / "sigmai" / "metadata.txt").read_text(encoding="utf-8")
+        parser = configparser.ConfigParser()  # exatamente como o repositório oficial
+        parser.read_string(texto)
+        parser.items("general")  # levanta InterpolationSyntaxError se houver % cru
+        self.assertNotRegex(texto, r"\d%(?!%)")
 
     def test_le_o_proprio_metadata_txt_do_sigmai_sem_quebrar(self):
         metadata = plugin_tools._read_metadata(plugin_tools._current_plugin_path())

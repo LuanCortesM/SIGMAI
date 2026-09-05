@@ -1,3 +1,5 @@
+"""Registro de eventos em JSON por linha, com rotação, para diagnóstico sem expor token."""
+
 from __future__ import annotations
 
 from typing import Any

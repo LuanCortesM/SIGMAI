@@ -1,3 +1,5 @@
+"""Catálogo do que esta instalação do SIGMAI expõe: ações, grupos, nível de permissão e limitações declaradas."""
+
 from __future__ import annotations
 
 from typing import Any

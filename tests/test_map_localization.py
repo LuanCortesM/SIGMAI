@@ -150,7 +150,7 @@ class VarreduraDeTodasAsChavesEmTodasAsLinguas(unittest.TestCase):
 
 
 class DirecaoDeEscrita(unittest.TestCase):
-    """RTL_LANGUAGES/is_rtl — usado por compose.py para decidir alinhamento
+    """RTL_LANGUAGES/is_rtl — compose.py decide o alinhamento por RTL_LANGUAGES; is_rtl é a forma pública da mesma regra
     do rodapé (defeito 3). Só árabe e hebraico correm da direita para a
     esquerda entre as línguas cobertas."""
 
@@ -190,8 +190,8 @@ class CreditLineFalaALinguaDoMapa(unittest.TestCase):
         linha = _credit_line(
             {"data_source": "IBGE", "map_author": "L. Maciel"}, "EPSG:4674", "04/09/2026", "ja",
         )
-        self.assertIn("出典: IBGE", linha)
-        self.assertIn("作成: L. Maciel", linha)
+        self.assertIn("出典：IBGE", linha)
+        self.assertIn("作成：L. Maciel", linha)
         self.assertIn("SIGMAI/QGISで作成", linha)
         # E não pode sobrar nenhuma palavra do rótulo em português.
         self.assertNotIn("Fonte:", linha)
