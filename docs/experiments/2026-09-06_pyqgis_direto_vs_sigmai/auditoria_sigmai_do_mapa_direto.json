@@ -1,0 +1,339 @@
+{
+ "score": 90.0,
+ "grade": "B",
+ "label": "Mapa técnico utilizável, com ajustes menores pendentes",
+ "counts": {
+  "errors": 0,
+  "warnings": 2,
+  "advice": 0,
+  "passed": 25,
+  "skipped": 2
+ },
+ "next_actions": [
+  {
+   "rule": "CART041",
+   "severity": "warning",
+   "problem": "Itens invadindo a margem: label#1, label#9. Impressoras costumam cortar essa faixa.",
+   "fix": "Reposicione os itens dentro da área útil do PageSpec."
+  },
+  {
+   "rule": "CART042",
+   "severity": "warning",
+   "problem": "Itens sobrepostos: label#7/map#2, picture#1/map#2, label#8/label#9.",
+   "fix": "Use o solucionador de grade do SIGMAI, que aloca faixas exclusivas para cada papel."
+  }
+ ],
+ "layout_name": "Mapa PE Carnaúbas A4",
+ "results": [
+  {
+   "id": "CART001",
+   "status": "pass",
+   "detail_pt": "Título presente: 'Parque Estadual das Carnaúbas e municípios do entorno'."
+  },
+  {
+   "id": "CART002",
+   "status": "pass",
+   "detail_pt": "Legenda presente com 3 entrada(s)."
+  },
+  {
+   "id": "CART020",
+   "status": "pass",
+   "detail_pt": "As 3 camadas visíveis aparecem na legenda."
+  },
+  {
+   "id": "CART021",
+   "status": "pass",
+   "detail_pt": "A legenda não lista camadas ausentes do mapa."
+  },
+  {
+   "id": "CART003",
+   "status": "pass",
+   "detail_pt": "Escala indicada (barra=True, texto=True)."
+  },
+  {
+   "id": "CART005",
+   "status": "pass",
+   "detail_pt": "Escala numérica presente."
+  },
+  {
+   "id": "CART022",
+   "status": "pass",
+   "detail_pt": "A barra ocupa 25% da largura do quadro."
+  },
+  {
+   "id": "CART024",
+   "status": "pass",
+   "detail_pt": "O mapa está em CRS projetado; a barra métrica é válida."
+  },
+  {
+   "id": "CART006",
+   "status": "pass",
+   "detail_pt": "Indicação de norte presente (tipo: picture)."
+  },
+  {
+   "id": "CART025",
+   "status": "pass",
+   "detail_pt": "A indicação de norte é um símbolo gráfico."
+  },
+  {
+   "id": "CART007",
+   "status": "pass",
+   "detail_pt": "A linha de crédito declara a fonte dos dados e a autoria do mapa."
+  },
+  {
+   "id": "CART008",
+   "status": "pass",
+   "detail_pt": "O sistema de referência (EPSG:31984) está declarado no layout."
+  },
+  {
+   "id": "CART009",
+   "status": "pass",
+   "detail_pt": "O layout informa uma data/ano."
+  },
+  {
+   "id": "CART010",
+   "status": "pass",
+   "detail_pt": "Grade de coordenadas habilitada."
+  },
+  {
+   "id": "CART026",
+   "status": "pass",
+   "detail_pt": "Intervalo da grade: 0.25 x 0.25."
+  },
+  {
+   "id": "CART027",
+   "status": "pass",
+   "detail_pt": "A grade tem rótulos de coordenadas."
+  },
+  {
+   "id": "CART067",
+   "status": "pass",
+   "detail_pt": "O inserto mostra a extensão inteira das camadas de contexto e contém o recorte principal."
+  },
+  {
+   "id": "CART040",
+   "status": "pass",
+   "detail_pt": "Todos os itens estão dentro da página."
+  },
+  {
+   "id": "CART041",
+   "status": "fail",
+   "detail_pt": "Itens invadindo a margem: label#1, label#9. Impressoras costumam cortar essa faixa."
+  },
+  {
+   "id": "CART042",
+   "status": "fail",
+   "detail_pt": "Itens sobrepostos: label#7/map#2, picture#1/map#2, label#8/label#9."
+  },
+  {
+   "id": "CART043",
+   "status": "pass",
+   "detail_pt": "O quadro do mapa ocupa 54% da área útil."
+  },
+  {
+   "id": "CART044",
+   "status": "pass",
+   "detail_pt": "Nenhum texto abaixo de 6 pt."
+  },
+  {
+   "id": "CART045",
+   "status": "pass",
+   "detail_pt": "A hierarquia tipográfica entre título e subtítulo está correta."
+  },
+  {
+   "id": "CART060",
+   "status": "pass",
+   "detail_pt": "Mapa em CRS projetado (EPSG:31984)."
+  },
+  {
+   "id": "CART066",
+   "status": "skip",
+   "detail_pt": "O layout tem um único quadro de mapa."
+  },
+  {
+   "id": "CART064",
+   "status": "pass",
+   "detail_pt": "As coordenadas E (212.625 a 291.375) estão dentro da faixa da zona."
+  },
+  {
+   "id": "CART061",
+   "status": "skip",
+   "detail_pt": "Extensão do mapa ou dos dados desconhecida."
+  },
+  {
+   "id": "CART062",
+   "status": "pass",
+   "detail_pt": "O quadro do mapa tem conteúdo renderizado (39.7% de pixels não-fundo)."
+  },
+  {
+   "id": "CART063",
+   "status": "pass",
+   "detail_pt": "Saída gravada com 500.397 bytes."
+  }
+ ],
+ "items_observados": [
+  {
+   "id": "label#1",
+   "type": "label",
+   "role": "label",
+   "role_inferred": null,
+   "x": 10.0,
+   "y": 289.0,
+   "width": 190.0,
+   "height": 5.0,
+   "font_size_pt": 6.0,
+   "text": "Mapa elaborado em QGIS 3.34 (PyQGIS)."
+  },
+  {
+   "id": "label#2",
+   "type": "label",
+   "role": "source",
+   "role_inferred": true,
+   "x": 134.0,
+   "y": 198.0,
+   "width": 66.0,
+   "height": 88.0,
+   "font_size_pt": 6.8,
+   "text": "FONTES DOS DADOS\n• Malha municipal e limite estadual: IBGE, Malha Municipal Digi"
+  },
+  {
+   "id": "label#3",
+   "type": "label",
+   "role": "label",
+   "role_inferred": null,
+   "x": 72.0,
+   "y": 264.0,
+   "width": 58.0,
+   "height": 10.0,
+   "font_size_pt": 7.5,
+   "text": "Elaboração: Maria Silva\n06/09/2026"
+  },
+  {
+   "id": "label#4",
+   "type": "label",
+   "role": "label",
+   "role_inferred": null,
+   "x": 72.0,
+   "y": 249.0,
+   "width": 58.0,
+   "height": 14.0,
+   "font_size_pt": 7.0,
+   "text": "Projeção UTM, fuso 24 S\nDatum SIRGAS 2000 (EPSG:31984)\nGrade de coordenadas geog"
+  },
+  {
+   "id": "label#5",
+   "type": "label",
+   "role": "scale_text",
+   "role_inferred": null,
+   "x": 72.0,
+   "y": 243.0,
+   "width": 58.0,
+   "height": 5.0,
+   "font_size_pt": 7.5,
+   "text": "Escala numérica 1:450.000"
+  },
+  {
+   "id": "scalebar#1",
+   "type": "scalebar",
+   "role": "scalebar",
+   "role_inferred": null,
+   "x": 73.0,
+   "y": 233.0,
+   "width": 54.38,
+   "height": 10.0,
+   "font_size_pt": null
+  },
+  {
+   "id": "legend#1",
+   "type": "legend",
+   "role": "legend",
+   "role_inferred": null,
+   "x": 72.0,
+   "y": 198.0,
+   "width": 55.22,
+   "height": 31.46,
+   "font_size_pt": null
+  },
+  {
+   "id": "map#1",
+   "type": "map",
+   "role": "inset",
+   "role_inferred": true,
+   "x": 10.0,
+   "y": 203.0,
+   "width": 58.0,
+   "height": 83.0,
+   "font_size_pt": null
+  },
+  {
+   "id": "label#6",
+   "type": "label",
+   "role": "label",
+   "role_inferred": null,
+   "x": 10.0,
+   "y": 198.0,
+   "width": 60.0,
+   "height": 5.0,
+   "font_size_pt": 8.0,
+   "text": "Localização em relação ao Piauí"
+  },
+  {
+   "id": "label#7",
+   "type": "label",
+   "role": "label",
+   "role_inferred": null,
+   "x": 104.72,
+   "y": 169.06,
+   "width": 50.0,
+   "height": 8.0,
+   "font_size_pt": 6.5,
+   "text": "malha municipal cearense\nnão disponível nesta base"
+  },
+  {
+   "id": "picture#1",
+   "type": "picture",
+   "role": "north",
+   "role_inferred": null,
+   "x": 178.0,
+   "y": 32.0,
+   "width": 13.0,
+   "height": 16.0,
+   "font_size_pt": null
+  },
+  {
+   "id": "map#2",
+   "type": "map",
+   "role": "map",
+   "role_inferred": null,
+   "x": 20.0,
+   "y": 29.0,
+   "width": 175.0,
+   "height": 161.0,
+   "font_size_pt": null
+  },
+  {
+   "id": "label#8",
+   "type": "label",
+   "role": "subtitle",
+   "role_inferred": true,
+   "x": 10.0,
+   "y": 15.0,
+   "width": 190.0,
+   "height": 6.0,
+   "font_size_pt": 9.5,
+   "text": "Municípios de Granja e Viçosa do Ceará (CE), junto à divisa com o Piauí"
+  },
+  {
+   "id": "label#9",
+   "type": "label",
+   "role": "title",
+   "role_inferred": true,
+   "x": 10.0,
+   "y": 6.0,
+   "width": 190.0,
+   "height": 10.0,
+   "font_size_pt": 15.0,
+   "text": "Parque Estadual das Carnaúbas e municípios do entorno"
+  }
+ ]
+}

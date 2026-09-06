@@ -1,7 +1,7 @@
 [general]
 name=SIGMAI
 description=Secure local bridge between AI assistants and QGIS, with cartographic quality control.
-version=1.0.2
+version=1.0.3
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=MACIEL, L. S. C.
@@ -16,7 +16,12 @@ homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=GPL-3.0-or-later
-changelog=1.0.2
+changelog=1.0.3
+    - Corrigido: sigmai_audit_layout e list_layouts prometiam funcionar em layouts feitos à mão e descartavam todo item sem id (o padrão da interface do QGIS): um mapa completo recebia nota D por "não ter título". Os itens ganham id sintético e papel inferido (título, subtítulo, fonte, quadro principal, inserto, rosa dos ventos).
+    - Corrigido: página 210x297 era auditada como paisagem (tudo abaixo de 210 mm "fora da página", quadro "em branco"); dimensões explícitas passam a dizer a orientação, e a tinta é medida no quadro principal.
+    - Corrigido: cabeçalho "FONTES DOS DADOS" (sem dois-pontos) não contava como fonte; camadas só-de-rótulo (QgsNullSymbolRenderer) eram cobradas na legenda.
+    - Experimento registrado em docs/MCP_SERVER.md: o mesmo mapa pelo SIGMAI (sem acesso ao PC, 5,5 min, nota A) e em PyQGIS puro (acesso total, 19 min, 12 armadilhas da API, nota B).
+    1.0.2
     - Teste com um assistente de IA emulado sem acesso ao computador, falando com o SIGMAI só pelo MCP: mapa nota A nas duas rodadas; o que o obrigou a adivinhar virou correção.
     - Novo: sigmai_capabilities aceita group, search e names_only, e cada comando lista os parâmetros que lê (parameters, parameters_complete). Parâmetro que um comando não lê volta em warnings em vez de ser ignorado em silêncio.
     - Novo: sigmai_layer_details devolve de fato amostra de feições, estilo e validade das geometrias; inspect_layer_style mostra o símbolo (cores, contorno, preenchimento) e a origem do estilo; list_layouts descreve páginas, itens e quadros.
