@@ -29,14 +29,25 @@ def _describe_layout(layout: Any) -> dict[str, Any]:
             continue
     items = []
     map_frames = []
+    counters: dict[str, int] = {}
     for item in layout.items():
         try:
             item_id = str(item.id() or "")
         except Exception:
             continue
+        type_name = type(item).__name__.replace("QgsLayoutItem", "").lower() or "item"
+        id_missing = False
         if not item_id:
-            continue
-        entry: dict[str, Any] = {"id": item_id, "type": type(item).__name__.replace("QgsLayoutItem", "").lower() or "item"}
+            # A interface do QGIS deixa o id vazio; descartar esses itens
+            # descrevia um layout feito à mão como se estivesse vazio.
+            if type_name not in {"map", "legend", "scalebar", "label", "picture"}:
+                continue
+            counters[type_name] = counters.get(type_name, 0) + 1
+            item_id = f"{type_name}#{counters[type_name]}"
+            id_missing = True
+        entry: dict[str, Any] = {"id": item_id, "type": type_name}
+        if id_missing:
+            entry["id_missing"] = True
         try:
             position, size = item.positionWithUnits(), item.sizeWithUnits()
             entry.update({"x_mm": round(float(position.x()), 1), "y_mm": round(float(position.y()), 1),

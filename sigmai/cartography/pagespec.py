@@ -475,6 +475,12 @@ def resolve_page(
     if width is None or height is None:
         width, height = PAGE_SIZES.get(name.upper(), PAGE_SIZES["A4"])
         name = name.upper() if name.upper() in PAGE_SIZES else name
+    elif resolved_orientation is None:
+        # Dimensões explícitas dizem a orientação por si: 210x297 é retrato.
+        # Cair no padrão paisagem aqui virava a página de um layout existente
+        # de cabeça para baixo na auditoria — tudo abaixo de 210 mm ficava
+        # "fora da página".
+        resolved_orientation = "portrait" if height > width else "landscape"
 
     final_orientation = (resolved_orientation or "landscape").lower()
     if final_orientation not in ORIENTATIONS:

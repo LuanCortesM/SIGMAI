@@ -139,7 +139,7 @@ The split between `cartography` and the rest is deliberate: `pagespec`, `scaling
 ```bash
 git clone https://github.com/LuanCortesM/SIGMAI.git
 cd SIGMAI
-python -m pytest tests -q          # 540 tests; the 33 that need PyQGIS skip themselves without QGIS
+python -m pytest tests -q          # 557 tests; the 36 that need PyQGIS skip themselves without QGIS
 python tools/package_qgis_plugin_zip.py
 ```
 
@@ -171,7 +171,7 @@ Developed by Luan da Silva Cortes Maciel as a research product associated with H
 @software{maciel_sigmai,
   author  = {Maciel, Luan da Silva Cortes},
   title   = {{SIGMAI}: Secure {GIS}-{AI} Interface},
-  version = {1.0.2},
+  version = {1.0.3},
   url     = {https://github.com/LuanCortesM/SIGMAI},
   license = {GPL-3.0-or-later}
 }

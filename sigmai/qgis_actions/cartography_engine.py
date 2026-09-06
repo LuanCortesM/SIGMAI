@@ -43,13 +43,25 @@ def audit_map_layout(params: dict[str, Any], context: dict[str, Any]) -> dict[st
         from ..cartography.layoutgrid import Rect
 
         size = layout.pageCollection().page(0).pageSize()
-        page = resolve_page({"width_mm": float(size.width()), "height_mm": float(size.height()), "name": "detectada"})
+        width_mm, height_mm = float(size.width()), float(size.height())
+        page = resolve_page(
+            {"width_mm": width_mm, "height_mm": height_mm, "name": "detectada"},
+            orientation="portrait" if height_mm > width_mm else "landscape",
+        )
+        # O quadro que se mede é o principal: o de id "main_map" ou, num
+        # layout feito à mão (sem ids), o maior. Pegar "o primeiro que
+        # aparecer" media a tinta do inserto e acusava o mapa de estar em
+        # branco.
+        candidates = []
         for item in layout.items():
             if type(item).__name__ == "QgsLayoutItemMap":
                 position = item.positionWithUnits()
                 extent = item.sizeWithUnits()
-                map_frame = Rect(float(position.x()), float(position.y()), float(extent.width()), float(extent.height()))
-                break
+                rect = Rect(float(position.x()), float(position.y()), float(extent.width()), float(extent.height()))
+                candidates.append((str(item.id() or ""), rect))
+        if candidates:
+            named = [rect for item_id, rect in candidates if item_id == "main_map"]
+            map_frame = named[0] if named else max((rect for _, rect in candidates), key=lambda r: r.width * r.height)
     except Exception:
         pass
 

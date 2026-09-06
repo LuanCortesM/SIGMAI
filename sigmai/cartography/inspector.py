@@ -32,6 +32,26 @@ ROLE_BY_ITEM_ID = {
 }
 
 
+#: Classes que a observação descreve mesmo sem id (páginas, molduras e
+#: grupos ficam de fora: não são elementos cartográficos).
+_TYPE_NAMES = {
+    "QgsLayoutItemMap": "map",
+    "QgsLayoutItemLegend": "legend",
+    "QgsLayoutItemScaleBar": "scalebar",
+    "QgsLayoutItemLabel": "label",
+    "QgsLayoutItemPicture": "picture",
+    "QgsLayoutItemShape": "shape",
+}
+_OBSERVABLE_WITHOUT_ID = frozenset(name for name in _TYPE_NAMES if name != "QgsLayoutItemShape")
+
+#: Trechos de caminho que denunciam uma rosa dos ventos numa imagem.
+_NORTH_PATH_HINTS = ("north", "norte", "arrow", "compass", "rosa", "bussola", "bússola")
+
+#: Marcadores de procedência (espelham os do regulamento; a inferência só
+#: precisa reconhecer o rótulo, o regulamento é quem julga o conteúdo).
+_SOURCE_HINTS = ("fonte", "source", "dados:", "data source", "elabora", "autor", "author", "cartografia", "credit")
+
+
 def _safe(callable_obj: Any, default: Any = None) -> Any:
     try:
         return callable_obj()
@@ -83,25 +103,45 @@ def observe_layout(
     north_item = None
     inset_item = None
 
+    # Itens sem id NÃO são descartados. O QGIS deixa o id vazio em tudo o que
+    # o usuário cria pela interface, e scripts raramente o preenchem: pular
+    # esses itens deixava a auditoria cega para qualquer layout que o SIGMAI
+    # não tivesse composto — um mapa completo, feito à mão, recebia nota D
+    # por "não ter título". O id passa a ser sintético e o papel é inferido
+    # do tipo, do texto e da geometria (_infer_roles).
+    pairs: list[tuple[Any, dict[str, Any]]] = []
+    counters: dict[str, int] = {}
     for item in _safe(layout.items, []) or []:
         item_id = _safe(getattr(item, "id", lambda: ""), "") or ""
+        class_name = type(item).__name__
+        inferred_id = False
         if not item_id:
-            continue
+            if class_name not in _OBSERVABLE_WITHOUT_ID:
+                continue
+            counters[class_name] = counters.get(class_name, 0) + 1
+            item_id = f"{_TYPE_NAMES.get(class_name, class_name)}#{counters[class_name]}"
+            inferred_id = True
         entry = _observe_item(item, item_id)
+        if inferred_id:
+            entry["id_inferred"] = True
+        pairs.append((item, entry))
+
+    _infer_roles(pairs)
+
+    for item, entry in pairs:
+        item_id = entry["id"]
         observation["items"].append(entry)
         role = entry.get("role")
-        # Num layout de comparação há dois itens de mapa; o laudo se refere ao
-        # principal, identificado pelo id, e não ao primeiro que aparecer na
-        # ordem de desenho.
         if role == "map":
             observation["map_frames"].append({
                 "item_id": item_id,
                 "scale": round(float(_safe(item.scale, 0.0) or 0.0), 1),
                 "visible_layer_names": _visible_layer_names(item),
+                "label_only_layer_names": _label_only_layer_names(_safe(item.layers, []) or []),
             })
             # Num layout de comparação há dois itens de mapa; o laudo se refere
-            # ao principal, identificado pelo id, e não ao primeiro na ordem de
-            # desenho.
+            # ao principal, identificado pelo id — ou, sem ids, ao maior quadro
+            # (_infer_roles já rebaixou os menores a inserto).
             if map_item is None or item_id == "main_map":
                 map_item = item
         elif role == "legend" and legend_item is None:
@@ -113,16 +153,25 @@ def observe_layout(
         elif role == "inset" and inset_item is None:
             inset_item = item
 
+    # O id que a observação carrega é o do inventário (sintético quando o
+    # item não tem id): é por ele que o regulamento reconhece cada papel.
+    ids = {id(item): entry["id"] for item, entry in pairs}
+
     if map_item is not None:
         observation["map"] = _observe_map(map_item, data_extent, ink_fraction)
+        observation["map"]["item_id"] = ids.get(id(map_item), observation["map"]["item_id"])
     if inset_item is not None:
         observation["inset"] = _observe_inset(inset_item, map_item)
+        observation["inset"]["item_id"] = ids.get(id(inset_item), observation["inset"]["item_id"])
     if legend_item is not None:
         observation["legend"] = _observe_legend(legend_item)
+        observation["legend"]["item_id"] = ids.get(id(legend_item), observation["legend"]["item_id"])
     if scalebar_item is not None:
         observation["scalebar"] = _observe_scalebar(scalebar_item, map_item, observation["items"])
+        observation["scalebar"]["item_id"] = ids.get(id(scalebar_item), observation["scalebar"]["item_id"])
     if north_item is not None:
         observation["north"] = _observe_north(north_item)
+        observation["north"]["item_id"] = ids.get(id(north_item), observation["north"]["item_id"])
 
     return observation
 
@@ -200,11 +249,19 @@ def _observe_item(item: Any, item_id: str) -> dict[str, Any]:
             if format_size and float(format_size) > 0:
                 entry["font_size_pt"] = round(float(format_size), 1)
 
-    entry["role"] = _role_for(item_id, type_name, entry.get("text", ""))
+    if type_name == "picture":
+        entry["picture_path"] = _safe(getattr(item, "picturePath", None), "") or ""
+    if type_name == "map":
+        try:
+            entry["overviews"] = int(item.overviews().size())
+        except Exception:
+            entry["overviews"] = 0
+
+    entry["role"] = _role_for(item_id, type_name, entry.get("text", ""), entry.get("picture_path", ""))
     return entry
 
 
-def _role_for(item_id: str, type_name: str, text: str) -> str:
+def _role_for(item_id: str, type_name: str, text: str, picture_path: str = "") -> str:
     if item_id in ROLE_BY_ITEM_ID:
         return ROLE_BY_ITEM_ID[item_id]
     lowered = item_id.lower()
@@ -213,11 +270,84 @@ def _role_for(item_id: str, type_name: str, text: str) -> str:
             return role
     if type_name in {"map", "legend", "scalebar"}:
         return {"map": "map", "legend": "legend", "scalebar": "scalebar"}[type_name]
-    if type_name == "picture" and ("north" in lowered or "norte" in lowered):
-        return "north"
+    if type_name == "picture":
+        haystack = lowered + " " + str(picture_path or "").lower()
+        if any(hint in haystack for hint in _NORTH_PATH_HINTS):
+            return "north"
     if type_name == "label" and "1:" in str(text):
         return "scale_text"
     return type_name
+
+
+def _infer_roles(pairs: list[tuple[Any, dict[str, Any]]]) -> None:
+    """Papéis para itens que o id não identifica.
+
+    Só preenche o que está vago: um layout composto pelo SIGMAI, com ids
+    explícitos, sai desta função intocado. Num layout feito à mão o título é
+    o rótulo de maior corpo, o subtítulo é o rótulo logo abaixo dele, a linha
+    de procedência é o rótulo que fala de fonte ou autoria, o quadro
+    principal é o maior mapa e os demais quadros — menores, geralmente com um
+    quadro-guia (overview) — são insertos. Cada papel inferido é marcado
+    (``role_inferred``) para que o laudo possa dizer de onde veio.
+    """
+    entries = [entry for _, entry in pairs]
+    roles = {entry.get("role") for entry in entries}
+
+    maps = [entry for entry in entries if entry.get("role") == "map"]
+    if len(maps) > 1 and not any(entry["id"] == "main_map" for entry in maps):
+        inferable = [entry for entry in maps if entry.get("id_inferred")]
+        if inferable:
+            def area(entry: dict[str, Any]) -> float:
+                return float(entry.get("width") or 0.0) * float(entry.get("height") or 0.0)
+
+            main = max(maps, key=area)
+            for entry in inferable:
+                if entry is main:
+                    continue
+                if int(entry.get("overviews") or 0) > 0 or area(entry) < 0.5 * area(main):
+                    entry["role"] = "inset"
+                    entry["role_inferred"] = True
+
+    labels = [
+        entry for entry in entries
+        if entry.get("type") == "label" and entry.get("role") == "label" and str(entry.get("text", "")).strip()
+    ]
+
+    if "source" not in roles:
+        # Fonte pesa mais que autoria: "Mapa elaborado em QGIS" também fala em
+        # elaboração, mas o bloco de procedência é o que cita a origem dos dados.
+        def credit_score(entry: dict[str, Any]) -> tuple[int, int]:
+            text = str(entry.get("text", "")).lower()
+            source_hits = sum(2 for hint in _SOURCE_HINTS[:4] if hint in text)
+            author_hits = sum(1 for hint in _SOURCE_HINTS[4:] if hint in text)
+            return (source_hits + author_hits, len(text))
+
+        scored = [entry for entry in labels if credit_score(entry)[0] > 0]
+        if scored:
+            best = max(scored, key=credit_score)
+            best["role"] = "source"
+            best["role_inferred"] = True
+        labels = [entry for entry in labels if entry.get("role") == "label"]
+
+    if "title" not in roles and labels:
+        sized = [entry for entry in labels if float(entry.get("font_size_pt") or 0.0) > 0]
+        if sized:
+            title = max(sized, key=lambda entry: float(entry["font_size_pt"]))
+            title["role"] = "title"
+            title["role_inferred"] = True
+            if "subtitle" not in roles:
+                below = [
+                    entry for entry in sized
+                    if entry is not title
+                    and float(entry.get("font_size_pt") or 0.0) < float(title["font_size_pt"])
+                    and -float(title.get("height", 0.0)) / 2.0
+                    <= float(entry.get("y", 0.0)) - (float(title.get("y", 0.0)) + float(title.get("height", 0.0)))
+                    <= 12.0
+                ]
+                if below:
+                    subtitle = min(below, key=lambda entry: float(entry.get("y", 0.0)))
+                    subtitle["role"] = "subtitle"
+                    subtitle["role_inferred"] = True
 
 
 def _existing_grid(map_item: Any) -> Any:
@@ -257,6 +387,7 @@ def _observe_map(map_item: Any, data_extent: dict[str, float] | None, ink_fracti
         "extent": _rect_dict(_safe(map_item.extent)),
         "visible_layer_ids": [str(_safe(layer.id, "")) for layer in layers],
         "visible_layer_names": [str(_safe(layer.name, "")) for layer in layers],
+        "label_only_layer_names": _label_only_layer_names(layers),
         "data_extent": data_extent,
         "rendered_ink_fraction": ink_fraction,
     }
@@ -340,6 +471,24 @@ def _observe_legend(legend_item: Any) -> dict[str, Any]:
         "auto_update": bool(_safe(legend_item.autoUpdateModel, True)),
         "column_count": int(_safe(legend_item.columnCount, 1) or 1),
     }
+
+
+def _label_only_layer_names(layers: Any) -> list[str]:
+    """Camadas que não desenham símbolo nenhum (``QgsNullSymbolRenderer``).
+
+    São camadas de apoio usadas só para posicionar rótulos — nome de estado,
+    nome da UC fora do polígono. Não há o que explicar na legenda: exigir uma
+    entrada para elas acusava de incompleta uma legenda correta.
+    """
+    names: list[str] = []
+    for layer in layers or []:
+        try:
+            renderer = layer.renderer()
+            if renderer is not None and str(renderer.type()) == "nullSymbol":
+                names.append(str(layer.name()))
+        except Exception:
+            continue
+    return names
 
 
 def _visible_layer_names(map_item: Any) -> list[str]:

@@ -2,6 +2,24 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.0.3] — 2026-09-06
+
+Um experimento para responder "o SIGMAI serve para quê, se a IA pode escrever PyQGIS direto?": um agente **com acesso total ao computador**, proibido de usar o plugin, atendeu o mesmo pedido da pesquisadora da versão 1.0.2 em PyQGIS puro. O mapa dele — A4 retrato completo, com título, subtítulo, grade anotada, legenda, barra e escala numérica, rosa dos ventos, inserto com quadro-guia, bloco "FONTES DOS DADOS", autoria e data — foi então auditado pelo `sigmai_audit_layout`, que prometia funcionar "inclusive num layout feito à mão". Deu **nota D (50/100)**: "nenhum item com papel de título", "falta a linha de fonte". O laudo mentia, e a mentira tinha três camadas.
+
+### Corrigido — a auditoria era cega para layouts que o SIGMAI não compôs
+
+- **Itens sem `id` eram descartados pelo inspetor.** O QGIS deixa o id vazio em tudo o que se cria pela interface, e scripts raramente o preenchem: a observação de um layout feito à mão saía sem nenhum item, e o regulamento reprovava título, legenda, fonte, norte e grade que estavam lá. Os itens recebem um id sintético (`label#3`, `map#2`) e o papel é inferido do tipo, do texto e da geometria: o título é o rótulo de maior corpo, o subtítulo o rótulo logo abaixo dele, a procedência o rótulo que fala de fonte ou autoria, o quadro principal o maior mapa, os demais quadros — menores e com quadro-guia — são insertos, e uma imagem cujo caminho diz `NorthArrow` é a rosa dos ventos. Cada papel inferido vem marcado (`role_inferred`); um layout do SIGMAI, com ids explícitos, sai intocado.
+- **A página 210×297 era lida como paisagem.** `resolve_page` com dimensões explícitas e sem orientação caía no padrão paisagem e trocava os eixos: tudo abaixo de 210 mm ficava "fora da página" (CART040) e a tinta do quadro era medida no lugar errado (CART062 acusava quadro em branco). Dimensões explícitas passam a dizer a orientação por si; `audit_map_layout` mede a tinta no quadro principal (o maior), não no primeiro que aparecer — que era o inserto.
+- **`list_layouts` também descartava itens sem id**: um layout feito à mão aparecia vazio. Descreve todos, com `id_missing: true`.
+- **"FONTES DOS DADOS" como cabeçalho não contava como fonte** — CART007 só reconhecia "Fonte:" com dois-pontos. Os cabeçalhos usuais em pt, en, es, fr, de e it passam a contar.
+- **Camadas só-de-rótulo eram cobradas na legenda.** Uma camada de pontos com `QgsNullSymbolRenderer`, usada só para posicionar o nome do estado, não desenha símbolo nenhum; CART020 exigia entrada para ela. A observação passa a listar `label_only_layer_names`, e a regra as dispensa (a regra dos fantasmas, CART021, continua a aceitá-las).
+
+Com as correções o mapa do agente direto recebe **B (90/100)**, com dois avisos legítimos — margens de 6 mm (o SIGMAI assume 10 mm quando não há PageSpec) e sobreposições (nota sobre o quadro, rosa dos ventos dentro do quadro, caixas de título e subtítulo encostadas). Os 17 testes novos (`tests/test_foreign_layout_audit.py`) fixam cada degrau, inclusive um layout construído em PyQGIS puro sem nenhum `setId`.
+
+### O que o experimento mediu (registrado em docs/MCP_SERVER.md e docs/experiments/2026-09-06_pyqgis_direto_vs_sigmai/)
+
+Mesmo pedido, mesmos dados, mesmo modelo. Pelo SIGMAI, sem acesso ao computador: 17–18 chamadas MCP, 5,5 min, 5–7 mil tokens gerados, nota A. Em PyQGIS puro, com acesso total: 15 execuções (5 iterações do script de 353 linhas), 19 min, 32 mil tokens gerados, 12 armadilhas da API do QGIS resolvidas por tentativa e erro, nota B. O mapa direto é visualmente mais rico (divisa estadual, nomes dos estados, bloco de fontes com decreto e CNUC); o do SIGMAI é reproduzível por uma chamada JSON, ficou registrado na trilha de consentimento e nunca executou código no computador da usuária.
+
 ## [1.0.2] — 2026-09-05
 
 Um teste diferente dos anteriores: um agente **emulando um assistente de IA sem acesso ao computador** — proibido de ler qualquer arquivo ou código, só o cliente MCP na mão — recebeu o pedido informal de uma pesquisadora ("mapa do parque em A4 com os municípios em volta e um mapinha de localização") e teve de se virar. Nas duas rodadas o mapa saiu com nota A; o que interessa é o relatório do que o obrigou a adivinhar. Cada item virou correção, e `tools/remote_ai_lab.py` + `tools/mcp_call.py` reproduzem o cenário para quem quiser repetir.

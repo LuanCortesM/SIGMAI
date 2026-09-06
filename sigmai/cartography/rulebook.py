@@ -151,26 +151,37 @@ def _check_legend(observation: dict[str, Any]) -> CheckOutcome:
     return _fail(f"Mapa exibe {len(visible)} camadas e não há legenda.", visible_layers=visible)
 
 
-def _all_visible_layer_names(observation: dict[str, Any]) -> list[str]:
+def _all_visible_layer_names(observation: dict[str, Any], include_label_only: bool = True) -> list[str]:
     """Camadas desenhadas em qualquer quadro da folha.
 
     Numa folha de comparação a legenda responde pelos dois quadros: avaliá-la
     só contra o quadro principal acusava de fantasma uma camada bem visível no
     segundo painel, e deixava passar uma camada do segundo painel sem entrada.
+
+    Com ``include_label_only=False`` ficam de fora as camadas sem símbolo
+    (``QgsNullSymbolRenderer``, usadas só para posicionar rótulos): não há o
+    que explicar na legenda sobre elas, e exigir uma entrada acusava de
+    incompleta uma legenda correta. Elas continuam "visíveis" para a regra dos
+    fantasmas — listá-las é supérfluo, não é mentira.
     """
     nomes = [str(name) for name in (_map(observation).get("visible_layer_names") or [])]
     for frame in observation.get("map_frames") or []:
         for name in frame.get("visible_layer_names") or []:
             if str(name) not in nomes:
                 nomes.append(str(name))
-    return nomes
+    if include_label_only:
+        return nomes
+    so_rotulo = {str(name) for name in (_map(observation).get("label_only_layer_names") or [])}
+    for frame in observation.get("map_frames") or []:
+        so_rotulo.update(str(name) for name in (frame.get("label_only_layer_names") or []))
+    return [name for name in nomes if name not in so_rotulo]
 
 
 def _check_legend_covers_visible_layers(observation: dict[str, Any]) -> CheckOutcome:
     legend = observation.get("legend")
     if not legend or not legend.get("item_id"):
         return _skip("Sem legenda para avaliar.")
-    visible = _all_visible_layer_names(observation)
+    visible = _all_visible_layer_names(observation, include_label_only=False)
     listed = [str(name) for name in (legend.get("layer_names") or [])]
     if not visible:
         return _skip("Não foi possível determinar as camadas visíveis do mapa.")
@@ -337,6 +348,13 @@ def _normalise_credit_text(text: str) -> str:
 #: assim a checagem acompanha map_language em vez de travar em português/inglês.
 SOURCE_MARKERS = (
     ("fonte:", "fontes:", "source:", "sources:", "dados:", "data source:", "base de dados:")
+    # Um bloco de procedência também pode vir como cabeçalho, sem dois-pontos
+    # ("FONTES DOS DADOS" seguido de itens). Um mapa feito à mão com esse bloco
+    # era acusado de não declarar a fonte.
+    + ("fonte de dados", "fontes de dados", "fonte dos dados", "fontes dos dados",
+       "data sources", "sources of data", "fuente de datos", "fuentes de datos",
+       "source des données", "sources des données", "datenquelle", "datenquellen",
+       "fonte dei dati", "fonti dei dati")
     + _localized_credit_markers("fonte")
 )
 AUTHOR_MARKERS = (
