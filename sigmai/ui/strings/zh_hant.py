@@ -157,6 +157,7 @@ STRINGS: dict[str, str] = {
     "category_expressoes": "運算式",
     "category_perfil": "作者檔案",
     "category_gps": "GPS",
+    "category_projeto": "專案",
     "category_desc_cartography": "建立版面配置、編排並匯出地圖",
     "category_desc_cartographic_design": "套用製圖樣式與配色",
     "category_desc_symbology": "變更圖層的符號、顏色與標籤",
@@ -174,6 +175,7 @@ STRINGS: dict[str, str] = {
     "category_desc_expressions": "評估 QGIS 運算式",
     "category_desc_user_profile": "儲存使用者的作者檔案",
     "category_desc_gps_gpx": "載入並轉換 GPX 軌跡",
+    "category_desc_project": "復原助理在專案中的上一步操作",
     "category_desc_default": "修改專案或寫入檔案的操作",
     # resumo do pedido no diálogo de consentimento
     "consent_action": "操作",

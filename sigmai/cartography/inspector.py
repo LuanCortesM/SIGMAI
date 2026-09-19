@@ -82,8 +82,18 @@ def observe_layout(
     page_spec: PageSpec | None = None,
     data_extent: dict[str, float] | None = None,
     ink_fraction: float | None = None,
+    ink_grid: list[list[float]] | None = None,
+    label_results: dict[str, dict[str, Any]] | None = None,
+    print_width_mm: float | None = None,
 ) -> dict[str, Any]:
-    """Descreve um ``QgsPrintLayout`` como dicionário puro."""
+    """Descreve um ``QgsPrintLayout`` como dicionário puro.
+
+    ``ink_grid`` é a tinta do quadro principal medida numa grade (ver
+    ``measure_ink_grid``); ``label_results`` é o que ``collect_label_results``
+    devolveu para cada quadro, indexado pelo id do item; ``print_width_mm`` é
+    a largura em que a figura vai ser impressa quando se sabe (coluna de
+    revista) — o regulamento reavalia as fontes nessa largura.
+    """
     observation: dict[str, Any] = {
         "layout_name": _safe(layout.name, ""),
         "page": _observe_page(layout, page_spec),
@@ -95,6 +105,7 @@ def observe_layout(
         "map_frames": [],
         "inset": None,
         "output": _observe_output(output_path),
+        "print_width_mm": float(print_width_mm) if print_width_mm else None,
     }
 
     map_item = None
@@ -133,12 +144,15 @@ def observe_layout(
         observation["items"].append(entry)
         role = entry.get("role")
         if role == "map":
-            observation["map_frames"].append({
+            frame_entry = {
                 "item_id": item_id,
                 "scale": round(float(_safe(item.scale, 0.0) or 0.0), 1),
                 "visible_layer_names": _visible_layer_names(item),
                 "label_only_layer_names": _label_only_layer_names(_safe(item.layers, []) or []),
-            })
+            }
+            if label_results and item_id in label_results:
+                frame_entry["labels"] = label_results[item_id]
+            observation["map_frames"].append(frame_entry)
             # Num layout de comparação há dois itens de mapa; o laudo se refere
             # ao principal, identificado pelo id — ou, sem ids, ao maior quadro
             # (_infer_roles já rebaixou os menores a inserto).
@@ -160,6 +174,9 @@ def observe_layout(
     if map_item is not None:
         observation["map"] = _observe_map(map_item, data_extent, ink_fraction)
         observation["map"]["item_id"] = ids.get(id(map_item), observation["map"]["item_id"])
+        observation["map"]["rendered_ink_grid"] = ink_grid
+        if label_results and observation["map"]["item_id"] in label_results:
+            observation["map"]["labels"] = label_results[observation["map"]["item_id"]]
     if inset_item is not None:
         observation["inset"] = _observe_inset(inset_item, map_item)
         observation["inset"]["item_id"] = ids.get(id(inset_item), observation["inset"]["item_id"])
@@ -390,6 +407,8 @@ def _observe_map(map_item: Any, data_extent: dict[str, float] | None, ink_fracti
         "label_only_layer_names": _label_only_layer_names(layers),
         "data_extent": data_extent,
         "rendered_ink_fraction": ink_fraction,
+        "layer_colours": _layer_colours(layers),
+        "polygon_coverage": _polygon_coverage(map_item, layers),
     }
 
     if grid is not None:
@@ -464,13 +483,27 @@ def _observe_legend(legend_item: Any) -> dict[str, Any]:
                 names.append(str(node.name()))
     except Exception:
         pass
-    return {
+    observation = {
         "item_id": _safe(legend_item.id, "") or "",
         "title": _safe(legend_item.title, "") or "",
         "layer_names": names,
         "auto_update": bool(_safe(legend_item.autoUpdateModel, True)),
         "column_count": int(_safe(legend_item.columnCount, 1) or 1),
     }
+    # Caixa × conteúdo (CART072): QgsLayoutItemLegend corta na borda o que
+    # não cabe, sem avisar. QgsLegendRenderer.minimumSize diz o tamanho que
+    # o conteúdo precisa; com resizeToContents a caixa cresce sozinha.
+    try:
+        from qgis.core import QgsLegendRenderer  # type: ignore
+
+        size = legend_item.sizeWithUnits()
+        observation["box_mm"] = {"width": round(float(size.width()), 2), "height": round(float(size.height()), 2)}
+        observation["resize_to_contents"] = bool(legend_item.resizeToContents())
+        needed = QgsLegendRenderer(legend_item.model(), legend_item.legendSettings()).minimumSize()
+        observation["content_mm"] = {"width": round(float(needed.width()), 2), "height": round(float(needed.height()), 2)}
+    except Exception:
+        pass
+    return observation
 
 
 def _label_only_layer_names(layers: Any) -> list[str]:
@@ -489,6 +522,215 @@ def _label_only_layer_names(layers: Any) -> list[str]:
         except Exception:
             continue
     return names
+
+
+def _layer_colours(layers: Any) -> list[dict[str, Any]]:
+    """Cores que cada camada visível de fato desenha — uma por classe.
+
+    Alimenta CART070 (daltonismo). Símbolo único: a cor do símbolo;
+    categorizado/graduado: a cor de cada classe, com o rótulo da classe.
+    ``family`` separa preenchimentos de polígono, traços de linha e pontos:
+    só cores da mesma família competem entre si na leitura.
+    """
+    out: list[dict[str, Any]] = []
+    for layer in layers or []:
+        try:
+            renderer = layer.renderer()
+            if renderer is None or str(renderer.type()) == "nullSymbol":
+                continue
+            geometry = int(layer.geometryType())
+            family = {0: "point", 1: "line", 2: "polygon"}.get(geometry, "other")
+            classes: list[dict[str, str]] = []
+            rtype = str(renderer.type())
+            if rtype == "singleSymbol":
+                symbol = renderer.symbol()
+                if symbol is not None:
+                    classes.append({"label": str(layer.name()), "colour": symbol.color().name()})
+            elif rtype == "categorizedSymbol":
+                for category in renderer.categories():
+                    symbol = category.symbol()
+                    if symbol is not None and category.renderState():
+                        classes.append({"label": str(category.label()), "colour": symbol.color().name()})
+            elif rtype == "graduatedSymbol":
+                for rng in renderer.ranges():
+                    symbol = rng.symbol()
+                    if symbol is not None and rng.renderState():
+                        classes.append({"label": str(rng.label()), "colour": symbol.color().name()})
+            else:
+                continue
+            if classes:
+                out.append({"layer": str(layer.name()), "family": family, "classes": classes})
+        except Exception:
+            continue
+    return out
+
+
+#: Feições por camada acima das quais a cobertura não é calculada — a
+#: união de geometrias é O(n log n) e um cadastro de 200 mil lotes travaria
+#: o QGIS do usuário durante a auditoria.
+COVERAGE_MAX_FEATURES = 5000
+
+
+def _polygon_coverage(map_item: Any, layers: Any) -> dict[str, Any] | None:
+    """Fração do quadro coberta por dados de área (polígonos visíveis).
+
+    É a medida de "quadro vazio" que não depende de renderização: pixels
+    contam grade e rótulos como tinta, geometria não. Um mapa cuja metade
+    leste não tem polígono nenhum tem cobertura ~0,45 mesmo que a grade
+    cruze o vazio inteiro. ``None`` quando não há camada de polígonos ou o
+    cálculo não é seguro (camada grande demais, CRS inválido).
+    """
+    try:
+        from qgis.core import QgsCoordinateTransform, QgsFeatureRequest, QgsGeometry, QgsProject  # type: ignore
+    except Exception:
+        return None
+    try:
+        extent = map_item.extent()
+        crs = map_item.crs()
+        if extent is None or extent.isEmpty() or crs is None or not crs.isValid():
+            return None
+        frame_geometry = QgsGeometry.fromRect(extent)
+        frame_area = float(extent.width() * extent.height())
+        if frame_area <= 0:
+            return None
+        pieces: list[Any] = []
+        per_layer: list[dict[str, Any]] = []
+        polygon_layers = 0
+        for layer in layers or []:
+            try:
+                if int(layer.geometryType()) != 2:
+                    continue
+                renderer = layer.renderer()
+                if renderer is not None and str(renderer.type()) == "nullSymbol":
+                    continue
+                polygon_layers += 1
+                if layer.featureCount() > COVERAGE_MAX_FEATURES:
+                    per_layer.append({"layer": str(layer.name()), "skipped": "camada grande demais"})
+                    continue
+                transform = None
+                if layer.crs().isValid() and layer.crs().authid() != crs.authid():
+                    transform = QgsCoordinateTransform(layer.crs(), crs, QgsProject.instance())
+                request_rect = extent if transform is None else transform.transformBoundingBox(
+                    extent, QgsCoordinateTransform.ReverseTransform
+                )
+                request = QgsFeatureRequest().setFilterRect(request_rect).setNoAttributes()
+                layer_pieces: list[Any] = []
+                for feature in layer.getFeatures(request):
+                    geometry = feature.geometry()
+                    if geometry is None or geometry.isEmpty():
+                        continue
+                    geometry = QgsGeometry(geometry)
+                    if transform is not None:
+                        geometry.transform(transform)
+                    clipped = geometry.intersection(frame_geometry)
+                    if clipped is not None and not clipped.isEmpty():
+                        layer_pieces.append(clipped)
+                if layer_pieces:
+                    union = QgsGeometry.unaryUnion(layer_pieces)
+                    per_layer.append({"layer": str(layer.name()), "fraction": round(float(union.area()) / frame_area, 3)})
+                    pieces.append(union)
+                else:
+                    per_layer.append({"layer": str(layer.name()), "fraction": 0.0})
+            except Exception:
+                continue
+        if polygon_layers == 0:
+            return None
+        union_all = QgsGeometry.unaryUnion(pieces) if pieces else None
+        total = union_all.area() if union_all is not None else 0.0
+        # Cobertura por célula (3x3): é o que distingue "estado diagonal com
+        # cantos vazios" (normal) de "metade da folha em branco" (defeito).
+        cells: list[list[float]] = []
+        from qgis.core import QgsRectangle  # type: ignore
+
+        for row in range(3):
+            line: list[float] = []
+            for col in range(3):
+                cell = QgsRectangle(
+                    extent.xMinimum() + extent.width() * col / 3.0,
+                    extent.yMaximum() - extent.height() * (row + 1) / 3.0,
+                    extent.xMinimum() + extent.width() * (col + 1) / 3.0,
+                    extent.yMaximum() - extent.height() * row / 3.0,
+                )
+                cell_area = cell.width() * cell.height()
+                covered = 0.0
+                if union_all is not None and cell_area > 0:
+                    part = union_all.intersection(QgsGeometry.fromRect(cell))
+                    covered = float(part.area()) / cell_area if part is not None and not part.isEmpty() else 0.0
+                line.append(round(min(1.0, covered), 3))
+            cells.append(line)
+        return {"fraction": round(min(1.0, float(total) / frame_area), 3), "layers": per_layer, "cells": cells}
+    except Exception:
+        return None
+
+
+def collect_label_results(map_item: Any, dpi: int = 150) -> dict[str, Any] | None:
+    """Rótulos colocados e descartados ao renderizar o quadro.
+
+    O motor de rótulos do QGIS descarta em silêncio um rótulo que colide com
+    outro ou cruza a moldura; o mapa sai "bem-sucedido" com feições sem
+    nome. Desde o QGIS 3.20 a renderização pode coletar os descartados
+    (``CollectUnplacedLabels``): o quadro é renderizado de novo, fora da
+    tela, em dpi moderado (a colocação é feita em milímetros de papel, então
+    o resultado é o mesmo da exportação), e cada rótulo vem com a camada e o
+    texto. ``None`` quando a API não existe ou a renderização falha.
+    """
+    try:
+        from qgis.core import Qgis, QgsMapRendererSequentialJob, QgsProject  # type: ignore
+        from qgis.PyQt.QtCore import QSizeF  # type: ignore
+    except Exception:
+        return None
+    try:
+        size = map_item.sizeWithUnits()
+        width_px = max(16, int(float(size.width()) / 25.4 * dpi))
+        height_px = max(16, int(float(size.height()) / 25.4 * dpi))
+        settings = map_item.mapSettings(map_item.extent(), QSizeF(width_px, height_px), float(dpi), True)
+        engine = settings.labelingEngineSettings()
+        flag_enum = getattr(Qgis, "LabelingFlag", None)
+        if flag_enum is not None:
+            engine.setFlag(flag_enum.CollectUnplacedLabels, True)
+        else:  # QGIS < 3.30: bandeira na própria classe de configurações
+            engine.setFlag(type(engine).CollectUnplacedLabels, True)
+        settings.setLabelingEngineSettings(engine)
+        job = QgsMapRendererSequentialJob(settings)
+        job.start()
+        job.waitForFinished()
+        results = job.takeLabelingResults()
+        if results is None:
+            return None
+        labels = results.allLabels()
+    except Exception:
+        return None
+
+    project = None
+    try:
+        project = QgsProject.instance()
+    except Exception:
+        pass
+    by_layer: dict[str, dict[str, int]] = {}
+    unplaced_sample: list[dict[str, str]] = []
+    placed = unplaced = 0
+    for label in labels:
+        try:
+            layer = project.mapLayer(label.layerID) if project is not None else None
+            name = str(layer.name()) if layer is not None else str(label.layerID)
+            bucket = by_layer.setdefault(name, {"placed": 0, "unplaced": 0})
+            if bool(getattr(label, "isUnplaced", False)):
+                unplaced += 1
+                bucket["unplaced"] += 1
+                if len(unplaced_sample) < 12:
+                    unplaced_sample.append({"layer": name, "text": str(getattr(label, "labelText", ""))})
+            else:
+                placed += 1
+                bucket["placed"] += 1
+        except Exception:
+            continue
+    return {
+        "placed": placed,
+        "unplaced": unplaced,
+        "by_layer": by_layer,
+        "unplaced_sample": unplaced_sample,
+        "render_dpi": dpi,
+    }
 
 
 def _visible_layer_names(map_item: Any) -> list[str]:
@@ -570,42 +812,43 @@ def _observe_output(output_path: str | None) -> dict[str, Any]:
     }
 
 
-def measure_ink_fraction(png_path: str | Path, map_rect_mm: dict[str, float], page_mm: tuple[float, float]) -> float | None:
-    """Fração de pixels não-fundo dentro do quadro do mapa no PNG exportado.
-
-    É a única checagem que enxerga o resultado em vez de confiar na estrutura
-    de dados; sem ela, um mapa em branco passa por todos os códigos de retorno.
-    """
+def _load_image(png_path: str | Path) -> Any:
     try:
         from qgis.PyQt.QtGui import QImage  # type: ignore
     except Exception:
         return None
-
     image = QImage(str(png_path))
-    if image.isNull():
-        return None
+    return None if image.isNull() else image
 
+
+def _pixel_box(image: Any, rect_mm: dict[str, float], page_mm: tuple[float, float]) -> tuple[int, int, int, int] | None:
     page_width, page_height = page_mm
     if page_width <= 0 or page_height <= 0:
         return None
-
     scale_x = image.width() / page_width
     scale_y = image.height() / page_height
-    left = max(0, int(map_rect_mm["x"] * scale_x))
-    top = max(0, int(map_rect_mm["y"] * scale_y))
-    right = min(image.width(), int((map_rect_mm["x"] + map_rect_mm["width"]) * scale_x))
-    bottom = min(image.height(), int((map_rect_mm["y"] + map_rect_mm["height"]) * scale_y))
-    if right - left < 8 or bottom - top < 8:
+    left = max(0, int(rect_mm["x"] * scale_x))
+    top = max(0, int(rect_mm["y"] * scale_y))
+    right = min(image.width(), int((rect_mm["x"] + rect_mm["width"]) * scale_x))
+    bottom = min(image.height(), int((rect_mm["y"] + rect_mm["height"]) * scale_y))
+    if right - left < 2 or bottom - top < 2:
         return None
+    return left, top, right, bottom
 
-    # Amostragem em grade: percorrer milhões de pixels dentro do QGIS trava a
-    # interface. ~140x140 amostras bastam para distinguir mapa de folha branca.
-    steps = 140
+
+def _sample_ink(image: Any, box: tuple[int, int, int, int], steps: int = 140, uniform_is_blank: bool = True) -> float | None:
+    """Fração de amostras com tinta numa caixa de pixels.
+
+    Amostragem em grade: percorrer milhões de pixels dentro do QGIS trava a
+    interface. ~140x140 amostras bastam para distinguir mapa de folha branca.
+    Pixel transparente não é tinta: uma exportação que não desenhou nada —
+    todos os pixels em (0,0,0,0) — era contada como 100% de tinta e passava na
+    regra de quadro em branco.
+    """
+    left, top, right, bottom = box
     step_x = max(1, (right - left) // steps)
     step_y = max(1, (bottom - top) // steps)
-    total = 0
-    inked = 0
-    opaque = 0
+    total = inked = opaque = 0
     seen: set[int] = set()
     for y in range(top, bottom, step_y):
         for x in range(left, right, step_x):
@@ -615,13 +858,6 @@ def measure_ink_fraction(png_path: str | Path, map_rect_mm: dict[str, float], pa
             red, green, blue = (pixel >> 16) & 0xFF, (pixel >> 8) & 0xFF, pixel & 0xFF
             seen.add(pixel)
             if alpha < 8:
-                # Pixel transparente não é tinta. Sem esta verificação, uma
-                # exportação que não desenhou nada — todos os pixels em
-                # (0,0,0,0) — era contada como 100% de tinta e passava na regra
-                # de quadro em branco. Foi assim que um mapa inteiramente vazio
-                # recebeu nota A: o arquivo tinha o tamanho certo, o código de
-                # retorno dizia sucesso, e a única checagem visual olhava só o
-                # RGB.
                 continue
             opaque += 1
             if red < 246 or green < 246 or blue < 246:
@@ -629,7 +865,98 @@ def measure_ink_fraction(png_path: str | Path, map_rect_mm: dict[str, float], pa
     if total == 0:
         return None
     if opaque == 0:
-        return 0.0  # nada opaco foi desenhado: o quadro está vazio
-    if len(seen) <= 1:
-        return 0.0  # cor única em todo o quadro: nada foi renderizado
+        return 0.0
+    # Cor única no QUADRO INTEIRO significa que nada foi renderizado; numa
+    # célula ou numa faixa, uma cor única é só uma área uniformemente pintada.
+    if uniform_is_blank and len(seen) <= 1:
+        return 0.0
     return inked / total
+
+
+def measure_ink_fraction(png_path: str | Path, map_rect_mm: dict[str, float], page_mm: tuple[float, float]) -> float | None:
+    """Fração de pixels não-fundo dentro do quadro do mapa no PNG exportado.
+
+    É a única checagem que enxerga o resultado em vez de confiar na estrutura
+    de dados; sem ela, um mapa em branco passa por todos os códigos de retorno.
+    """
+    image = _load_image(png_path)
+    if image is None:
+        return None
+    box = _pixel_box(image, map_rect_mm, page_mm)
+    if box is None or box[2] - box[0] < 8 or box[3] - box[1] < 8:
+        return None
+    return _sample_ink(image, box)
+
+
+def measure_ink_grid(
+    png_path: str | Path, map_rect_mm: dict[str, float], page_mm: tuple[float, float], cells: int = 3
+) -> list[list[float]] | None:
+    """Tinta do quadro medida célula a célula numa grade ``cells x cells``.
+
+    Uma fração única não distingue "quadro cheio" de "metade cheia, metade
+    vazia"; por célula, a metade vazia aparece.
+    """
+    image = _load_image(png_path)
+    if image is None:
+        return None
+    grid: list[list[float]] = []
+    for row in range(cells):
+        line: list[float] = []
+        for col in range(cells):
+            cell = {
+                "x": map_rect_mm["x"] + map_rect_mm["width"] * col / cells,
+                "y": map_rect_mm["y"] + map_rect_mm["height"] * row / cells,
+                "width": map_rect_mm["width"] / cells,
+                "height": map_rect_mm["height"] / cells,
+            }
+            box = _pixel_box(image, cell, page_mm)
+            value = _sample_ink(image, box, steps=60, uniform_is_blank=False) if box is not None else None
+            line.append(round(value, 4) if value is not None else 0.0)
+        grid.append(line)
+    return grid
+
+
+def measure_surroundings_ink(
+    png_path: str | Path,
+    item_rect_mm: dict[str, float],
+    frame_rect_mm: dict[str, float],
+    page_mm: tuple[float, float],
+    ring_mm: float = 3.0,
+) -> float | None:
+    """Tinta na faixa de ``ring_mm`` ao redor de um item sobreposto ao quadro.
+
+    O que está *sob* o item não dá para medir no PNG final (o item está
+    desenhado por cima). A faixa em volta é o melhor indício disponível: uma
+    rosa dos ventos num canto vazio tem faixa vazia; uma sobre uma cidade
+    rotulada, não. A faixa é recortada ao quadro do mapa.
+    """
+    image = _load_image(png_path)
+    if image is None:
+        return None
+    fx0, fy0 = frame_rect_mm["x"], frame_rect_mm["y"]
+    fx1, fy1 = fx0 + frame_rect_mm["width"], fy0 + frame_rect_mm["height"]
+    ix0, iy0 = item_rect_mm["x"], item_rect_mm["y"]
+    ix1, iy1 = ix0 + item_rect_mm["width"], iy0 + item_rect_mm["height"]
+    strips = [
+        (ix0 - ring_mm, iy0 - ring_mm, ix1 + ring_mm, iy0),  # acima
+        (ix0 - ring_mm, iy1, ix1 + ring_mm, iy1 + ring_mm),  # abaixo
+        (ix0 - ring_mm, iy0, ix0, iy1),  # esquerda
+        (ix1, iy0, ix1 + ring_mm, iy1),  # direita
+    ]
+    total = inked = 0.0
+    for x0, y0, x1, y1 in strips:
+        x0, y0, x1, y1 = max(x0, fx0), max(y0, fy0), min(x1, fx1), min(y1, fy1)
+        if x1 - x0 <= 0.2 or y1 - y0 <= 0.2:
+            continue
+        box = _pixel_box(image, {"x": x0, "y": y0, "width": x1 - x0, "height": y1 - y0}, page_mm)
+        if box is None:
+            continue
+        value = _sample_ink(image, box, steps=40, uniform_is_blank=False)
+        if value is None:
+            continue
+        area = (x1 - x0) * (y1 - y0)
+        total += area
+        inked += value * area
+    if total <= 0:
+        return None
+    return round(inked / total, 4)

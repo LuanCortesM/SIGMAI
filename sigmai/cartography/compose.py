@@ -30,7 +30,7 @@ from typing import Any
 
 from .layoutgrid import DEFAULT_TEMPLATE, TEMPLATES, LayoutPlan, Rect, solve_layout
 from .maptext import MAP_TEXT, RTL_LANGUAGES, maptext, resolve_language
-from .pagespec import PageSpec, resolve_page
+from .pagespec import PAGE_SIZES, PageSpec, resolve_page
 from .params import ParameterError, as_flag, as_id_list, as_number, as_text
 from .qtcompat import distance_unit, layout_unit_mm, qt_enum
 from ..security import classify_output_path
@@ -89,18 +89,29 @@ KNOWN_PARAMETERS = frozenset({
     "include_grid", "include_logo", "include_inset", "grid_style", "logo_path",
     # inserto de localização
     "inset_layer_ids", "inset_zoom_factor",
-    # comparação lado a lado
-    "second_map", "comparison_same_scale", "panel_title",
+    # comparação lado a lado (2 painéis) e figura com N painéis (a), (b), (c)…
+    "second_map", "comparison_same_scale", "panel_title", "panels",
+    # figura para periódico: largura final impressa decide a página
+    "figure_width_mm", "figure_height_mm", "figure_max_height_mm", "journal_column",
     # rótulos
     "label_field", "label_layer_id", "label_font_size",
     # estilo
     "apply_style",
     # saída
     "output_path", "format", "dpi", "confirm_overwrite",
+    # receita reproduzível: JSON gravado ao lado (a receita vai sempre para o
+    # layout e para os metadados do PNG; este é o arquivo avulso, opcional)
+    "recipe_path",
 })
 
 # Formatos que QgsLayoutExporter sabe escrever nesta ferramenta.
-SUPPORTED_FORMATS = frozenset({"png", "pdf", "svg"})
+SUPPORTED_FORMATS = frozenset({"png", "pdf", "svg", "tif", "tiff", "jpg", "jpeg"})
+
+#: Larguras usuais de coluna em periódicos científicos (mm). Cada revista
+#: tem a sua — a instrução aos autores manda; ``figure_width_mm`` vence.
+JOURNAL_COLUMNS: dict[str, float] = {"single": 85.0, "one_and_half": 120.0, "double": 175.0}
+FIGURE_DEFAULT_MAX_HEIGHT_MM = 230.0
+FIGURE_MARGIN_MM = 2.0
 
 #: Estilos de grade aceitos por ``grid_style`` — as chaves que ``_apply_grid``
 #: sabe traduzir para o QGIS. Um valor fora daqui caía num padrão ("solid")
@@ -734,14 +745,124 @@ def _basemap_attributions(layers: list[Any]) -> list[str]:
     return creditos
 
 
+#: Grafias aceitas para ``orientation: "auto"`` — a orientação é escolhida
+#: pela proporção do recorte, não pelo padrão paisagem.
+AUTO_ORIENTATION_TERMS = frozenset({"auto", "automatic", "automatica", "automática", "automatique", "automatisch"})
+
+
+def _orientation_is_auto(value: Any) -> bool:
+    return isinstance(value, str) and value.strip().lower() in AUTO_ORIENTATION_TERMS
+
+
+def resolve_data_sources(
+    value: Any, layers: list[tuple[str, str, str]]
+) -> tuple[str, dict[str, str], list[str]]:
+    """Interpreta ``data_source`` como texto único ou como procedência por camada.
+
+    ``layers`` é ``[(id, nome, fonte_dos_metadados)]``. Aceita:
+
+    * texto — uma fonte para o mapa inteiro (comportamento original);
+    * dicionário ``{camada: fonte}`` — a chave é o id ou o nome da camada
+      (sem diferenciar maiúsculas); uma chave que não bate com nenhuma
+      camada é recusada com a lista, porque uma fonte atribuída à camada
+      errada é procedência falsa;
+    * lista ``[{"layer": ..., "source": ...}]`` — o mesmo, em forma de lista.
+
+    Camadas sem fonte declarada herdam a dos metadados da própria camada
+    (``rights``/atribuição), quando existir, com nota. Devolve o texto da
+    linha de crédito ("IBGE 2024 (Municípios); CEUC/SEMA (Parque)"), o mapa
+    ``{id: fonte}`` para a legenda e as notas.
+    """
+    notes: list[str] = []
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return "", {}, notes
+    if isinstance(value, (int, float)):
+        return str(value), {}, notes
+    if isinstance(value, str):
+        return value.strip(), {}, notes
+
+    entries: list[tuple[str, str]] = []
+    if isinstance(value, dict):
+        entries = [(str(k), str(v)) for k, v in value.items()]
+    elif isinstance(value, list):
+        for item in value:
+            if not isinstance(item, dict) or "layer" not in item or "source" not in item:
+                raise CompositionError(
+                    "data_source em lista precisa de objetos {\"layer\": <id ou nome>, \"source\": <texto>}; "
+                    f"recebido {item!r}."
+                )
+            entries.append((str(item["layer"]), str(item["source"])))
+    else:
+        raise CompositionError(
+            f"data_source precisa ser texto, dicionário {{camada: fonte}} ou lista de {{layer, source}}; "
+            f"recebido {type(value).__name__}."
+        )
+
+    by_key: dict[str, tuple[str, str]] = {}
+    for layer_id, name, _ in layers:
+        by_key[layer_id.lower()] = (layer_id, name)
+        by_key[name.lower()] = (layer_id, name)
+    per_layer: dict[str, str] = {}
+    unknown: list[str] = []
+    for key, source in entries:
+        match = by_key.get(key.strip().lower())
+        if match is None:
+            unknown.append(key)
+            continue
+        per_layer[match[0]] = source.strip()
+    if unknown:
+        known = ", ".join(f"{name} ({layer_id})" for layer_id, name, _ in layers)
+        raise CompositionError(
+            "data_source cita camadas que não estão no mapa: " + ", ".join(repr(k) for k in unknown) +
+            f". Camadas do mapa: {known}. Use o id ou o nome exato de cada camada."
+        )
+    for layer_id, name, metadata_source in layers:
+        if layer_id not in per_layer and metadata_source.strip():
+            per_layer[layer_id] = metadata_source.strip()
+            notes.append(f"A fonte de {name!r} veio dos metadados da própria camada: {metadata_source.strip()!r}.")
+    missing = [name for layer_id, name, _ in layers if layer_id not in per_layer]
+    if missing:
+        notes.append(
+            "Sem fonte declarada para: " + ", ".join(repr(n) for n in missing) +
+            ". Acrescente-as em data_source para que a procedência cubra todas as camadas."
+        )
+    # Texto do crédito: fontes distintas, cada uma seguida das camadas que cobre.
+    grouped: dict[str, list[str]] = {}
+    names = {layer_id: name for layer_id, name, _ in layers}
+    for layer_id, source in per_layer.items():
+        grouped.setdefault(source, []).append(names.get(layer_id, layer_id))
+    credit = "; ".join(f"{source} ({', '.join(covered)})" for source, covered in grouped.items())
+    return credit, per_layer, notes
+
+
+def _layer_metadata_source(layer: Any) -> str:
+    """Atribuição declarada nos metadados/propriedades da camada, se houver."""
+    try:
+        rights = [str(r).strip() for r in (layer.metadata().rights() or []) if str(r).strip()]
+        if rights:
+            return "; ".join(rights)
+    except Exception:
+        pass
+    try:
+        attribution = str(layer.attribution() or "").strip()
+        if attribution:
+            return attribution
+    except Exception:
+        pass
+    return ""
+
+
 def _credit_line(params: dict[str, Any], crs_label: str, date_label: str, map_language: str = "pt-BR",
-                 basemap_credits: list[str] | None = None) -> str:
+                 basemap_credits: list[str] | None = None, source_text: str | None = None) -> str:
     # as_text: data_source/map_author/organization nulos viravam o texto
     # "None" na linha de crédito (str(None) == "None"), porque None é
     # truthy... não, mas str(None).strip() == "None" é não-vazio e passava no
     # "if source:" abaixo mesmo sem o usuário ter pedido nada.
     pieces = []
-    source = as_text(params, "data_source", default="", label="data_source").strip()
+    if source_text is not None:
+        source = source_text.strip()
+    else:
+        source = as_text(params, "data_source", default="", label="data_source").strip()
     # O crédito do mapa de base entra junto com a fonte declarada: é fonte de
     # dado como qualquer outra, e a licença o exige na peça publicada.
     partes_fonte = [source] if source else []
@@ -818,13 +939,27 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     second_map_spec = params.get("second_map") or None
     if second_map_spec is not None and not isinstance(second_map_spec, dict):
         raise CompositionError("second_map precisa ser um objeto com layer_ids e, opcionalmente, panel_title.")
+    # panels: lista de painéis ADICIONAIS ao principal, cada um como
+    # second_map ({layer_ids, subject_layer_id?, panel_title?, margin_percent?}).
+    # second_map continua valendo como atalho para um único painel extra.
+    panels_raw = params.get("panels")
+    if panels_raw is not None and second_map_spec is not None:
+        raise CompositionError("Use second_map (um painel extra) OU panels (lista de painéis extras), não os dois.")
+    if panels_raw is not None:
+        if not isinstance(panels_raw, list) or not panels_raw or not all(isinstance(p, dict) for p in panels_raw):
+            raise CompositionError("panels precisa ser uma lista de objetos {layer_ids, subject_layer_id?, panel_title?}.")
+        if len(panels_raw) > 7:
+            raise CompositionError(f"panels aceita até 7 painéis extras (8 quadros); recebidos {len(panels_raw)}.")
+    extra_specs: list[dict[str, Any]] = [second_map_spec] if second_map_spec is not None else list(panels_raw or [])
+    # Daqui em diante second_map_spec só diz se HÁ painéis extras.
+    second_map_spec = extra_specs[0] if extra_specs else None
 
-    # As camadas do segundo painel entram na mesma passada de estilo: estilizar
+    # As camadas dos painéis extras entram na mesma passada de estilo: estilizar
     # só as do primeiro deixava o painel b) com a cor aleatória que o QGIS
     # sorteou, ao lado de um painel a) com a paleta segura.
     styling_targets = list(layers)
-    if second_map_spec is not None:
-        for layer in _resolve_layer_ids(second_map_spec, imports, "second_map"):
+    for index, spec in enumerate(extra_specs):
+        for layer in _resolve_layer_ids(spec, imports, _panel_label(index)):
             if all(layer.id() != existing.id() for existing in styling_targets):
                 styling_targets.append(layer)
 
@@ -846,9 +981,10 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     ]
     # ``strict=True``: se o assistente pediu um formato que não existe, é melhor
     # dizer isso do que devolver, em silêncio, uma folha A4 que ninguém pediu.
+    orientation_auto = _orientation_is_auto(params.get("orientation"))
     try:
         page: PageSpec = resolve_page(
-            params.get("page"), params.get("orientation"), params.get("margin_mm"),
+            params.get("page"), None if orientation_auto else params.get("orientation"), params.get("margin_mm"),
             strict=params.get("page") is not None,
         )
     except ValueError as exc:
@@ -861,6 +997,17 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # subtítulo mesmo sem nenhum texto ter sido pedido.
     title_value = as_text(params, "title", default="", label="title").strip()
     subtitle_value = as_text(params, "subtitle", default="", label="subtitle").strip()
+
+    # data_source por camada ("IBGE 2024" para a malha, "CEUC/SEMA" para a
+    # UC) entra na legenda e na linha de crédito; um texto único continua
+    # valendo para o mapa inteiro. Resolvido cedo: uma camada citada que não
+    # está no mapa é recusa de parâmetro, antes de qualquer mutação.
+    source_text, layer_sources, source_notes = resolve_data_sources(
+        params.get("data_source"),
+        [(layer.id(), layer.name(), _layer_metadata_source(layer)) for layer in styling_targets],
+    )
+    if not isinstance(params.get("data_source"), (dict, list)):
+        source_notes = []  # texto único: as notas de cobertura por camada não se aplicam
 
     # map_language escolhe a língua dos textos que o PRÓPRIO compositor
     # escreve — "Fonte:"/"Elaboração:", o título padrão quando ninguém pede
@@ -925,7 +1072,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         include_logo=include_logo,
         include_inset=include_inset,
         grid_annotation_gutter_mm=annotation_gutter,
-        panels=2 if second_map_spec else 1,
+        panels=1 + len(extra_specs),
     )
     # solve_layout (layoutgrid.py) recusa página/margens combinadas que não
     # sobram espaço com um ValueError — mesmo tratamento que resolve_page
@@ -938,7 +1085,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     frame = plan.map_frame()
 
     # --- sistema de referência ------------------------------------------
-    notes: list[str] = list(plan.notes) + styling_notes + flag_notes
+    notes: list[str] = list(plan.notes) + styling_notes + flag_notes + source_notes
     requested_crs = _resolve_map_crs_text(params)
     if requested_crs:
         map_crs = imports["QgsCoordinateReferenceSystem"](requested_crs)
@@ -977,22 +1124,57 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # união de todas as camadas enquadraria o estado inteiro e o parque
     # sumiria. Sem isto, a única forma de obter um recorte de detalhe era
     # remover as camadas de contexto — e perder o contexto.
-    subject_id = as_text(params, "subject_layer_id", default="", label="subject_layer_id").strip()
+    # subject_layer_id aceita um id/nome ou uma LISTA: num mapa de campanha o
+    # assunto são os pontos E a trilha, e o recorte tem de conter os dois.
+    subject_raw = params.get("subject_layer_id")
+    if isinstance(subject_raw, list):
+        subject_ids = [str(v).strip() for v in subject_raw if str(v).strip()]
+    else:
+        subject_ids = [as_text(params, "subject_layer_id", default="", label="subject_layer_id").strip()]
+        subject_ids = [v for v in subject_ids if v]
     extent_layers = layers
-    if subject_id:
-        subject = [layer for layer in layers if layer.id() == subject_id or layer.name() == subject_id]
-        if not subject:
+    if subject_ids:
+        subject = [layer for layer in layers if layer.id() in subject_ids or layer.name() in subject_ids]
+        unknown = [v for v in subject_ids if all(layer.id() != v and layer.name() != v for layer in layers)]
+        if not subject or unknown:
             raise CompositionError(
-                f"subject_layer_id não corresponde a nenhuma camada do mapa: {subject_id}. "
+                f"subject_layer_id não corresponde a nenhuma camada do mapa: {', '.join(unknown or subject_ids)}. "
                 "Camadas informadas: " + ", ".join(f"{layer.name()} ({layer.id()})" for layer in layers) + "."
             )
         extent_layers = subject
+        names = ", ".join(repr(layer.name()) for layer in subject)
         notes.append(
-            f"Recorte definido pela camada de assunto {subject[0].name()!r}; "
+            f"Recorte definido pela{'s camadas' if len(subject) > 1 else ' camada'} de assunto {names}; "
             "as demais entram como contexto."
         )
 
     extent = _combined_extent(extent_layers, map_crs, imports)
+
+    # Figura para periódico: a página É a figura, na largura final impressa.
+    # A altura é escolhida para que o quadro do mapa tenha a proporção do
+    # recorte (sem encher a folha de faixa vazia), até figure_max_height_mm.
+    figure_width = _resolve_figure_width(params)
+    print_width_mm: float | None = None
+    if figure_width is not None:
+        figure_height = as_number(params, "figure_height_mm", None, minimum=20.0, maximum=600.0, label="figure_height_mm")
+        max_height = as_number(params, "figure_max_height_mm", default=FIGURE_DEFAULT_MAX_HEIGHT_MM, minimum=20.0, maximum=600.0,
+                               label="figure_max_height_mm")
+        if not params.get("template") and not params.get("layout_template"):
+            template = "publicacao"
+            layout_request["template"] = template
+        margin_for_figure = params.get("margin_mm", FIGURE_MARGIN_MM)
+        page, plan = _solve_figure_page(
+            figure_width, figure_height, max_height, margin_for_figure, extent, layout_request,
+        )
+        layout_request["page"] = page  # as passadas seguintes (barra sob o mapa) resolvem nesta página
+        frame = plan.map_frame()
+        orientation_auto = False
+        print_width_mm = float(figure_width)
+        notes.append(
+            f"Figura para periódico: página de {page.width_mm:g} x {page.height_mm:g} mm (largura final impressa"
+            + (f", coluna {params.get('journal_column')}" if params.get("journal_column") else "")
+            + f"), template {template!r}, fontes de pelo menos {MIN_FONT_PT:g} pt nessa largura."
+        )
 
     auto_projected_crs, auto_projected_note = as_flag(params, "auto_projected_crs", True)
     if auto_projected_note:
@@ -1002,16 +1184,19 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         # cru dos dados: o quadro alarga a extensão para casar com sua proporção,
         # e um segundo painel pode cobrir uma área muito maior que o primeiro.
         decision_extent = _aspect_expanded(extent, frame.width, frame.height, imports)
-        if second_map_spec is not None and "map_2" in plan.slots:
-            second_layers = _resolve_layer_ids(second_map_spec, imports, "second_map")
-            if second_layers:
-                second_extent = _combined_extent(
-                    _subject_subset(second_layers, second_map_spec.get("subject_layer_id", "")),
+        for index, spec in enumerate(extra_specs):
+            slot_key = f"map_{index + 2}"
+            if slot_key not in plan.slots:
+                continue
+            panel_layers = _resolve_layer_ids(spec, imports, _panel_label(index))
+            if panel_layers:
+                panel_extent = _combined_extent(
+                    _subject_subset(panel_layers, spec.get("subject_layer_id", "")),
                     map_crs, imports,
                 )
-                frame_2 = plan.slots["map_2"]
+                frame_n = plan.slots[slot_key]
                 decision_extent.combineExtentWith(
-                    _aspect_expanded(second_extent, frame_2.width, frame_2.height, imports)
+                    _aspect_expanded(panel_extent, frame_n.width, frame_n.height, imports)
                 )
         projected, label = _suggest_projected_crs(decision_extent, map_crs, imports)
         if projected is not None and label:
@@ -1050,6 +1235,30 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
             snap_to_round_scale=round_scale_value,
             map_units_per_metre=_map_units_per_metre(map_crs, extent, imports),
         )
+
+    # orientation="auto": a folha gira se, resolvido o layout na outra
+    # orientação, o quadro aproveita o recorte numa escala pelo menos 12%
+    # maior. É a mesma conta de _orientation_advice, só que aplicada em vez
+    # de aconselhada — o mapa do Parque das Carnaúbas saiu em paisagem com a
+    # metade leste vazia enquanto a nota dizia que em retrato caberia melhor.
+    if orientation_auto:
+        flipped = _better_orientation(extent, frame, page, template, layout_request, annotation_gutter)
+        if flipped is not None:
+            try:
+                page = resolve_page(page.name if page.name.upper() in PAGE_SIZES else
+                                    {"width_mm": page.height_mm, "height_mm": page.width_mm, "name": page.name},
+                                    flipped, params.get("margin_mm"))
+                layout_request["page"] = page
+                plan = solve_layout(**layout_request)
+            except ValueError as exc:
+                raise CompositionError(str(exc)) from exc
+            frame = plan.map_frame()
+            notes.append(
+                f"Orientação escolhida automaticamente: {'retrato' if flipped == 'portrait' else 'paisagem'} — "
+                "o recorte aproveita melhor a folha nessa orientação."
+            )
+        else:
+            notes.append(f"Orientação escolhida automaticamente: {'paisagem' if page.orientation == 'landscape' else 'retrato'}.")
 
     fitted = _fit(frame)
 
@@ -1108,45 +1317,56 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     if not include_inset:
         notes.extend(_locator_advice(extent, layers, extent_layers, map_crs, imports))
 
-    notes.extend(
-        _orientation_advice(
-            extent, frame, page, template, gutter=annotation_gutter,
-            include_legend=include_legend, include_scale_bar=include_scale_bar,
-            include_scale_text=include_scale_text, include_north=include_north,
-            include_subtitle=include_subtitle, include_logo=include_logo,
+    if not orientation_auto:
+        notes.extend(
+            _orientation_advice(
+                extent, frame, page, template, gutter=annotation_gutter,
+                include_legend=include_legend, include_scale_bar=include_scale_bar,
+                include_scale_text=include_scale_text, include_north=include_north,
+                include_subtitle=include_subtitle, include_logo=include_logo,
+            )
         )
-    )
 
     # A comparação precisa ser resolvida aqui, e não ao final: se os painéis
     # forem igualados numa escala comum, é essa a escala que a barra e o texto
     # devem anunciar. Resolver depois de desenhá-los fazia o mapa dizer
     # 1:250.000 enquanto mostrava 1:5.000.000.
-    comparison_plan = None
-    if second_map_spec is not None and "map_2" in plan.slots:
-        comparison_plan = _plan_comparison(second_map_spec, params, plan, map_crs, imports)
+    panel_plans: list[dict[str, Any]] = []
+    for index, spec in enumerate(extra_specs):
+        slot_key = f"map_{index + 2}"
+        if slot_key in plan.slots:
+            panel_plans.append(_plan_comparison(spec, params, plan, map_crs, imports, slot=slot_key, label=_panel_label(index)))
+    comparison_plan = panel_plans[0] if panel_plans else None  # compat: primeiro painel extra
+    if panel_plans:
         comparison_same_scale, comparison_same_scale_note = as_flag(params, "comparison_same_scale", True)
         if comparison_same_scale_note:
             notes.append(comparison_same_scale_note)
         if comparison_same_scale:
-            shared = max(fitted.scale_denominator, comparison_plan["fitted"].scale_denominator)
-            if shared != fitted.scale_denominator or shared != comparison_plan["fitted"].scale_denominator:
+            all_scales = [fitted.scale_denominator] + [pp["fitted"].scale_denominator for pp in panel_plans]
+            shared = max(all_scales)
+            if any(scale != shared for scale in all_scales):
                 notes.append(
-                    f"Os dois painéis foram igualados em 1:{shared:,} — a escala mais aberta dos dois — "
-                    "para que a comparação visual entre eles seja honesta.".replace(",", ".")
+                    f"Os {len(all_scales)} painéis foram igualados em {_format_scale(shared, map_language)} — a escala "
+                    "mais aberta de todos — para que a comparação visual entre eles seja honesta."
                 )
-            antes = (fitted.scale_denominator, comparison_plan["fitted"].scale_denominator)
+            antes = (fitted.scale_denominator, panel_plans[0]["fitted"].scale_denominator)
             fitted = _rescale(fitted, shared)
-            comparison_plan["fitted"] = _rescale(comparison_plan["fitted"], shared)
+            for pp in panel_plans:
+                pp["fitted"] = _rescale(pp["fitted"], shared)
             notes.extend(_equalisation_cost_advice(antes, shared))
         else:
             # Escalas diferentes exigem que cada painel anuncie a sua. Uma barra
-            # de escala única sob dois painéis desiguais afirma algo falso sobre
+            # de escala única sob painéis desiguais afirma algo falso sobre
             # um deles.
-            comparison_plan["per_panel_scale"] = True
+            for pp in panel_plans:
+                pp["per_panel_scale"] = True
+            listed = ", ".join(
+                _format_scale(scale, map_language)
+                for scale in [fitted.scale_denominator] + [pp["fitted"].scale_denominator for pp in panel_plans]
+            )
             notes.append(
-                f"Painéis em escalas diferentes (1:{fitted.scale_denominator:,} e "
-                f"1:{comparison_plan['fitted'].scale_denominator:,}); cada painel anuncia a sua escala "
-                "e a barra única foi substituída por essa indicação.".replace(",", ".")
+                f"Painéis em escalas diferentes ({listed}); cada painel anuncia a sua escala "
+                "e a barra única foi substituída por essa indicação."
             )
 
     explicit_layout_name = as_text(params, "layout_name", default="", label="layout_name").strip()
@@ -1338,10 +1558,12 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # leitor sem saber o que está vendo.
     if include_legend and "legend" in plan.slots:
         legend_layers = list(layers)
-        for layer in (comparison_plan or {}).get("layers", []):
-            if all(layer.id() != existing.id() for existing in legend_layers):
-                legend_layers.append(layer)
-        _add_legend(layout, map_item, legend_layers, plan, params, imports, mm, map_language)
+        for pp in panel_plans:
+            for layer in pp.get("layers", []):
+                if all(layer.id() != existing.id() for existing in legend_layers):
+                    legend_layers.append(layer)
+        _add_legend(layout, map_item, legend_layers, plan, params, imports, mm, map_language,
+                    layer_sources=layer_sources, notes=notes)
         created["legend"] = "legend"
 
     # Barra de escala dimensionada
@@ -1393,7 +1615,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     )
     _add_label(
         layout, "source", _credit_line(params, crs_label, date_label, map_language,
-                                       _basemap_attributions(layers)),
+                                       _basemap_attributions(layers), source_text=source_text),
         plan.slots["footer"], plan.fonts["footer"], imports, mm,
         align=("right" if map_language_rtl else "left"),
     )
@@ -1409,13 +1631,15 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
             _place(picture, plan.slots["logo"], imports, mm)
             created["logo"] = "picture"
 
-    # Segundo quadro de comparação
-    if comparison_plan is not None:
-        comparison_plan["main_scale"] = fitted.scale_denominator
-        _build_comparison_map(
-            layout, comparison_plan, params, plan, map_crs, imports, mm, notes, grid_style_value, map_language,
-        )
-        created["comparison_map"] = "map"
+    # Quadros extras (comparação a dois, ou figura com N painéis)
+    for index, pp in enumerate(panel_plans):
+        pp["main_scale"] = fitted.scale_denominator
+        item_id = _build_comparison_map(
+            layout, pp, params, plan, map_crs, imports, mm, notes, grid_style_value, map_language,
+            index=index, total=1 + len(panel_plans),
+        ).id()
+        created[item_id] = "map"
+    if panel_plans:
         created["panel_captions"] = "label"
 
     layout.refresh()
@@ -1448,15 +1672,17 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
             "xmax": extent.xMaximum(), "ymax": extent.yMaximum(),
         },
         map_frame=frame,
+        print_width_mm=print_width_mm,
     )
 
     _reject_if_audit_found_blank_output(audit)
 
-    return {
+    result = {
         "layout_name": layout_name,
         "template": plan.template,
         "arrangement": plan.arrangement,
         "page": page.to_dict(),
+        "print_width_mm": print_width_mm,
         "map_crs": _crs_identifier(map_crs, map_crs_label),
         "map_crs_description": map_crs.description(),
         "scale": _format_scale(fitted.scale_denominator),
@@ -1472,6 +1698,79 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         "notes": notes,
         "audit": audit,
     }
+
+    # --- receita reproduzível -------------------------------------------
+    # Gravada no layout (sobrevive no .qgz), nos metadados do PNG e, se
+    # pedido, num JSON ao lado. É o que permite refazer o mapa quando o dado
+    # muda (recompose_from_recipe) e escrever o parágrafo de Métodos.
+    recipe_layers = list(layers)
+    for pp in panel_plans:
+        for extra in pp.get("layers", []):
+            if all(extra.id() != existing.id() for existing in recipe_layers):
+                recipe_layers.append(extra)
+    recipe = _store_recipe(layout, params, recipe_layers, layer_sources, result, output_path, export_format, imports, notes)
+    result["recipe"] = {"stored_in_layout": True, "embedded_in_output": recipe.get("embedded_in_output", False),
+                        "recipe_path": recipe.get("recipe_path", ""), "created_at": recipe.get("created_at")}
+    return result
+
+
+def _store_recipe(
+    layout: Any, params: dict[str, Any], layers: list[Any], layer_sources: dict[str, str], result: dict[str, Any],
+    output_path: Path | None, export_format: str, imports: dict[str, Any], notes: list[str],
+) -> dict[str, Any]:
+    from ..qgis_actions.project_overview import redact_layer_source
+    from .recipe import (
+        RECIPE_PNG_KEY, RECIPE_PROPERTY, build_recipe, file_fingerprint, local_file_of_source, recipe_to_json,
+    )
+
+    described: list[dict[str, Any]] = []
+    for layer in layers:
+        source = redact_layer_source(layer)
+        entry: dict[str, Any] = {
+            "id": layer.id(), "name": layer.name(), "provider": str(_quiet(layer.providerType) or ""),
+            "source": source, "crs": _crs_identifier(layer.crs()) if _quiet(layer.crs) is not None else "",
+            "feature_count": _quiet(lambda: layer.featureCount()), "source_text": layer_sources.get(layer.id(), ""),
+        }
+        local = local_file_of_source(str(_quiet(layer.source) or ""))
+        if local:
+            entry["file"] = file_fingerprint(local)
+        derived = str(_quiet(lambda: layer.customProperty("sigmai/derived_from", "")) or "")
+        if derived:
+            entry["derived_from"] = derived
+        described.append(entry)
+    try:
+        from ..bridge_server import plugin_version
+
+        sigmai_version = plugin_version()
+    except Exception:
+        sigmai_version = ""
+    qgis_version = str(_quiet(imports["Qgis"].version) or "")
+    project_path = str(_quiet(imports["QgsProject"].instance().fileName) or "")
+    recipe = build_recipe(params, described, result, sigmai_version=sigmai_version, qgis_version=qgis_version,
+                          project_path=project_path)
+    text = recipe_to_json(recipe)
+    _try(lambda: layout.setCustomProperty(RECIPE_PROPERTY, text))
+
+    if output_path is not None and export_format == "png" and output_path.exists():
+        try:
+            from qgis.PyQt.QtGui import QImage  # type: ignore
+
+            image = QImage(str(output_path))
+            if not image.isNull():
+                image.setText(RECIPE_PNG_KEY, text)
+                if image.save(str(output_path), "PNG"):
+                    recipe["embedded_in_output"] = True
+        except Exception as exc:
+            notes.append(f"A receita não pôde ser gravada nos metadados do PNG: {exc}")
+
+    recipe_path_text = as_text(params, "recipe_path", default="", label="recipe_path").strip()
+    if recipe_path_text:
+        recipe_path = _resolve_output_path({"output_path": recipe_path_text})
+        if recipe_path is None or recipe_path.suffix.lower() != ".json":
+            raise CompositionError(f"recipe_path precisa ser um caminho absoluto terminado em .json: {recipe_path_text!r}.")
+        recipe_path.write_text(text, encoding="utf-8")
+        recipe["recipe_path"] = str(recipe_path)
+    return recipe
 
 
 def _locator_advice(
@@ -1504,6 +1803,85 @@ def _locator_advice(
         f"O recorte é cerca de {ratio:.0f}x menor que a camada mais ampla do mapa. "
         "Um inserto de localização ajudaria quem não conhece a região: passe include_inset=true."
     ]
+
+
+def _resolve_figure_width(params: dict[str, Any]) -> float | None:
+    """Largura final da figura em mm, de ``figure_width_mm`` ou ``journal_column``; ``None`` sem preset."""
+    width = as_number(params, "figure_width_mm", None, minimum=30.0, maximum=600.0, label="figure_width_mm")
+    column = as_text(params, "journal_column", default="", label="journal_column").strip().lower().replace("-", "_").replace(" ", "_")
+    if column:
+        aliases = {"simple": "single", "simples": "single", "uma": "single", "1": "single", "dupla": "double", "2": "double",
+                   "duas": "double", "1.5": "one_and_half", "1,5": "one_and_half", "meia": "one_and_half"}
+        column = aliases.get(column, column)
+        if column not in JOURNAL_COLUMNS:
+            raise CompositionError(
+                f"journal_column desconhecido: {params.get('journal_column')!r}. Aceitos: "
+                + ", ".join(f"{name} ({mm:g} mm)" for name, mm in JOURNAL_COLUMNS.items())
+                + ". Se a revista pede outra largura, passe figure_width_mm."
+            )
+        if width is None:
+            width = JOURNAL_COLUMNS[column]
+    return float(width) if width is not None else None
+
+
+def _solve_figure_page(
+    width: float, height: float | None, max_height: float, margin_mm: Any, extent: Any, layout_request: dict[str, Any],
+) -> tuple[PageSpec, LayoutPlan]:
+    """Página da figura: largura fixa; altura dada ou a que casa o quadro com o recorte."""
+    def solve(h: float) -> tuple[PageSpec, LayoutPlan]:
+        spec = resolve_page({"width_mm": width, "height_mm": h, "name": "figura"}, None, margin_mm)
+        return spec, solve_layout(**{**layout_request, "page": spec})
+
+    if height is not None:
+        try:
+            return solve(float(height))
+        except ValueError as exc:
+            raise CompositionError(str(exc)) from exc
+    data_aspect = (extent.width() / extent.height()) if extent.height() > 0 else 1.0
+    best: tuple[float, PageSpec, LayoutPlan] | None = None
+    h = max(20.0, width * 0.5)
+    ceiling = min(float(max_height), width * 2.6)
+    while h <= ceiling + 1e-6:
+        try:
+            spec, plan = solve(h)
+            frame = plan.map_frame()
+            if frame.height > 0:
+                mismatch = abs(math.log((frame.width / frame.height) / data_aspect))
+                if best is None or mismatch < best[0] - 1e-9:
+                    best = (mismatch, spec, plan)
+        except ValueError:
+            pass
+        h += 2.0
+    if best is None:
+        raise CompositionError(
+            f"Não há altura entre {width * 0.5:g} e {ceiling:g} mm em que um layout caiba numa figura de {width:g} mm de "
+            "largura. Use uma coluna mais larga (journal_column='double'), desative itens de apoio ou aumente figure_max_height_mm."
+        )
+    return best[1], best[2]
+
+
+def _better_orientation(
+    extent: Any, frame: Any, page: PageSpec, template: str, layout_request: dict[str, Any], gutter: float,
+) -> str | None:
+    """A orientação oposta, se nela o quadro aproveitar o recorte ≥ 12% melhor; senão ``None``."""
+    if extent.height() <= 0 or frame.height <= 0 or frame.width <= 0:
+        return None
+    flipped = "portrait" if page.orientation == "landscape" else "landscape"
+    try:
+        alt_page = resolve_page(
+            page.name if page.name.upper() in PAGE_SIZES else
+            {"width_mm": page.height_mm, "height_mm": page.width_mm, "name": page.name},
+            flipped,
+            {"top": page.margin_top_mm, "right": page.margin_right_mm, "bottom": page.margin_bottom_mm, "left": page.margin_left_mm},
+        )
+        alternative = solve_layout(**{**layout_request, "page": alt_page}).map_frame()
+    except Exception:
+        return None
+    current_factor = max(extent.width() / frame.width, extent.height() / frame.height)
+    alternative_factor = max(extent.width() / alternative.width, extent.height() / alternative.height)
+    if alternative_factor <= 0:
+        return None
+    return flipped if current_factor / alternative_factor >= 1.12 else None
 
 
 def _orientation_advice(
@@ -1570,6 +1948,10 @@ def _orientation_advice(
     ]
 
 
+#: Formatos raster em que a auditoria consegue medir tinta no arquivo exportado.
+_RASTER_AUDIT_SUFFIXES = (".png", ".tif", ".tiff", ".jpg", ".jpeg")
+
+
 def audit_layout(
     layout: Any,
     *,
@@ -1577,13 +1959,49 @@ def audit_layout(
     output_path: str | None = None,
     data_extent: dict[str, float] | None = None,
     map_frame: Rect | None = None,
+    print_width_mm: float | None = None,
+    collect_labels: bool = True,
 ) -> dict[str, Any]:
-    """Observa um layout e roda o regulamento cartográfico contra ele."""
-    from .inspector import measure_ink_fraction, observe_layout
+    """Observa um layout e roda o regulamento cartográfico contra ele.
 
-    ink = None
-    if output_path and str(output_path).lower().endswith(".png") and map_frame is not None and page is not None:
-        ink = measure_ink_fraction(output_path, map_frame.to_dict(), (page.width_mm, page.height_mm))
+    Além da estrutura do layout, a observação ganha o que só a renderização
+    mostra: a tinta do quadro (inteira e em grade 3x3), a tinta em volta de
+    cada item desenhado sobre o quadro (para distinguir uma rosa dos ventos
+    num canto vazio de uma sobre os dados) e os rótulos que o motor do QGIS
+    descartou. ``print_width_mm`` diz em que largura a figura vai ser
+    impressa, quando se sabe, para que as fontes sejam julgadas nessa
+    largura e não na página.
+    """
+    from .inspector import (
+        collect_label_results, measure_ink_fraction, measure_ink_grid, measure_surroundings_ink, observe_layout,
+    )
+
+    raster_path = output_path if output_path and str(output_path).lower().endswith(_RASTER_AUDIT_SUFFIXES) else None
+    page_mm = (page.width_mm, page.height_mm) if page is not None else None
+    ink = grid = None
+    if raster_path and map_frame is not None and page_mm is not None:
+        ink = measure_ink_fraction(raster_path, map_frame.to_dict(), page_mm)
+        grid = measure_ink_grid(raster_path, map_frame.to_dict(), page_mm)
+
+    # Rótulos descartados, por quadro. A chave é o id que a observação vai
+    # usar: o id do QGIS quando existe, senão o sintético ("map#1", "map#2")
+    # gerado pela mesma regra e na mesma ordem do inspetor.
+    label_results: dict[str, dict[str, Any]] = {}
+    if collect_labels:
+        try:
+            counter = 0
+            for item in layout.items():
+                if type(item).__name__ != "QgsLayoutItemMap":
+                    continue
+                item_id = str(item.id() or "")
+                if not item_id:
+                    counter += 1
+                    item_id = f"map#{counter}"
+                collected = collect_label_results(item)
+                if collected is not None:
+                    label_results[item_id] = collected
+        except Exception:
+            label_results = {}
 
     observation = observe_layout(
         layout,
@@ -1591,7 +2009,28 @@ def audit_layout(
         page_spec=page,
         data_extent=data_extent,
         ink_fraction=ink,
+        ink_grid=grid,
+        label_results=label_results or None,
+        print_width_mm=print_width_mm,
     )
+
+    # Tinta em volta dos itens desenhados sobre o quadro do mapa — só faz
+    # sentido com o raster e com um quadro conhecido.
+    if raster_path and page_mm is not None:
+        frame_entry = next((i for i in observation.get("items", []) if i.get("role") == "map"), None)
+        if frame_entry is not None:
+            frame_rect = {k: float(frame_entry.get(k, 0.0)) for k in ("x", "y", "width", "height")}
+            for item in observation.get("items", []):
+                if item is frame_entry or item.get("role") in ("map", "background"):
+                    continue
+                rect = {k: float(item.get(k, 0.0)) for k in ("x", "y", "width", "height")}
+                overlap_w = min(rect["x"] + rect["width"], frame_rect["x"] + frame_rect["width"]) - max(rect["x"], frame_rect["x"])
+                overlap_h = min(rect["y"] + rect["height"], frame_rect["y"] + frame_rect["height"]) - max(rect["y"], frame_rect["y"])
+                if overlap_w > 0.5 and overlap_h > 0.5:
+                    ring = measure_surroundings_ink(raster_path, rect, frame_rect, page_mm)
+                    if ring is not None:
+                        item["surroundings_ink_fraction"] = ring
+
     report = evaluate(observation)
     report["observation"] = observation
     return report
@@ -1805,9 +2244,178 @@ def _add_label(
     return label
 
 
+def _is_label_only(layer: Any) -> bool:
+    try:
+        renderer = layer.renderer()
+        return renderer is not None and str(renderer.type()) == "nullSymbol"
+    except Exception:
+        return False
+
+
+#: Caractere de quebra de linha das entradas da legenda (QgsLayoutItemLegend
+#: não quebra sozinho; ``setWrapString`` quebra onde este caractere aparece).
+LEGEND_WRAP = "\u2028"
+
+
+#: Largura reservada, em mm, para o símbolo e os espaçamentos à esquerda do
+#: texto de uma entrada da legenda.
+LEGEND_SYMBOL_BAND_MM = 14.0
+
+
+def _legend_columns(plan: LayoutPlan, entries: int) -> int:
+    slot = plan.slots.get("legend")
+    return 2 if (slot is not None and slot.aspect > 1.6 and entries > 3) else 1
+
+
+def _wrap_legend_label(
+    layout: Any, imports: dict[str, Any], name: str, source: str, plan: LayoutPlan, columns: int = 1,
+) -> str:
+    """``nome`` + fonte entre parênteses, quebrados em linhas que cabem na coluna da legenda.
+
+    O nome também é quebrado: numa figura de 175 mm a coluna da legenda tem
+    ~45 mm e "Limite estadual do Piauí" saía cortado na borda da caixa — a
+    emulação da 1.1.0 mostrou o texto truncado que nenhuma regra acusava.
+    """
+    slot = plan.slots.get("legend")
+    slot_width = slot.width if slot is not None else 60.0
+    available = max(20.0, slot_width / max(1, columns) - LEGEND_SYMBOL_BAND_MM)
+    size_pt = float(plan.fonts.get("legend", 8.0))
+    try:
+        measure = _measure_text_mm_fn(layout, imports, bold=False)
+    except Exception:
+        def measure(text: str, _pt: float) -> float:  # ~0,5 em por caractere
+            return len(text) * size_pt * 0.3528 * 0.5
+
+    def wrap(text: str) -> list[str]:
+        lines: list[str] = []
+        current = ""
+        for word in text.split():
+            candidate = f"{current} {word}".strip()
+            if current and measure(candidate, size_pt) > available:
+                lines.append(current)
+                current = word
+            else:
+                current = candidate
+        if current:
+            lines.append(current)
+        return lines
+
+    lines = wrap(name) or [name]
+    if source:
+        lines.extend(wrap(f"({source})"))
+    return LEGEND_WRAP.join(lines)
+
+
+def _legend_content_size_mm(legend: Any) -> tuple[float, float] | None:
+    """Tamanho mínimo (mm) que o conteúdo da legenda precisa para ser desenhado inteiro."""
+    try:
+        from qgis.core import QgsLegendRenderer  # type: ignore
+
+        size = QgsLegendRenderer(legend.model(), legend.legendSettings()).minimumSize()
+        return float(size.width()), float(size.height())
+    except Exception:
+        return None
+
+
+def _set_legend_font(legend: Any, imports: dict[str, Any], size_pt: float) -> None:
+    font = imports["QFont"]()
+    font.setPointSizeF(float(size_pt))
+    from qgis.core import QgsLegendStyle  # type: ignore
+
+    for style_name in ("Title", "Group", "Subgroup", "SymbolLabel"):
+        legend.setStyleFont(qt_enum(QgsLegendStyle, "Style", style_name), font)
+
+
+def _fit_legend_in_box(
+    legend: Any, slot: Rect, plan: LayoutPlan, layout: Any, imports: dict[str, Any], layer_sources: dict[str, str],
+    columns: int, notes: list[str] | None,
+) -> None:
+    """Faz o conteúdo da legenda caber na caixa: fonte menor, depois sem as fontes por camada.
+
+    ``QgsLayoutItemLegend`` não avisa quando o conteúdo passa da caixa: corta
+    o texto na borda e desenha por cima do que vier abaixo. Numa figura de
+    coluna simples (85 mm) a caixa tem ~26 mm de altura, e duas entradas com
+    fonte por camada já não cabem — a emulação da 1.1.0 mostrou "(IBGE, 2024)"
+    sobre a linha de crédito. A medida vem de ``QgsLegendRenderer.minimumSize``.
+    """
+    tolerance = 0.5
+    content = _legend_content_size_mm(legend)
+    if content is None:
+        return
+
+    def fits() -> bool:
+        c = _legend_content_size_mm(legend)
+        return c is None or (c[0] <= slot.width + tolerance and c[1] <= slot.height + tolerance)
+
+    if fits():
+        return
+    size_pt = float(plan.fonts.get("legend", 8.0))
+    while not fits() and size_pt - 0.5 >= MIN_FONT_PT:
+        size_pt -= 0.5
+        try:
+            _set_legend_font(legend, imports, size_pt)
+        except Exception:
+            return
+    if fits():
+        if notes is not None:
+            notes.append(f"Fonte da legenda reduzida para {size_pt:g} pt para o conteúdo caber na caixa.")
+        return
+    # Ainda não cabe: as fontes por camada saem da legenda (continuam na
+    # linha de crédito e na receita); os nomes continuam quebrados na coluna.
+    dropped = False
+    try:
+        for node in legend.model().rootGroup().findLayers():
+            layer = node.layer()
+            if layer is None or not node.customProperty("legend/title-label", ""):
+                continue
+            label = _wrap_legend_label(layout, imports, layer.name(), "", plan, columns)
+            if label != layer.name():
+                node.setCustomProperty("legend/title-label", label)
+            else:
+                # Propriedade vazia não devolve o nome da camada: some o rótulo.
+                node.removeCustomProperty("legend/title-label")
+            legend.model().refreshLayerLegend(node)
+            dropped = True
+        legend.updateLegend()
+    except Exception:
+        pass
+    # Sem as fontes por camada sobra espaço: a fonte volta a crescer até o
+    # corpo planejado enquanto couber — 7 pt sem fontes é melhor que 6 pt.
+    if dropped and fits():
+        planned = float(plan.fonts.get("legend", 8.0))
+        while size_pt + 0.5 <= planned:
+            try:
+                _set_legend_font(legend, imports, size_pt + 0.5)
+            except Exception:
+                break
+            if fits():
+                size_pt += 0.5
+            else:
+                try:
+                    _set_legend_font(legend, imports, size_pt)
+                except Exception:
+                    pass
+                break
+    if notes is not None:
+        content = _legend_content_size_mm(legend) or content
+        if fits():
+            if dropped:
+                notes.append(
+                    "As fontes por camada não couberam na legenda e ficaram só na linha de crédito "
+                    f"(fonte da legenda em {size_pt:g} pt)."
+                )
+        else:
+            notes.append(
+                f"A legenda precisa de {content[0]:.0f} x {content[1]:.0f} mm e a caixa tem "
+                f"{slot.width:.0f} x {slot.height:.0f} mm mesmo a {size_pt:g} pt: reduza o número de camadas na "
+                "legenda, encurte os nomes ou use uma página maior."
+            )
+
+
 def _add_legend(
     layout: Any, map_item: Any, layers: list[Any], plan: LayoutPlan,
     params: dict[str, Any], imports: dict[str, Any], mm: Any, map_language: str = "pt-BR",
+    layer_sources: dict[str, str] | None = None, notes: list[str] | None = None,
 ) -> Any:
     legend = imports["QgsLayoutItemLegend"](layout)
     legend.setId("legend")
@@ -1823,8 +2431,31 @@ def _add_legend(
         root = legend.model().rootGroup()
         for node in list(root.children()):
             root.removeChildNode(node)
-        for layer in layers:
-            root.addLayer(layer)
+        legend_layers = [layer for layer in layers if not _is_label_only(layer)]
+        columns = _legend_columns(plan, len(legend_layers))
+        for layer in legend_layers:
+            # Camada só-de-rótulo (sem símbolo) não tem o que mostrar na
+            # legenda; uma entrada vazia com o nome "Nomes — Piauí" confunde.
+            node = root.addLayer(layer)
+            # Procedência na própria entrada: "Municípios (IBGE, 2024)". O
+            # rótulo da entrada de símbolo único é fixado quando o nó é
+            # criado, por isso a propriedade vai ANTES de updateLegend — e
+            # sem renomear a camada do projeto.
+            source = (layer_sources or {}).get(layer.id(), "")
+            if node is not None:
+                try:
+                    # A fonte vai numa segunda linha, e o nome comprido é
+                    # quebrado na largura da coluna: "IBGE, Malha Municipal
+                    # 2024" não cabe ao lado do nome numa coluna de 50 mm.
+                    label = _wrap_legend_label(layout, imports, layer.name(), source, plan, columns)
+                    if label != layer.name():
+                        node.setCustomProperty("legend/title-label", label)
+                        # O nó de símbolo já foi criado em addLayer com o nome
+                        # antigo; a propriedade só vale depois de recriá-lo.
+                        legend.model().refreshLayerLegend(node)
+                        legend.setWrapString(LEGEND_WRAP)
+                except Exception:
+                    pass
         legend.updateLegend()
     except Exception:
         try:
@@ -1837,23 +2468,21 @@ def _add_legend(
     try:
         legend.setResizeToContents(False)
         # Colunas: uma coluna estreita com muitas entradas transborda a caixa.
-        entries = max(1, len(layers))
-        legend.setColumnCount(2 if (slot.aspect > 1.6 and entries > 3) else 1)
+        legend.setColumnCount(_legend_columns(plan, max(1, len([l for l in layers if not _is_label_only(l)]))))
         legend.setSplitLayer(True)
         legend.setEqualColumnWidth(True)
     except Exception:
         pass
     try:
-        font = imports["QFont"]()
-        font.setPointSizeF(float(plan.fonts["legend"]))
-        from qgis.core import QgsLegendStyle  # type: ignore
-
-        for style_name in ("Title", "Group", "Subgroup", "SymbolLabel"):
-            style = qt_enum(QgsLegendStyle, "Style", style_name)
-            legend.setStyleFont(style, font)
+        _set_legend_font(legend, imports, float(plan.fonts["legend"]))
     except Exception:
         pass
     _place(legend, slot, imports, mm)
+    try:
+        columns = _legend_columns(plan, max(1, len([l for l in layers if not _is_label_only(l)])))
+        _fit_legend_in_box(legend, slot, plan, layout, imports, layer_sources or {}, columns, notes)
+    except Exception:
+        pass
     return legend
 
 
@@ -1991,11 +2620,18 @@ def _empty_in_frame_advice(
             request = imports["QgsFeatureRequest"]().setFilterRect(local_frame).setLimit(1)
             request.setNoAttributes()
             if next(layer.getFeatures(request), None) is None:
-                notes.append(
-                    f"A camada {layer.name()!r} não tem nenhuma feição dentro do recorte: "
-                    "ela vai aparecer na legenda e não no mapa. Tire-a de layer_ids, "
-                    "aumente margin_percent ou escolha outra camada de contexto."
-                )
+                if _is_label_only(layer):
+                    notes.append(
+                        f"A camada de rótulos {layer.name()!r} não tem nenhum ponto dentro do recorte: "
+                        "nenhum nome dela vai aparecer no mapa. Aumente margin_percent, passe extra_labels "
+                        "com coordenadas dentro do recorte ou tire-a de layer_ids."
+                    )
+                else:
+                    notes.append(
+                        f"A camada {layer.name()!r} não tem nenhuma feição dentro do recorte: "
+                        "ela vai aparecer na legenda e não no mapa. Tire-a de layer_ids, "
+                        "aumente margin_percent ou escolha outra camada de contexto."
+                    )
         except Exception:
             continue
     return notes
@@ -2106,6 +2742,13 @@ def _apply_labels(
         geometry = _geometry_name(target, imports)
         placement = qt_enum(QgsPalLayerSettings, "Placement", "Curved" if geometry == "Line" else "AroundPoint")
         settings.placement = placement
+        if geometry == "Polygon":
+            # Polígono cortado pela moldura: o rótulo vai para o centroide da
+            # PARTE VISÍVEL, não do polígono inteiro — senão o motor calcula o
+            # centroide fora do quadro e descarta o rótulo em silêncio
+            # (CART068 acusa o que ainda assim não couber).
+            settings.centroidWhole = False
+            settings.centroidInside = True
     except Exception:
         pass
 
@@ -2157,32 +2800,38 @@ def _geometry_name(layer: Any, imports: dict[str, Any]) -> str:
     return "unknown"
 
 
+def _panel_label(index: int) -> str:
+    """Nome do painel extra nas mensagens: o primeiro continua 'second_map'."""
+    return "second_map" if index == 0 else f"panels[{index}]"
+
+
 def _plan_comparison(
-    spec: dict[str, Any], params: dict[str, Any], plan: LayoutPlan, map_crs: Any, imports: dict[str, Any]
+    spec: dict[str, Any], params: dict[str, Any], plan: LayoutPlan, map_crs: Any, imports: dict[str, Any],
+    slot: str = "map_2", label: str = "second_map",
 ) -> dict[str, Any]:
-    """Resolve camadas e recorte do segundo painel, sem ainda desenhar nada."""
-    layers = _resolve_layer_ids(spec, imports, "second_map")
+    """Resolve camadas e recorte de um painel extra, sem ainda desenhar nada."""
+    layers = _resolve_layer_ids(spec, imports, label)
     if not layers:
-        raise CompositionError("second_map precisa de layer_ids com ao menos uma camada.")
+        raise CompositionError(f"{label} precisa de layer_ids com ao menos uma camada.")
 
-    extent_layers = _subject_subset(layers, as_text(spec, "subject_layer_id", default="", label="second_map.subject_layer_id"))
+    extent_layers = _subject_subset(layers, as_text(spec, "subject_layer_id", default="", label=f"{label}.subject_layer_id"))
 
-    # second_map.margin_percent é opcional; sem ele, herda o margin_percent do
+    # margin_percent do painel é opcional; sem ele, herda o margin_percent do
     # mapa principal (já validado). float(spec.get(..., params.get(...))) cru
     # estourava ValueError sem contexto quando "muita" chegava como texto.
     main_margin = as_number(params, "margin_percent", default=5.0, minimum=0.0, maximum=100.0, label="margin_percent")
-    frame = plan.slots["map_2"]
+    frame = plan.slots[slot]
     extent = _combined_extent(extent_layers, map_crs, imports)
     fitted = fit_extent_to_frame(
         extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum(),
         frame.width, frame.height,
         margin_percent=as_number(
-            spec, "margin_percent", default=main_margin, minimum=0.0, maximum=100.0, label="second_map.margin_percent",
+            spec, "margin_percent", default=main_margin, minimum=0.0, maximum=100.0, label=f"{label}.margin_percent",
         ),
         snap_to_round_scale=as_flag(params, "round_scale", True)[0],
         map_units_per_metre=_map_units_per_metre(map_crs, extent, imports),
     )
-    return {"layers": layers, "fitted": fitted, "frame": frame, "spec": spec}
+    return {"layers": layers, "fitted": fitted, "frame": frame, "spec": spec, "slot": slot, "label": label}
 
 
 def _equalisation_cost_advice(before: tuple[int, int], shared: int) -> list[str]:
@@ -2231,22 +2880,31 @@ def _rescale(fitted: Any, scale: int) -> Any:
     )
 
 
+#: Letras das legendas de painel numa figura com três ou mais quadros.
+PANEL_LETTERS = "abcdefgh"
+
+
 def _build_comparison_map(
     layout: Any, comparison: dict[str, Any], params: dict[str, Any], plan: LayoutPlan,
     map_crs: Any, imports: dict[str, Any], mm: Any, notes: list[str], grid_style: str = "solid",
-    map_language: str = "pt-BR",
+    map_language: str = "pt-BR", index: int = 0, total: int = 2,
 ) -> Any:
-    """Desenha o segundo quadro e as legendas de painel.
+    """Desenha um quadro extra e as legendas de painel.
 
-    A regra que sustenta o par é a escala: dois painéis em escalas diferentes
+    A regra que sustenta o conjunto é a escala: painéis em escalas diferentes
     convidam a uma comparação visual que não se sustenta, porque o mesmo
     tamanho no papel passa a significar tamanhos distintos no terreno. Por isso
     o padrão é igualar — e, quando não se iguala, dizer isso no laudo.
+
+    ``index`` é a posição do painel extra (0 = o antigo second_map, que
+    mantém o id ``comparison_map``); ``total`` é o número de quadros na folha.
+    Com dois quadros as legendas são "Painel A/B"; com três ou mais, "(a)",
+    "(b)", "(c)"…, como numa figura de artigo.
     """
     frame = comparison["frame"]
     fitted = comparison["fitted"]
     second = imports["QgsLayoutItemMap"](layout)
-    second.setId("comparison_map")
+    second.setId("comparison_map" if index == 0 else f"panel_map_{index + 2}")
     layout.addLayoutItem(second)
     _place(second, frame, imports, mm)
     second.setCrs(map_crs)
@@ -2257,28 +2915,29 @@ def _build_comparison_map(
     # params.get("grid_style", "solid") de novo, que caía no padrão em
     # silêncio para um valor desconhecido.
     _apply_grid(second, fitted, map_crs, plan, imports, [], grid_style)
-    _verify_placement(second, frame, "comparison_map", notes)
+    _verify_placement(second, frame, second.id(), notes)
 
-    # Sem panel_title os dois painéis recebem rótulos simétricos ("Painel A"/
-    # "Painel B" na língua do mapa). Repetir o título da folha sobre o painel
-    # da esquerda, como se fazia, punha o mesmo texto duas vezes a 2 cm de
-    # distância e deixava a direita com um rótulo genérico ao lado de um
-    # específico — o leitor lia hierarquia onde só havia omissão.
-    left = (
-        as_text(params, "panel_title", default="", label="panel_title").strip()
-        or maptext(map_language, "painel_a")
-    )
-    right = (
-        as_text(comparison["spec"], "panel_title", default="", label="second_map.panel_title").strip()
-        or maptext(map_language, "painel_b")
-    )
+    # Sem panel_title os painéis recebem rótulos simétricos ("Painel A"/
+    # "Painel B" na língua do mapa; "(a)", "(b)"… com três ou mais). Repetir
+    # o título da folha sobre o painel da esquerda, como se fazia, punha o
+    # mesmo texto duas vezes a 2 cm de distância e deixava a direita com um
+    # rótulo genérico ao lado de um específico — o leitor lia hierarquia onde
+    # só havia omissão.
+    main_title = as_text(params, "panel_title", default="", label="panel_title").strip()
+    own_title = as_text(comparison["spec"], "panel_title", default="", label=f"{comparison.get('label', 'second_map')}.panel_title").strip()
+    if total == 2:
+        left = main_title or maptext(map_language, "painel_a")
+        right = own_title or maptext(map_language, "painel_b")
+    else:
+        left = f"({PANEL_LETTERS[0]})" + (f" {main_title}" if main_title else "")
+        right = f"({PANEL_LETTERS[index + 1]})" + (f" {own_title}" if own_title else "")
     if comparison.get("per_panel_scale"):
         left = f"{left} — {_format_scale(comparison['main_scale'], map_language)}"
         right = f"{right} — {_format_scale(fitted.scale_denominator, map_language)}"
-    for slot_name, item_id, text in (
-        ("map_caption", "panel_caption_a", left),
-        ("map_2_caption", "panel_caption_b", right),
-    ):
+    captions = [(f"{comparison['slot']}_caption", f"panel_caption_{PANEL_LETTERS[index + 1]}", right)]
+    if index == 0:
+        captions.insert(0, ("map_caption", "panel_caption_a", left))
+    for slot_name, item_id, text in captions:
         if slot_name in plan.slots:
             _add_label(layout, item_id, text, plan.slots[slot_name], plan.fonts["subtitle"],
                        imports, mm, bold=True, align="center", notes=notes, fit=True)
@@ -2693,7 +3352,7 @@ def _export(layout: Any, output_path: Path, export_format: str, params: dict[str
     # 20000 numa A4 chega a ~990 milhões de pixels). integer=True porque
     # int(1.5) truncaria em silêncio o que o pedido não disse.
     dpi = as_number(params, "dpi", default=300, minimum=50, maximum=1200, integer=True, label="dpi")
-    if export_format == "png":
+    if export_format in ("png", "tif", "tiff", "jpg", "jpeg"):
         settings = imports["QgsLayoutExporter"].ImageExportSettings()
         settings.dpi = dpi
         result = exporter.exportToImage(str(output_path), settings)

@@ -32,6 +32,31 @@ OKABE_ITO = (
     "#000000",  # preto
 )
 
+#: Preenchimentos de polígono, na ordem em que as camadas de polígono
+#: aparecem (a primeira é normalmente o assunto, desenhada por cima).
+#: Cada entrada é (matiz da paleta, quanto clarear em direção ao branco).
+#:
+#: Até a 1.0.3 todo preenchimento era o matiz clareado 82 % — e a própria
+#: regra CART070 reprovava o mapa que o SIGMAI compunha: perto do branco os
+#: matizes convergem e, nas simulações de Machado, Oliveira & Fernandes
+#: (2009), azul-claro e verde-claro ficam a ΔE*ab 2,9 sob tritanopia. O que
+#: sobrevive à simulação é a diferença de luminosidade, não a de matiz; a
+#: sequência abaixo alterna claridades e matizes de eixos opostos, e os
+#: quatro primeiros preenchimentos ficam a ΔE*ab ≥ 19 entre si em qualquer
+#: das três simulações (o quinto cai a 14 — com cinco camadas de polígono
+#: sobrepostas o aviso da regra é legítimo e o remédio são padrões).
+#: A figura (assunto) recebe o laranja mais firme; o fundo, azul quase branco.
+POLYGON_FILLS: tuple[tuple[str, float], ...] = (
+    ("#D55E00", 0.45),  # assunto: laranja firme
+    ("#0072B2", 0.85),  # contexto: azul quase branco
+    ("#E69F00", 0.75),  # amarelo claro
+    ("#009E73", 0.40),  # verde-azulado médio
+    ("#56B4E9", 0.45),  # azul claro médio
+    ("#CC79A7", 0.60),  # rosa
+    ("#F0E442", 0.40),  # amarelo
+    ("#000000", 0.80),  # cinza
+)
+
 #: Estilos por tipo de geometria. Preenchimentos claros e traços escuros:
 #: mantêm o contraste figura/fundo sem competir com rótulos.
 GEOMETRY_DEFAULTS: dict[str, dict[str, Any]] = {
@@ -146,6 +171,7 @@ def apply_default_symbology(layers: list[Any], mode: str = "missing", dry_run: b
 
     imports = _imports()
     applied: list[dict[str, Any]] = []
+    polygon_slot = 0
 
     for index, layer in enumerate(layers):
         if not hasattr(layer, "renderer") or not hasattr(layer, "geometryType"):
@@ -181,8 +207,12 @@ def apply_default_symbology(layers: list[Any], mode: str = "missing", dry_run: b
         if kind == "Polygon":
             # Preenchimento derivado do próprio matiz: com um azul-claro fixo
             # para todos, duas camadas de polígono ficavam da mesma cor e só o
-            # traço as distinguia — no papel, nada as distinguia.
-            style["fill"] = _tint(accent, 0.82)
+            # traço as distinguia — no papel, nada as distinguia. A sequência
+            # POLYGON_FILLS alterna claridade e matiz para que as camadas de
+            # polígono continuem distintas nas simulações de daltonismo.
+            accent, amount = POLYGON_FILLS[polygon_slot % len(POLYGON_FILLS)]
+            polygon_slot += 1
+            style["fill"] = _tint(accent, amount)
         # Cor que de fato aparece no mapa: o preenchimento para polígono, o
         # próprio matiz para linha e ponto. Reportada em ambos os modos —
         # é o que permite a uma simulação dizer "com que cor" sem aplicá-la.

@@ -18,7 +18,7 @@ That mattered more than it would in a manual tool, because the grade was the **o
 
 ## What replaces it
 
-An explicit rulebook of 29 rules across nine categories. Each rule carries:
+An explicit rulebook of 34 rules across ten categories. Each rule carries:
 
 | Field | Purpose |
 |---|---|
@@ -34,15 +34,16 @@ The rulebook is available to assistants as data through `sigmai_cartographic_rul
 
 | Category | Covers |
 |---|---|
-| `elementos` | Title, legend, and whether the legend explains every visible layer |
+| `elementos` | Title, legend, whether the legend explains every visible layer, whether its content fits its box, and whether the labels asked for were actually placed |
 | `escala` | Scale bar presence, proportion, unit validity for the CRS, numeric scale |
 | `orientacao` | Orientation indicated, and by a symbol rather than a text label |
 | `procedencia` | Source, authorship, reference system, production date |
 | `grade` | Coordinate grid enabled, with a non-zero interval, annotated |
 | `geometria` | Items inside the page and margins, no overlaps, map dominance |
-| `tipografia` | Minimum printable font size, title/subtitle hierarchy |
+| `tipografia` | Minimum printable font size, title/subtitle hierarchy, and the same check at the final printed width of a journal figure |
 | `projecao` | Projected CRS where metric measurement is claimed |
-| `dados` | Extent contains the data, frame is not blank, output written |
+| `dados` | Extent contains the data, frame is not blank, the data occupy the frame, output written |
+| `simbologia` | Layer colours remain distinguishable under simulated colour-vision deficiency |
 
 ## Grading
 
@@ -63,6 +64,17 @@ The same map, composed by the current engine, scores **A — 100/100**.
 ## Blank-frame detection
 
 `CART062` is the only rule that looks at pixels. After a PNG export, the engine samples a grid of points inside the map frame and measures the fraction that is not background. A blank frame with a successful export is the most dangerous failure mode available, because every return code says success: the command succeeded, the file exists, the file is large enough, and the map is empty. Extent in the wrong CRS, an invisible layer, or a layer whose source moved all produce it.
+
+Five more rules read the rendered image, the labelling engine or the legend renderer, all added in 1.1.0 after the "raw PyQGIS × SIGMAI" experiment (`docs/experiments/2026-09-06_pyqgis_direto_vs_sigmai/`) showed what a plain element checklist misses:
+
+- **`CART068` — labels placed.** The map is rendered once more with `QgsLabelingEngineSettings.CollectUnplacedLabels`, and every label the engine could not place is counted per layer. A layer with 207 site names and room for 40 produces a map that *looks* labelled and is not; the rule names the layer and the count, and `compose_campaign_map` refuses to label more than 60 points on its own.
+- **`CART069` — the frame is occupied.** The frame is divided into a 3 × 3 grid; the polygon coverage of each cell is computed geometrically (up to 5 000 features per layer; larger layers fall back to the ink of the rendered PNG). A whole column or row with less than 5 % coverage (2 % ink) means the page shape does not match the data — a tall state on a landscape sheet — and the finding names the band ("west column", "south row"). Total coverage was tried first and rejected: a legitimate state map with a wide margin fails it, an empty band does not lie.
+- **`CART070` — colours distinguishable by readers with a colour-vision deficiency.** The fill or stroke colour of each visible layer (and each class of a categorised or graduated renderer) is transformed with the protanopia, deuteranopia and tritanopia matrices of Machado, Oliveira & Fernandes (2009, *IEEE Transactions on Visualization and Computer Graphics* 15(6), severity 1.0) and compared pairwise in CIE L\*a\*b\*; a pair with ΔE\*ab below 15 under any of the three simulations is reported, with the Okabe & Ito (2008) palette offered as the fix.
+- **`CART071` — fonts readable at the printed width.** When the composition was asked for as a journal figure (`journal_column`, `figure_width_mm`) or the audit is told `print_width_mm`, every font size is scaled by printed width ÷ page width and compared with the minimum readable size. A 7 pt caption on an A4 page becomes 3 pt in a single-column figure.
+
+- **`CART072` — the legend fits its box.** `QgsLegendRenderer.minimumSize()` gives the size the legend content needs; when the item is not set to resize to contents and the content exceeds the box by more than 0.5 mm, QGIS clips the names at the edge and draws over whatever sits below, without any warning. `compose_map` measures the same thing and, before the audit, shrinks the legend font down to 6 pt and then drops the per-layer sources from the entries (they stay in the credit line and the recipe).
+
+`CART042` (no overlapping items) also changed: an item that sits over a map frame is no longer a defect when the 3 mm ring around it holds less than 3 % ink — a legend or a locator inset over the open sea is a legitimate overlay, and the two states' hand-made maps in the experiment were being failed for it.
 
 ## Testing the rules without QGIS
 

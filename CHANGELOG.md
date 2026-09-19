@@ -2,6 +2,55 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.1.0] — 2026-09-19
+
+A versão que nasce da pergunta feita depois do experimento da 1.0.3: *o que o SIGMAI pode fazer que um agente escrevendo PyQGIS não faz de graça?* A resposta foi uma lista de treze coisas que nenhum dos dois agentes fez sozinho — auditar rótulos perdidos, saber onde uma área fica antes de desenhá-la, deixar o mapa reproduzível, dimensionar uma figura para a coluna de uma revista, desfazer um erro — e todas as treze estão aqui. Nada de novo entra sem regra ou teste: são 651 testes (94 novos) e a bateria de liberação passou nos sete portões.
+
+### Novo — a auditoria vê o que o leitor vê
+
+- **CART068 — rótulos colocados.** O mapa é renderizado uma segunda vez com `CollectUnplacedLabels`, e cada rótulo que o motor de rotulagem não conseguiu colocar é contado por camada. O mapa do agente direto tinha 207 nomes de sítio e lugar para 40: parecia rotulado e não estava.
+- **CART069 — o quadro é ocupado pelos dados.** Cobertura geométrica dos polígonos numa grade 3×3 (até 5 000 feições por camada; acima disso, a tinta do PNG). Uma coluna ou linha inteira com menos de 5 % de cobertura significa que a forma da página não é a dos dados — o Piauí em folha paisagem — e o laudo nomeia a faixa ("coluna oeste", "linha sul"). O critério de cobertura total foi tentado e rejeitado: um mapa de estado legítimo com margem larga reprova nele; uma faixa vazia não mente.
+- **CART070 — cores distinguíveis por daltônicos.** As cores de preenchimento e contorno de cada camada visível (e de cada classe dos estilos categorizado e graduado) são transformadas pelas matrizes de protanopia, deuteranopia e tritanopia de Machado, Oliveira & Fernandes (2009, *IEEE TVCG* 15(6)) e comparadas em CIE L\*a\*b\*; um par com ΔE\*ab abaixo de 15 em qualquer simulação é apontado, e a correção sugerida é a paleta de Okabe & Ito (2008). Nova categoria `simbologia`.
+- **CART071 — fontes legíveis na largura impressa.** Quando a composição foi pedida como figura de revista (ou a auditoria recebe `print_width_mm`), cada corpo de fonte é reduzido na proporção largura impressa ÷ largura da página. Uma legenda de 7 pt numa A4 vira 3 pt numa coluna simples.
+- **CART072 — a legenda cabe na caixa.** `QgsLegendRenderer.minimumSize` diz o tamanho que o conteúdo precisa; quando passa da caixa em mais de 0,5 mm, o QGIS corta os nomes na borda e desenha por cima do que vier abaixo, sem avisar. Foi o que a emulação desta versão mostrou numa figura de coluna simples: "(IBGE, 2024)" sobre a linha de crédito.
+- **CART042 aceita sobreposição legítima**: um item sobre o quadro do mapa não é defeito quando o anel de 3 mm em volta dele tem menos de 3 % de tinta — a legenda sobre o mar, o inserto sobre o vazio.
+
+### Novo — o compositor sabe mais
+
+- **Orientação automática** (`orientation: "auto"`): a página é escolhida pela forma dos dados, com o ganho de escala calculado nos dois sentidos; só troca quando o ganho passa de 12 %.
+- **Figura para revista**: `journal_column` (`single` 85 mm, `one_and_half` 120 mm, `double` 175 mm) ou `figure_width_mm`/`figure_height_mm`, com a página resolvida em milímetros a partir da extensão e o template `publicacao`; formatos `tif` e `jpg` para os sistemas de submissão; o corpo das fontes é auditado na largura final.
+- **Painéis**: `panels=[{...}, {...}, {...}]` compõe três ou mais quadros com letras (a), (b), (c), grade de duas ou três colunas conforme a página, escala comum quando pedida (`second_map` continua para dois).
+- **Procedência por camada**: `data_source` aceita um objeto `{camada: fonte}` (por id ou nome), a fonte de cada camada sai na legenda ao lado dela, e a camada que declara fonte nos próprios metadados é usada quando o pedido não diz.
+- **Anotações de contexto** (`add_context_annotations`): a divisa e os nomes de uma camada de contexto viram camadas só-de-rótulo (nome no polo de inacessibilidade de cada polígono, `extra_labels` livres, opcionalmente gravadas em GeoPackage) — o mapa passa a dizer em que estado está.
+- **Mapa de campanha** (`compose_campaign_map`): sítios sobre trilha sobre área sobre contexto, inserto de localização, recorte que contém pontos *e* trilha, rótulo pelo campo de nome detectado (em duas camadas de dicas, com verificação de distinção — `track_fid` não é nome), no máximo 60 pontos rotulados automaticamente, e a tabela de coordenadas em CSV (`export_coordinate_table`: E/N no CRS pedido mais lon/lat em EPSG:4326).
+- **Rótulos de polígono** ficam dentro da feição (`centroidInside`), e camadas só-de-rótulo não entram na legenda.
+- **A legenda cabe por construção**: nomes compridos são quebrados na largura da coluna (não só a fonte); depois de posicionada, a legenda é medida com `QgsLegendRenderer.minimumSize` e, se não cabe, a fonte desce até 6 pt e em seguida as fontes por camada saem das entradas (ficam na linha de crédito e na receita), com nota no resultado.
+- **Paleta de polígonos que passa na própria regra.** Os preenchimentos eram o matiz de Okabe & Ito clareado 82 %; perto do branco os matizes convergem e CART070 reprovava o mapa que o SIGMAI compunha (azul-claro × verde-claro a ΔE 2,9 sob tritanopia). A sequência nova (`POLYGON_FILLS`) alterna claridade e matizes de eixos opostos — laranja firme para o assunto, azul quase branco para o contexto, amarelo claro, verde-azulado médio — e os quatro primeiros ficam a ΔE ≥ 19 em qualquer simulação; um teste garante.
+- **A auditoria de um layout composto usa a receita**: margens e largura impressa vêm da composição, em vez dos 10 mm padrão que reprovavam a figura de revista (margens de 5 mm por desenho) em CART041 e deixavam CART071 sem rodar.
+
+### Novo — reproduzível, citável, reversível
+
+- **Receita do mapa**: cada composição guarda em `sigmai/recipe` (propriedade do layout) e no `tEXt` do PNG (`sigmai:recipe`) os parâmetros, as camadas com provedor, fonte, CRS, contagem e SHA-256 do arquivo local, as versões do QGIS e do SIGMAI, o caminho do projeto e o laudo. `get_map_recipe` lê do layout, do PNG ou do JSON (`recipe_path`) e diz quais dados mudaram desde então; `recompose_from_recipe` refaz com `overrides`, achando as camadas por id e, na falta, por nome; `describe_map_for_methods` escreve o parágrafo de Métodos em pt-BR, en ou es, com a referência bibliográfica do software.
+- **Desfazer**: antes de cada escrita no projeto (`safe_write`/`project_write`, sem `dry_run`) o registro guarda o estilo, o nome, os rótulos e a codificação de cada camada citada, o XML de cada layout citado e a lista do que existia. `undo_last_action` restaura o que foi tocado e remove o que foi criado; arquivos em disco ficam, e a resposta lista quais. `list_undo_history` mostra a pilha (20 entradas). Nova categoria de consentimento **Projeto**, nas nove línguas da interface.
+
+### Novo — o assistente pergunta antes de assumir
+
+- **`spatial_relationship`**: fração de cada feição de A dentro de B, feições de B que tocam A, e a mais próxima com distância geodésica (`QgsDistanceArea`, elipsoide do projeto), `radius_m` para limitar a busca; nomes pelo campo de nome ranqueado (`CD_UF` não é nome), com nota quando o nome vem com "�".
+- **`set_layer_encoding`** e `encoding_problem` em `get_layer_info`: "Piau�" é detectado e corrigido com a codificação certa.
+- **Planilha de pontos vira camada**: `load_vector_layer` aceita `.csv`/`.txt`/`.tsv` pelo provedor `delimitedtext`, com separador, ponto decimal (`-45,059`) e codificação detectados no arquivo e as colunas de coordenada reconhecidas pelo nome (lon/lat, longitude/latitude, x/y, este/norte…) ou ditas em `x_field`/`y_field`; longitude/latitude sem `crs` assume EPSG:4326, E/N sem `crs` é recusado com o nome das colunas. Os sítios de uma campanha quase nunca chegam como shapefile — na emulação o assistente não tinha como pô-los no mapa.
+- **`project_briefing`** (`sigmai_briefing`): numa chamada, tudo o que as duas emulações levavam cinco para descobrir — versões, projeto, camadas com campo de nome e exemplos, layouts (e quais o SIGMAI compôs), acesso, regulamento, templates, caminhos recomendados.
+
+### MCP
+
+Vinte ferramentas (nove novas: `sigmai_briefing`, `sigmai_spatial_relationship`, `sigmai_add_context_annotations`, `sigmai_campaign_map`, `sigmai_export_coordinate_table`, `sigmai_map_recipe`, `sigmai_recompose_from_recipe`, `sigmai_methods_paragraph`, `sigmai_undo`); o esquema de `compose_map` publica `orientation: auto`, `panels`, `journal_column`, `figure_*`, `recipe_path`, `data_source` por camada e `subject_layer_id` em lista; as instruções do servidor começam pelo briefing e pela relação espacial.
+
+### Corrigido
+
+- A receita quebrava com camada raster (`featureCount` inexistente) — encontrado pela bateria de liberação, coberto por teste.
+- Acesso a `QFont.AbsoluteSpacing` incompatível com Qt6 nas anotações de contexto.
+- O teste da receita dependia do CRS deixado por outro teste; fixa o próprio.
+- `extra_labels` de `add_context_annotations` aceita `{text, lon, lat}` em graus, além de `{text, x, y, crs}` — a forma que o assistente escreveu na emulação.
+
 ## [1.0.3] — 2026-09-06
 
 Um experimento para responder "o SIGMAI serve para quê, se a IA pode escrever PyQGIS direto?": um agente **com acesso total ao computador**, proibido de usar o plugin, atendeu o mesmo pedido da pesquisadora da versão 1.0.2 em PyQGIS puro. O mapa dele — A4 retrato completo, com título, subtítulo, grade anotada, legenda, barra e escala numérica, rosa dos ventos, inserto com quadro-guia, bloco "FONTES DOS DADOS", autoria e data — foi então auditado pelo `sigmai_audit_layout`, que prometia funcionar "inclusive num layout feito à mão". Deu **nota D (50/100)**: "nenhum item com papel de título", "falta a linha de fonte". O laudo mentia, e a mentira tinha três camadas.
