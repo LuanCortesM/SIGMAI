@@ -168,7 +168,9 @@ class ReceitaNoQgis(unittest.TestCase):
             # arquivo estiver errado de verdade, a asserção abaixo reprova.
             from osgeo import ogr
 
-            gravado = ogr.Open(caminho).GetLayer(0).GetSpatialRef()
+            dataset = ogr.Open(caminho)  # a referência ao dataset tem de viver enquanto a camada é lida
+            self.assertIsNotNone(dataset, "GPKG não abre pelo OGR")
+            gravado = dataset.GetLayer(0).GetSpatialRef()
             self.assertIsNotNone(gravado, "GPKG gravado sem CRS")
             self.assertEqual(gravado.GetAuthorityCode(None), "31984", gravado.ExportToWkt()[:120])
             layer.setCrs(QgsCoordinateReferenceSystem("EPSG:31984"))

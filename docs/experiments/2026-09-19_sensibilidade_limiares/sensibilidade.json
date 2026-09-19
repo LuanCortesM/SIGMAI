@@ -1,0 +1,4597 @@
+{
+ "auditoria": {
+  "n_mapas": 138,
+  "limiares": {
+   "vision.CONFUSABLE_DELTA_E": {
+    "regra": "CART070",
+    "valor_atual": 15.0,
+    "varredura": [
+     {
+      "valor": 5.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 8.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 10.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 12.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 15.0,
+      "atual": true,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 18.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 20.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 25.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 30.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     }
+    ]
+   },
+   "FRAME_BAND_EMPTY_MAX": {
+    "regra": "CART069",
+    "valor_atual": 0.05,
+    "varredura": [
+     {
+      "valor": 0.01,
+      "atual": false,
+      "mapas_com_regra_reprovada": 3,
+      "mapas_que_mudam_de_nota": 13
+     },
+     {
+      "valor": 0.02,
+      "atual": false,
+      "mapas_com_regra_reprovada": 3,
+      "mapas_que_mudam_de_nota": 13
+     },
+     {
+      "valor": 0.05,
+      "atual": true,
+      "mapas_com_regra_reprovada": 40,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.08,
+      "atual": false,
+      "mapas_com_regra_reprovada": 80,
+      "mapas_que_mudam_de_nota": 7
+     },
+     {
+      "valor": 0.1,
+      "atual": false,
+      "mapas_com_regra_reprovada": 104,
+      "mapas_que_mudam_de_nota": 10
+     },
+     {
+      "valor": 0.15,
+      "atual": false,
+      "mapas_com_regra_reprovada": 138,
+      "mapas_que_mudam_de_nota": 21
+     },
+     {
+      "valor": 0.2,
+      "atual": false,
+      "mapas_com_regra_reprovada": 138,
+      "mapas_que_mudam_de_nota": 21
+     }
+    ]
+   },
+   "MIN_PRINT_FONT_PT": {
+    "regra": "CART044",
+    "valor_atual": 6.0,
+    "varredura": [
+     {
+      "valor": 4.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 5.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 6.0,
+      "atual": true,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 7.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 72,
+      "mapas_que_mudam_de_nota": 17
+     },
+     {
+      "valor": 8.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 106,
+      "mapas_que_mudam_de_nota": 28
+     },
+     {
+      "valor": 9.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 130,
+      "mapas_que_mudam_de_nota": 39
+     },
+     {
+      "valor": 10.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 138,
+      "mapas_que_mudam_de_nota": 41
+     }
+    ]
+   },
+   "SCALEBAR_MIN_FRACTION": {
+    "regra": "CART022",
+    "valor_atual": 0.15,
+    "varredura": [
+     {
+      "valor": 0.05,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.1,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.15,
+      "atual": true,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.2,
+      "atual": false,
+      "mapas_com_regra_reprovada": 25,
+      "mapas_que_mudam_de_nota": 8
+     },
+     {
+      "valor": 0.25,
+      "atual": false,
+      "mapas_com_regra_reprovada": 53,
+      "mapas_que_mudam_de_nota": 17
+     },
+     {
+      "valor": 0.3,
+      "atual": false,
+      "mapas_com_regra_reprovada": 59,
+      "mapas_que_mudam_de_nota": 17
+     }
+    ]
+   },
+   "SCALEBAR_MAX_FRACTION": {
+    "regra": "CART022",
+    "valor_atual": 0.45,
+    "varredura": [
+     {
+      "valor": 0.3,
+      "atual": false,
+      "mapas_com_regra_reprovada": 4,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.35,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.4,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.45,
+      "atual": true,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.5,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.6,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     }
+    ]
+   },
+   "MAP_DOMINANCE_MIN": {
+    "regra": "CART043",
+    "valor_atual": 0.35,
+    "varredura": [
+     {
+      "valor": 0.2,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.25,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.3,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.35,
+      "atual": true,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.4,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.45,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.5,
+      "atual": false,
+      "mapas_com_regra_reprovada": 3,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.6,
+      "atual": false,
+      "mapas_com_regra_reprovada": 70,
+      "mapas_que_mudam_de_nota": 0
+     }
+    ]
+   },
+   "OVERLAY_MAX_SURROUNDINGS_INK": {
+    "regra": "CART042",
+    "valor_atual": 0.03,
+    "varredura": [
+     {
+      "valor": 0.005,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.01,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.02,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.03,
+      "atual": true,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.05,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.08,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.1,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     }
+    ]
+   },
+   "LEGEND_OVERFLOW_TOLERANCE_MM": {
+    "regra": "CART072",
+    "valor_atual": 0.5,
+    "varredura": [
+     {
+      "valor": 0.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.1,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.25,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.5,
+      "atual": true,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 1.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 2.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     }
+    ]
+   },
+   "INSET_MIN_COVERAGE": {
+    "regra": "CART067",
+    "valor_atual": 0.95,
+    "varredura": [
+     {
+      "valor": 0.8,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.85,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.9,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.95,
+      "atual": true,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 0.98,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     },
+     {
+      "valor": 1.0,
+      "atual": false,
+      "mapas_com_regra_reprovada": 0,
+      "mapas_que_mudam_de_nota": 0
+     }
+    ]
+   }
+  },
+  "penalidades": {
+   "error": [
+    {
+     "valor": 10.0,
+     "atual": false,
+     "mapas_que_mudam_de_nota": 0
+    },
+    {
+     "valor": 12.0,
+     "atual": false,
+     "mapas_que_mudam_de_nota": 0
+    },
+    {
+     "valor": 15.0,
+     "atual": true,
+     "mapas_que_mudam_de_nota": 0
+    },
+    {
+     "valor": 18.0,
+     "atual": false,
+     "mapas_que_mudam_de_nota": 0
+    },
+    {
+     "valor": 20.0,
+     "atual": false,
+     "mapas_que_mudam_de_nota": 0
+    },
+    {
+     "valor": 25.0,
+     "atual": false,
+     "mapas_que_mudam_de_nota": 0
+    }
+   ],
+   "warning": [
+    {
+     "valor": 2.0,
+     "atual": false,
+     "mapas_que_mudam_de_nota": 13
+    },
+    {
+     "valor": 3.0,
+     "atual": false,
+     "mapas_que_mudam_de_nota": 13
+    },
+    {
+     "valor": 4.0,
+     "atual": false,
+     "mapas_que_mudam_de_nota": 13
+    },
+    {
+     "valor": 5.0,
+     "atual": true,
+     "mapas_que_mudam_de_nota": 0
+    },
+    {
+     "valor": 6.0,
+     "atual": false,
+     "mapas_que_mudam_de_nota": 0
+    },
+    {
+     "valor": 8.0,
+     "atual": false,
+     "mapas_que_mudam_de_nota": 0
+    },
+    {
+     "valor": 10.0,
+     "atual": false,
+     "mapas_que_mudam_de_nota": 41
+    }
+   ],
+   "advice": [
+    {
+     "valor": 0.5,
+     "atual": false,
+     "mapas_que_mudam_de_nota": 0
+    },
+    {
+     "valor": 1.0,
+     "atual": false,
+     "mapas_que_mudam_de_nota": 0
+    },
+    {
+     "valor": 1.5,
+     "atual": true,
+     "mapas_que_mudam_de_nota": 0
+    },
+    {
+     "valor": 2.0,
+     "atual": false,
+     "mapas_que_mudam_de_nota": 0
+    },
+    {
+     "valor": 3.0,
+     "atual": false,
+     "mapas_que_mudam_de_nota": 0
+    }
+   ]
+  },
+  "notas": {
+   "distribuicao": {
+    "A": 93,
+    "B": 13,
+    "C": 32,
+    "D": 0,
+    "E": 0
+   },
+   "pontuacoes": [
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    85.0,
+    90.0,
+    90.0,
+    90.0,
+    90.0,
+    90.0,
+    90.0,
+    90.0,
+    90.0,
+    90.0,
+    90.0,
+    90.0,
+    90.0,
+    90.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    95.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0
+   ],
+   "cortes_A": {
+    "85": 106,
+    "88": 106,
+    "90": 106,
+    "92": 93,
+    "94": 93,
+    "96": 52,
+    "98": 52
+   },
+   "cortes_B": {
+    "70": 106,
+    "75": 106,
+    "80": 106,
+    "85": 106
+   }
+  }
+ },
+ "compositor": {
+  "ganho_de_troca": {
+   "casos": 256,
+   "decisoes": [
+    {
+     "limiar": 1.0,
+     "atual": false,
+     "trocas_de_arranjo": 96,
+     "trocas_de_orientacao": 128
+    },
+    {
+     "limiar": 1.05,
+     "atual": false,
+     "trocas_de_arranjo": 96,
+     "trocas_de_orientacao": 94
+    },
+    {
+     "limiar": 1.08,
+     "atual": false,
+     "trocas_de_arranjo": 96,
+     "trocas_de_orientacao": 82
+    },
+    {
+     "limiar": 1.1,
+     "atual": false,
+     "trocas_de_arranjo": 96,
+     "trocas_de_orientacao": 70
+    },
+    {
+     "limiar": 1.12,
+     "atual": true,
+     "trocas_de_arranjo": 96,
+     "trocas_de_orientacao": 68
+    },
+    {
+     "limiar": 1.15,
+     "atual": false,
+     "trocas_de_arranjo": 94,
+     "trocas_de_orientacao": 12
+    },
+    {
+     "limiar": 1.2,
+     "atual": false,
+     "trocas_de_arranjo": 46,
+     "trocas_de_orientacao": 0
+    },
+    {
+     "limiar": 1.25,
+     "atual": false,
+     "trocas_de_arranjo": 34,
+     "trocas_de_orientacao": 0
+    },
+    {
+     "limiar": 1.3,
+     "atual": false,
+     "trocas_de_arranjo": 14,
+     "trocas_de_orientacao": 0
+    }
+   ],
+   "ganhos_entre_1_05_e_1_30": [
+    1.0555,
+    1.0571,
+    1.0594,
+    1.0624,
+    1.0715,
+    1.0823,
+    1.0828,
+    1.0873,
+    1.0933,
+    1.0934,
+    1.1163,
+    1.1289,
+    1.1292,
+    1.1302,
+    1.1306,
+    1.1311,
+    1.1313,
+    1.1315,
+    1.1323,
+    1.1324,
+    1.1331,
+    1.1338,
+    1.1342,
+    1.1353,
+    1.1388,
+    1.1426,
+    1.1445,
+    1.1483,
+    1.1507,
+    1.1524,
+    1.1536,
+    1.154,
+    1.1563,
+    1.1606,
+    1.1622,
+    1.1629,
+    1.1651,
+    1.1658,
+    1.1678,
+    1.1686,
+    1.1711,
+    1.1722,
+    1.1725,
+    1.1733,
+    1.1741,
+    1.1775,
+    1.1785,
+    1.1792,
+    1.1801,
+    1.1805,
+    1.1808,
+    1.1812,
+    1.1846,
+    1.1869,
+    1.1875,
+    1.1896,
+    1.1899,
+    1.1984,
+    1.2072,
+    1.2149,
+    1.231,
+    1.2358,
+    1.237,
+    1.2427,
+    1.2641,
+    1.2701,
+    1.2715,
+    1.2722,
+    1.2742,
+    1.2832,
+    1.2901,
+    1.2942,
+    1.295,
+    1.2992
+   ],
+   "detalhe": [
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "cientifico",
+     "pagina": "A4 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7542,
+     "ganho_orientacao": 1.1302
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "cientifico",
+     "pagina": "A4 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7542,
+     "ganho_orientacao": 1.1302
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "cientifico",
+     "pagina": "A4 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1606,
+     "ganho_orientacao": 0.8848
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "cientifico",
+     "pagina": "A4 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1606,
+     "ganho_orientacao": 0.8848
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "cientifico",
+     "pagina": "A3 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.762,
+     "ganho_orientacao": 1.1323
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "cientifico",
+     "pagina": "A3 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.762,
+     "ganho_orientacao": 1.1323
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "cientifico",
+     "pagina": "A3 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1507,
+     "ganho_orientacao": 0.8831
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "cientifico",
+     "pagina": "A3 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1507,
+     "ganho_orientacao": 0.8831
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "cientifico",
+     "pagina": "A5 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7198,
+     "ganho_orientacao": 1.1311
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "cientifico",
+     "pagina": "A5 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7198,
+     "ganho_orientacao": 1.1311
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "cientifico",
+     "pagina": "A5 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1711,
+     "ganho_orientacao": 0.8841
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "cientifico",
+     "pagina": "A5 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1711,
+     "ganho_orientacao": 0.8841
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "cientifico",
+     "pagina": "LETTER landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.755,
+     "ganho_orientacao": 1.0215
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "cientifico",
+     "pagina": "LETTER landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.755,
+     "ganho_orientacao": 1.0215
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "cientifico",
+     "pagina": "LETTER portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.2832,
+     "ganho_orientacao": 0.9789
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "cientifico",
+     "pagina": "LETTER portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.2832,
+     "ganho_orientacao": 0.9789
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "publicacao",
+     "pagina": "A4 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7581,
+     "ganho_orientacao": 1.1313
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "publicacao",
+     "pagina": "A4 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7581,
+     "ganho_orientacao": 1.1313
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "publicacao",
+     "pagina": "A4 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1896,
+     "ganho_orientacao": 0.8839
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "publicacao",
+     "pagina": "A4 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1896,
+     "ganho_orientacao": 0.8839
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "publicacao",
+     "pagina": "A3 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7647,
+     "ganho_orientacao": 1.1331
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "publicacao",
+     "pagina": "A3 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7647,
+     "ganho_orientacao": 1.1331
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "publicacao",
+     "pagina": "A3 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1808,
+     "ganho_orientacao": 0.8825
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "publicacao",
+     "pagina": "A3 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1808,
+     "ganho_orientacao": 0.8825
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "publicacao",
+     "pagina": "A5 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.733,
+     "ganho_orientacao": 1.1353
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "publicacao",
+     "pagina": "A5 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.733,
+     "ganho_orientacao": 1.1353
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "publicacao",
+     "pagina": "A5 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1984,
+     "ganho_orientacao": 0.8808
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "publicacao",
+     "pagina": "A5 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1984,
+     "ganho_orientacao": 0.8808
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "publicacao",
+     "pagina": "LETTER landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7587,
+     "ganho_orientacao": 1.0234
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "publicacao",
+     "pagina": "LETTER landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7587,
+     "ganho_orientacao": 1.0234
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "publicacao",
+     "pagina": "LETTER portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.3087,
+     "ganho_orientacao": 0.9771
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "publicacao",
+     "pagina": "LETTER portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.3087,
+     "ganho_orientacao": 0.9771
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "relatorio_ambiental",
+     "pagina": "A4 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7498,
+     "ganho_orientacao": 1.1289
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "relatorio_ambiental",
+     "pagina": "A4 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7498,
+     "ganho_orientacao": 1.1289
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "relatorio_ambiental",
+     "pagina": "A4 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1741,
+     "ganho_orientacao": 0.8858
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "relatorio_ambiental",
+     "pagina": "A4 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1741,
+     "ganho_orientacao": 0.8858
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "relatorio_ambiental",
+     "pagina": "A3 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.759,
+     "ganho_orientacao": 1.1315
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "relatorio_ambiental",
+     "pagina": "A3 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.759,
+     "ganho_orientacao": 1.1315
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "relatorio_ambiental",
+     "pagina": "A3 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1622,
+     "ganho_orientacao": 0.8838
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "relatorio_ambiental",
+     "pagina": "A3 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1622,
+     "ganho_orientacao": 0.8838
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "relatorio_ambiental",
+     "pagina": "A5 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7019,
+     "ganho_orientacao": 1.1292
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "relatorio_ambiental",
+     "pagina": "A5 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7019,
+     "ganho_orientacao": 1.1292
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "relatorio_ambiental",
+     "pagina": "A5 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1875,
+     "ganho_orientacao": 0.8855
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "relatorio_ambiental",
+     "pagina": "A5 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1875,
+     "ganho_orientacao": 0.8855
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "relatorio_ambiental",
+     "pagina": "LETTER landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7507,
+     "ganho_orientacao": 1.0194
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "relatorio_ambiental",
+     "pagina": "LETTER landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7507,
+     "ganho_orientacao": 1.0194
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "relatorio_ambiental",
+     "pagina": "LETTER portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.2992,
+     "ganho_orientacao": 0.9809
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "relatorio_ambiental",
+     "pagina": "LETTER portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.2992,
+     "ganho_orientacao": 0.9809
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "minimalista",
+     "pagina": "A4 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7619,
+     "ganho_orientacao": 1.1324
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "minimalista",
+     "pagina": "A4 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7619,
+     "ganho_orientacao": 1.1324
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "minimalista",
+     "pagina": "A4 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1805,
+     "ganho_orientacao": 0.8831
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "minimalista",
+     "pagina": "A4 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1805,
+     "ganho_orientacao": 0.8831
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "minimalista",
+     "pagina": "A3 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7673,
+     "ganho_orientacao": 1.1338
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "minimalista",
+     "pagina": "A3 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7673,
+     "ganho_orientacao": 1.1338
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "minimalista",
+     "pagina": "A3 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1733,
+     "ganho_orientacao": 0.882
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "minimalista",
+     "pagina": "A3 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1733,
+     "ganho_orientacao": 0.882
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "minimalista",
+     "pagina": "A5 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.748,
+     "ganho_orientacao": 1.1342
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "minimalista",
+     "pagina": "A5 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.748,
+     "ganho_orientacao": 1.1342
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "minimalista",
+     "pagina": "A5 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1869,
+     "ganho_orientacao": 0.8817
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "minimalista",
+     "pagina": "A5 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1869,
+     "ganho_orientacao": 0.8817
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "minimalista",
+     "pagina": "LETTER landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7624,
+     "ganho_orientacao": 1.0252
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "minimalista",
+     "pagina": "LETTER landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7624,
+     "ganho_orientacao": 1.0252
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "minimalista",
+     "pagina": "LETTER portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.3033,
+     "ganho_orientacao": 0.9754
+    },
+    {
+     "dados": "estado (UF + municípios)",
+     "template": "minimalista",
+     "pagina": "LETTER portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.3033,
+     "ganho_orientacao": 0.9754
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "cientifico",
+     "pagina": "A4 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7542,
+     "ganho_orientacao": 1.1302
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "cientifico",
+     "pagina": "A4 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7542,
+     "ganho_orientacao": 1.1302
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "cientifico",
+     "pagina": "A4 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1524,
+     "ganho_orientacao": 0.8848
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "cientifico",
+     "pagina": "A4 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1524,
+     "ganho_orientacao": 0.8848
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "cientifico",
+     "pagina": "A3 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.762,
+     "ganho_orientacao": 1.1323
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "cientifico",
+     "pagina": "A3 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.762,
+     "ganho_orientacao": 1.1323
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "cientifico",
+     "pagina": "A3 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1426,
+     "ganho_orientacao": 0.8831
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "cientifico",
+     "pagina": "A3 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1426,
+     "ganho_orientacao": 0.8831
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "cientifico",
+     "pagina": "A5 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7198,
+     "ganho_orientacao": 1.1311
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "cientifico",
+     "pagina": "A5 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7198,
+     "ganho_orientacao": 1.1311
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "cientifico",
+     "pagina": "A5 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1629,
+     "ganho_orientacao": 0.8841
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "cientifico",
+     "pagina": "A5 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1629,
+     "ganho_orientacao": 0.8841
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "cientifico",
+     "pagina": "LETTER landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.755,
+     "ganho_orientacao": 1.0215
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "cientifico",
+     "pagina": "LETTER landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.755,
+     "ganho_orientacao": 1.0215
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "cientifico",
+     "pagina": "LETTER portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.2742,
+     "ganho_orientacao": 0.9789
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "cientifico",
+     "pagina": "LETTER portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.2742,
+     "ganho_orientacao": 0.9789
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "publicacao",
+     "pagina": "A4 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7581,
+     "ganho_orientacao": 1.1313
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "publicacao",
+     "pagina": "A4 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7581,
+     "ganho_orientacao": 1.1313
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "publicacao",
+     "pagina": "A4 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1812,
+     "ganho_orientacao": 0.8839
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "publicacao",
+     "pagina": "A4 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1812,
+     "ganho_orientacao": 0.8839
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "publicacao",
+     "pagina": "A3 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7647,
+     "ganho_orientacao": 1.1331
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "publicacao",
+     "pagina": "A3 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7647,
+     "ganho_orientacao": 1.1331
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "publicacao",
+     "pagina": "A3 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1725,
+     "ganho_orientacao": 0.8825
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "publicacao",
+     "pagina": "A3 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1725,
+     "ganho_orientacao": 0.8825
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "publicacao",
+     "pagina": "A5 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.733,
+     "ganho_orientacao": 1.1353
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "publicacao",
+     "pagina": "A5 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.733,
+     "ganho_orientacao": 1.1353
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "publicacao",
+     "pagina": "A5 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1899,
+     "ganho_orientacao": 0.8808
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "publicacao",
+     "pagina": "A5 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1899,
+     "ganho_orientacao": 0.8808
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "publicacao",
+     "pagina": "LETTER landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7587,
+     "ganho_orientacao": 1.0234
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "publicacao",
+     "pagina": "LETTER landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7587,
+     "ganho_orientacao": 1.0234
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "publicacao",
+     "pagina": "LETTER portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.3051,
+     "ganho_orientacao": 0.9771
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "publicacao",
+     "pagina": "LETTER portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.3051,
+     "ganho_orientacao": 0.9771
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "relatorio_ambiental",
+     "pagina": "A4 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7498,
+     "ganho_orientacao": 1.1289
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "relatorio_ambiental",
+     "pagina": "A4 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7498,
+     "ganho_orientacao": 1.1289
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "relatorio_ambiental",
+     "pagina": "A4 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1658,
+     "ganho_orientacao": 0.8858
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "relatorio_ambiental",
+     "pagina": "A4 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1658,
+     "ganho_orientacao": 0.8858
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "relatorio_ambiental",
+     "pagina": "A3 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.759,
+     "ganho_orientacao": 1.1315
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "relatorio_ambiental",
+     "pagina": "A3 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.759,
+     "ganho_orientacao": 1.1315
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "relatorio_ambiental",
+     "pagina": "A3 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.154,
+     "ganho_orientacao": 0.8838
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "relatorio_ambiental",
+     "pagina": "A3 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.154,
+     "ganho_orientacao": 0.8838
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "relatorio_ambiental",
+     "pagina": "A5 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7019,
+     "ganho_orientacao": 1.1292
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "relatorio_ambiental",
+     "pagina": "A5 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7019,
+     "ganho_orientacao": 1.1292
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "relatorio_ambiental",
+     "pagina": "A5 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1792,
+     "ganho_orientacao": 0.8855
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "relatorio_ambiental",
+     "pagina": "A5 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1792,
+     "ganho_orientacao": 0.8855
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "relatorio_ambiental",
+     "pagina": "LETTER landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7507,
+     "ganho_orientacao": 1.0194
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "relatorio_ambiental",
+     "pagina": "LETTER landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7507,
+     "ganho_orientacao": 1.0194
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "relatorio_ambiental",
+     "pagina": "LETTER portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.2901,
+     "ganho_orientacao": 0.9809
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "relatorio_ambiental",
+     "pagina": "LETTER portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.2901,
+     "ganho_orientacao": 0.9809
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "minimalista",
+     "pagina": "A4 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7619,
+     "ganho_orientacao": 1.1324
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "minimalista",
+     "pagina": "A4 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7619,
+     "ganho_orientacao": 1.1324
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "minimalista",
+     "pagina": "A4 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1722,
+     "ganho_orientacao": 0.8831
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "minimalista",
+     "pagina": "A4 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1722,
+     "ganho_orientacao": 0.8831
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "minimalista",
+     "pagina": "A3 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7673,
+     "ganho_orientacao": 1.1338
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "minimalista",
+     "pagina": "A3 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7673,
+     "ganho_orientacao": 1.1338
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "minimalista",
+     "pagina": "A3 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1651,
+     "ganho_orientacao": 0.882
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "minimalista",
+     "pagina": "A3 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1651,
+     "ganho_orientacao": 0.882
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "minimalista",
+     "pagina": "A5 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.748,
+     "ganho_orientacao": 1.1342
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "minimalista",
+     "pagina": "A5 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.748,
+     "ganho_orientacao": 1.1342
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "minimalista",
+     "pagina": "A5 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1785,
+     "ganho_orientacao": 0.8817
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "minimalista",
+     "pagina": "A5 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.1785,
+     "ganho_orientacao": 0.8817
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "minimalista",
+     "pagina": "LETTER landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7624,
+     "ganho_orientacao": 1.0252
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "minimalista",
+     "pagina": "LETTER landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7624,
+     "ganho_orientacao": 1.0252
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "minimalista",
+     "pagina": "LETTER portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.2942,
+     "ganho_orientacao": 0.9754
+    },
+    {
+     "dados": "parque + municípios",
+     "template": "minimalista",
+     "pagina": "LETTER portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 1.2942,
+     "ganho_orientacao": 0.9754
+    },
+    {
+     "dados": "parque",
+     "template": "cientifico",
+     "pagina": "A4 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7542,
+     "ganho_orientacao": 0.9235
+    },
+    {
+     "dados": "parque",
+     "template": "cientifico",
+     "pagina": "A4 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7542,
+     "ganho_orientacao": 0.9235
+    },
+    {
+     "dados": "parque",
+     "template": "cientifico",
+     "pagina": "A4 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7389,
+     "ganho_orientacao": 1.0828
+    },
+    {
+     "dados": "parque",
+     "template": "cientifico",
+     "pagina": "A4 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7389,
+     "ganho_orientacao": 1.0828
+    },
+    {
+     "dados": "parque",
+     "template": "cientifico",
+     "pagina": "A3 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7661,
+     "ganho_orientacao": 0.9146
+    },
+    {
+     "dados": "parque",
+     "template": "cientifico",
+     "pagina": "A3 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7661,
+     "ganho_orientacao": 0.9146
+    },
+    {
+     "dados": "parque",
+     "template": "cientifico",
+     "pagina": "A3 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7451,
+     "ganho_orientacao": 1.0934
+    },
+    {
+     "dados": "parque",
+     "template": "cientifico",
+     "pagina": "A3 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7451,
+     "ganho_orientacao": 1.0934
+    },
+    {
+     "dados": "parque",
+     "template": "cientifico",
+     "pagina": "A5 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7198,
+     "ganho_orientacao": 0.9439
+    },
+    {
+     "dados": "parque",
+     "template": "cientifico",
+     "pagina": "A5 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7198,
+     "ganho_orientacao": 0.9439
+    },
+    {
+     "dados": "parque",
+     "template": "cientifico",
+     "pagina": "A5 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7301,
+     "ganho_orientacao": 1.0594
+    },
+    {
+     "dados": "parque",
+     "template": "cientifico",
+     "pagina": "A5 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7301,
+     "ganho_orientacao": 1.0594
+    },
+    {
+     "dados": "parque",
+     "template": "cientifico",
+     "pagina": "LETTER landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.8295,
+     "ganho_orientacao": 1.0133
+    },
+    {
+     "dados": "parque",
+     "template": "cientifico",
+     "pagina": "LETTER landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.8295,
+     "ganho_orientacao": 1.0133
+    },
+    {
+     "dados": "parque",
+     "template": "cientifico",
+     "pagina": "LETTER portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7395,
+     "ganho_orientacao": 0.9869
+    },
+    {
+     "dados": "parque",
+     "template": "cientifico",
+     "pagina": "LETTER portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7395,
+     "ganho_orientacao": 0.9869
+    },
+    {
+     "dados": "parque",
+     "template": "publicacao",
+     "pagina": "A4 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7581,
+     "ganho_orientacao": 0.8959
+    },
+    {
+     "dados": "parque",
+     "template": "publicacao",
+     "pagina": "A4 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7581,
+     "ganho_orientacao": 0.8959
+    },
+    {
+     "dados": "parque",
+     "template": "publicacao",
+     "pagina": "A4 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7816,
+     "ganho_orientacao": 1.1163
+    },
+    {
+     "dados": "parque",
+     "template": "publicacao",
+     "pagina": "A4 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7816,
+     "ganho_orientacao": 1.1163
+    },
+    {
+     "dados": "parque",
+     "template": "publicacao",
+     "pagina": "A3 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7647,
+     "ganho_orientacao": 0.8845
+    },
+    {
+     "dados": "parque",
+     "template": "publicacao",
+     "pagina": "A3 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7647,
+     "ganho_orientacao": 0.8845
+    },
+    {
+     "dados": "parque",
+     "template": "publicacao",
+     "pagina": "A3 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.787,
+     "ganho_orientacao": 1.1306
+    },
+    {
+     "dados": "parque",
+     "template": "publicacao",
+     "pagina": "A3 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.787,
+     "ganho_orientacao": 1.1306
+    },
+    {
+     "dados": "parque",
+     "template": "publicacao",
+     "pagina": "A5 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.733,
+     "ganho_orientacao": 0.9147
+    },
+    {
+     "dados": "parque",
+     "template": "publicacao",
+     "pagina": "A5 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.733,
+     "ganho_orientacao": 0.9147
+    },
+    {
+     "dados": "parque",
+     "template": "publicacao",
+     "pagina": "A5 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7738,
+     "ganho_orientacao": 1.0933
+    },
+    {
+     "dados": "parque",
+     "template": "publicacao",
+     "pagina": "A5 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7738,
+     "ganho_orientacao": 1.0933
+    },
+    {
+     "dados": "parque",
+     "template": "publicacao",
+     "pagina": "LETTER landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.8134,
+     "ganho_orientacao": 0.9593
+    },
+    {
+     "dados": "parque",
+     "template": "publicacao",
+     "pagina": "LETTER landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.8134,
+     "ganho_orientacao": 0.9593
+    },
+    {
+     "dados": "parque",
+     "template": "publicacao",
+     "pagina": "LETTER portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7821,
+     "ganho_orientacao": 1.0424
+    },
+    {
+     "dados": "parque",
+     "template": "publicacao",
+     "pagina": "LETTER portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7821,
+     "ganho_orientacao": 1.0424
+    },
+    {
+     "dados": "parque",
+     "template": "relatorio_ambiental",
+     "pagina": "A4 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7498,
+     "ganho_orientacao": 0.9627
+    },
+    {
+     "dados": "parque",
+     "template": "relatorio_ambiental",
+     "pagina": "A4 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7498,
+     "ganho_orientacao": 0.9627
+    },
+    {
+     "dados": "parque",
+     "template": "relatorio_ambiental",
+     "pagina": "A4 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7163,
+     "ganho_orientacao": 1.0388
+    },
+    {
+     "dados": "parque",
+     "template": "relatorio_ambiental",
+     "pagina": "A4 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7163,
+     "ganho_orientacao": 1.0388
+    },
+    {
+     "dados": "parque",
+     "template": "relatorio_ambiental",
+     "pagina": "A3 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.759,
+     "ganho_orientacao": 0.9459
+    },
+    {
+     "dados": "parque",
+     "template": "relatorio_ambiental",
+     "pagina": "A3 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.759,
+     "ganho_orientacao": 0.9459
+    },
+    {
+     "dados": "parque",
+     "template": "relatorio_ambiental",
+     "pagina": "A3 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7232,
+     "ganho_orientacao": 1.0571
+    },
+    {
+     "dados": "parque",
+     "template": "relatorio_ambiental",
+     "pagina": "A3 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7232,
+     "ganho_orientacao": 1.0571
+    },
+    {
+     "dados": "parque",
+     "template": "relatorio_ambiental",
+     "pagina": "A5 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7019,
+     "ganho_orientacao": 0.9877
+    },
+    {
+     "dados": "parque",
+     "template": "relatorio_ambiental",
+     "pagina": "A5 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7019,
+     "ganho_orientacao": 0.9877
+    },
+    {
+     "dados": "parque",
+     "template": "relatorio_ambiental",
+     "pagina": "A5 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7064,
+     "ganho_orientacao": 1.0125
+    },
+    {
+     "dados": "parque",
+     "template": "relatorio_ambiental",
+     "pagina": "A5 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7064,
+     "ganho_orientacao": 1.0125
+    },
+    {
+     "dados": "parque",
+     "template": "relatorio_ambiental",
+     "pagina": "LETTER landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.8154,
+     "ganho_orientacao": 1.0441
+    },
+    {
+     "dados": "parque",
+     "template": "relatorio_ambiental",
+     "pagina": "LETTER landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.8154,
+     "ganho_orientacao": 1.0441
+    },
+    {
+     "dados": "parque",
+     "template": "relatorio_ambiental",
+     "pagina": "LETTER portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7169,
+     "ganho_orientacao": 0.9578
+    },
+    {
+     "dados": "parque",
+     "template": "relatorio_ambiental",
+     "pagina": "LETTER portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7169,
+     "ganho_orientacao": 0.9578
+    },
+    {
+     "dados": "parque",
+     "template": "minimalista",
+     "pagina": "A4 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7619,
+     "ganho_orientacao": 0.8648
+    },
+    {
+     "dados": "parque",
+     "template": "minimalista",
+     "pagina": "A4 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7619,
+     "ganho_orientacao": 0.8648
+    },
+    {
+     "dados": "parque",
+     "template": "minimalista",
+     "pagina": "A4 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.8042,
+     "ganho_orientacao": 1.1563
+    },
+    {
+     "dados": "parque",
+     "template": "minimalista",
+     "pagina": "A4 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.8042,
+     "ganho_orientacao": 1.1563
+    },
+    {
+     "dados": "parque",
+     "template": "minimalista",
+     "pagina": "A3 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7673,
+     "ganho_orientacao": 0.8557
+    },
+    {
+     "dados": "parque",
+     "template": "minimalista",
+     "pagina": "A3 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.7673,
+     "ganho_orientacao": 0.8557
+    },
+    {
+     "dados": "parque",
+     "template": "minimalista",
+     "pagina": "A3 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.8088,
+     "ganho_orientacao": 1.1686
+    },
+    {
+     "dados": "parque",
+     "template": "minimalista",
+     "pagina": "A3 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.8088,
+     "ganho_orientacao": 1.1686
+    },
+    {
+     "dados": "parque",
+     "template": "minimalista",
+     "pagina": "A5 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.748,
+     "ganho_orientacao": 0.8781
+    },
+    {
+     "dados": "parque",
+     "template": "minimalista",
+     "pagina": "A5 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.748,
+     "ganho_orientacao": 0.8781
+    },
+    {
+     "dados": "parque",
+     "template": "minimalista",
+     "pagina": "A5 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7976,
+     "ganho_orientacao": 1.1388
+    },
+    {
+     "dados": "parque",
+     "template": "minimalista",
+     "pagina": "A5 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7976,
+     "ganho_orientacao": 1.1388
+    },
+    {
+     "dados": "parque",
+     "template": "minimalista",
+     "pagina": "LETTER landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.8236,
+     "ganho_orientacao": 0.9333
+    },
+    {
+     "dados": "parque",
+     "template": "minimalista",
+     "pagina": "LETTER landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 0.8236,
+     "ganho_orientacao": 0.9333
+    },
+    {
+     "dados": "parque",
+     "template": "minimalista",
+     "pagina": "LETTER portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.8046,
+     "ganho_orientacao": 1.0715
+    },
+    {
+     "dados": "parque",
+     "template": "minimalista",
+     "pagina": "LETTER portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.8046,
+     "ganho_orientacao": 1.0715
+    },
+    {
+     "dados": "trilha",
+     "template": "cientifico",
+     "pagina": "A4 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.295,
+     "ganho_orientacao": 0.9197
+    },
+    {
+     "dados": "trilha",
+     "template": "cientifico",
+     "pagina": "A4 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.295,
+     "ganho_orientacao": 0.9197
+    },
+    {
+     "dados": "trilha",
+     "template": "cientifico",
+     "pagina": "A4 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7389,
+     "ganho_orientacao": 1.0873
+    },
+    {
+     "dados": "trilha",
+     "template": "cientifico",
+     "pagina": "A4 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7389,
+     "ganho_orientacao": 1.0873
+    },
+    {
+     "dados": "trilha",
+     "template": "cientifico",
+     "pagina": "A3 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.3208,
+     "ganho_orientacao": 0.9146
+    },
+    {
+     "dados": "trilha",
+     "template": "cientifico",
+     "pagina": "A3 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.3208,
+     "ganho_orientacao": 0.9146
+    },
+    {
+     "dados": "trilha",
+     "template": "cientifico",
+     "pagina": "A3 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7451,
+     "ganho_orientacao": 1.0934
+    },
+    {
+     "dados": "trilha",
+     "template": "cientifico",
+     "pagina": "A3 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7451,
+     "ganho_orientacao": 1.0934
+    },
+    {
+     "dados": "trilha",
+     "template": "cientifico",
+     "pagina": "A5 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.2149,
+     "ganho_orientacao": 0.924
+    },
+    {
+     "dados": "trilha",
+     "template": "cientifico",
+     "pagina": "A5 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.2149,
+     "ganho_orientacao": 0.924
+    },
+    {
+     "dados": "trilha",
+     "template": "cientifico",
+     "pagina": "A5 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7301,
+     "ganho_orientacao": 1.0823
+    },
+    {
+     "dados": "trilha",
+     "template": "cientifico",
+     "pagina": "A5 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7301,
+     "ganho_orientacao": 1.0823
+    },
+    {
+     "dados": "trilha",
+     "template": "cientifico",
+     "pagina": "LETTER landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.3431,
+     "ganho_orientacao": 1.0133
+    },
+    {
+     "dados": "trilha",
+     "template": "cientifico",
+     "pagina": "LETTER landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.3431,
+     "ganho_orientacao": 1.0133
+    },
+    {
+     "dados": "trilha",
+     "template": "cientifico",
+     "pagina": "LETTER portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7395,
+     "ganho_orientacao": 0.9869
+    },
+    {
+     "dados": "trilha",
+     "template": "cientifico",
+     "pagina": "LETTER portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7395,
+     "ganho_orientacao": 0.9869
+    },
+    {
+     "dados": "trilha",
+     "template": "publicacao",
+     "pagina": "A4 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.2701,
+     "ganho_orientacao": 0.8709
+    },
+    {
+     "dados": "trilha",
+     "template": "publicacao",
+     "pagina": "A4 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.2701,
+     "ganho_orientacao": 0.8709
+    },
+    {
+     "dados": "trilha",
+     "template": "publicacao",
+     "pagina": "A4 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7816,
+     "ganho_orientacao": 1.1483
+    },
+    {
+     "dados": "trilha",
+     "template": "publicacao",
+     "pagina": "A4 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7816,
+     "ganho_orientacao": 1.1483
+    },
+    {
+     "dados": "trilha",
+     "template": "publicacao",
+     "pagina": "A3 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.2641,
+     "ganho_orientacao": 0.8669
+    },
+    {
+     "dados": "trilha",
+     "template": "publicacao",
+     "pagina": "A3 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.2641,
+     "ganho_orientacao": 0.8669
+    },
+    {
+     "dados": "trilha",
+     "template": "publicacao",
+     "pagina": "A3 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.787,
+     "ganho_orientacao": 1.1536
+    },
+    {
+     "dados": "trilha",
+     "template": "publicacao",
+     "pagina": "A3 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.787,
+     "ganho_orientacao": 1.1536
+    },
+    {
+     "dados": "trilha",
+     "template": "publicacao",
+     "pagina": "A5 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.2072,
+     "ganho_orientacao": 0.8737
+    },
+    {
+     "dados": "trilha",
+     "template": "publicacao",
+     "pagina": "A5 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.2072,
+     "ganho_orientacao": 0.8737
+    },
+    {
+     "dados": "trilha",
+     "template": "publicacao",
+     "pagina": "A5 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7738,
+     "ganho_orientacao": 1.1445
+    },
+    {
+     "dados": "trilha",
+     "template": "publicacao",
+     "pagina": "A5 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7738,
+     "ganho_orientacao": 1.1445
+    },
+    {
+     "dados": "trilha",
+     "template": "publicacao",
+     "pagina": "LETTER landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.2715,
+     "ganho_orientacao": 0.9593
+    },
+    {
+     "dados": "trilha",
+     "template": "publicacao",
+     "pagina": "LETTER landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.2715,
+     "ganho_orientacao": 0.9593
+    },
+    {
+     "dados": "trilha",
+     "template": "publicacao",
+     "pagina": "LETTER portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7821,
+     "ganho_orientacao": 1.0424
+    },
+    {
+     "dados": "trilha",
+     "template": "publicacao",
+     "pagina": "LETTER portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7821,
+     "ganho_orientacao": 1.0424
+    },
+    {
+     "dados": "trilha",
+     "template": "relatorio_ambiental",
+     "pagina": "A4 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.2722,
+     "ganho_orientacao": 0.9474
+    },
+    {
+     "dados": "trilha",
+     "template": "relatorio_ambiental",
+     "pagina": "A4 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.2722,
+     "ganho_orientacao": 0.9474
+    },
+    {
+     "dados": "trilha",
+     "template": "relatorio_ambiental",
+     "pagina": "A4 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7163,
+     "ganho_orientacao": 1.0555
+    },
+    {
+     "dados": "trilha",
+     "template": "relatorio_ambiental",
+     "pagina": "A4 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7163,
+     "ganho_orientacao": 1.0555
+    },
+    {
+     "dados": "trilha",
+     "template": "relatorio_ambiental",
+     "pagina": "A3 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.3022,
+     "ganho_orientacao": 0.9413
+    },
+    {
+     "dados": "trilha",
+     "template": "relatorio_ambiental",
+     "pagina": "A3 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.3022,
+     "ganho_orientacao": 0.9413
+    },
+    {
+     "dados": "trilha",
+     "template": "relatorio_ambiental",
+     "pagina": "A3 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7232,
+     "ganho_orientacao": 1.0624
+    },
+    {
+     "dados": "trilha",
+     "template": "relatorio_ambiental",
+     "pagina": "A3 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7232,
+     "ganho_orientacao": 1.0624
+    },
+    {
+     "dados": "trilha",
+     "template": "relatorio_ambiental",
+     "pagina": "A5 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.1678,
+     "ganho_orientacao": 0.953
+    },
+    {
+     "dados": "trilha",
+     "template": "relatorio_ambiental",
+     "pagina": "A5 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.1678,
+     "ganho_orientacao": 0.953
+    },
+    {
+     "dados": "trilha",
+     "template": "relatorio_ambiental",
+     "pagina": "A5 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7064,
+     "ganho_orientacao": 1.0493
+    },
+    {
+     "dados": "trilha",
+     "template": "relatorio_ambiental",
+     "pagina": "A5 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7064,
+     "ganho_orientacao": 1.0493
+    },
+    {
+     "dados": "trilha",
+     "template": "relatorio_ambiental",
+     "pagina": "LETTER landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.3839,
+     "ganho_orientacao": 1.0441
+    },
+    {
+     "dados": "trilha",
+     "template": "relatorio_ambiental",
+     "pagina": "LETTER landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.3839,
+     "ganho_orientacao": 1.0441
+    },
+    {
+     "dados": "trilha",
+     "template": "relatorio_ambiental",
+     "pagina": "LETTER portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7169,
+     "ganho_orientacao": 0.9578
+    },
+    {
+     "dados": "trilha",
+     "template": "relatorio_ambiental",
+     "pagina": "LETTER portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7169,
+     "ganho_orientacao": 0.9578
+    },
+    {
+     "dados": "trilha",
+     "template": "minimalista",
+     "pagina": "A4 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.2358,
+     "ganho_orientacao": 0.8474
+    },
+    {
+     "dados": "trilha",
+     "template": "minimalista",
+     "pagina": "A4 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.2358,
+     "ganho_orientacao": 0.8474
+    },
+    {
+     "dados": "trilha",
+     "template": "minimalista",
+     "pagina": "A4 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.8042,
+     "ganho_orientacao": 1.1801
+    },
+    {
+     "dados": "trilha",
+     "template": "minimalista",
+     "pagina": "A4 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.8042,
+     "ganho_orientacao": 1.1801
+    },
+    {
+     "dados": "trilha",
+     "template": "minimalista",
+     "pagina": "A3 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.231,
+     "ganho_orientacao": 0.8442
+    },
+    {
+     "dados": "trilha",
+     "template": "minimalista",
+     "pagina": "A3 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.231,
+     "ganho_orientacao": 0.8442
+    },
+    {
+     "dados": "trilha",
+     "template": "minimalista",
+     "pagina": "A3 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.8088,
+     "ganho_orientacao": 1.1846
+    },
+    {
+     "dados": "trilha",
+     "template": "minimalista",
+     "pagina": "A3 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.8088,
+     "ganho_orientacao": 1.1846
+    },
+    {
+     "dados": "trilha",
+     "template": "minimalista",
+     "pagina": "A5 landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.2427,
+     "ganho_orientacao": 0.8492
+    },
+    {
+     "dados": "trilha",
+     "template": "minimalista",
+     "pagina": "A5 landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.2427,
+     "ganho_orientacao": 0.8492
+    },
+    {
+     "dados": "trilha",
+     "template": "minimalista",
+     "pagina": "A5 portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7976,
+     "ganho_orientacao": 1.1775
+    },
+    {
+     "dados": "trilha",
+     "template": "minimalista",
+     "pagina": "A5 portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.7976,
+     "ganho_orientacao": 1.1775
+    },
+    {
+     "dados": "trilha",
+     "template": "minimalista",
+     "pagina": "LETTER landscape",
+     "inserto": false,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.237,
+     "ganho_orientacao": 0.9333
+    },
+    {
+     "dados": "trilha",
+     "template": "minimalista",
+     "pagina": "LETTER landscape",
+     "inserto": true,
+     "arranjo_atual": "coluna_lateral",
+     "ganho_arranjo": 1.237,
+     "ganho_orientacao": 0.9333
+    },
+    {
+     "dados": "trilha",
+     "template": "minimalista",
+     "pagina": "LETTER portrait",
+     "inserto": false,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.8046,
+     "ganho_orientacao": 1.0715
+    },
+    {
+     "dados": "trilha",
+     "template": "minimalista",
+     "pagina": "LETTER portrait",
+     "inserto": true,
+     "arranjo_atual": "faixa_inferior",
+     "ganho_arranjo": 0.8046,
+     "ganho_orientacao": 1.0715
+    }
+   ]
+  },
+  "margem_efetiva_maxima": {
+   "mapas": 137,
+   "varredura": [
+    {
+     "valor_pct": 10.0,
+     "atual": false,
+     "series_abandonadas": 74,
+     "escalas_diferentes_da_atual": 70
+    },
+    {
+     "valor_pct": 15.0,
+     "atual": false,
+     "series_abandonadas": 35,
+     "escalas_diferentes_da_atual": 31
+    },
+    {
+     "valor_pct": 20.0,
+     "atual": false,
+     "series_abandonadas": 11,
+     "escalas_diferentes_da_atual": 7
+    },
+    {
+     "valor_pct": 25.0,
+     "atual": true,
+     "series_abandonadas": 4,
+     "escalas_diferentes_da_atual": 0
+    },
+    {
+     "valor_pct": 30.0,
+     "atual": false,
+     "series_abandonadas": 4,
+     "escalas_diferentes_da_atual": 0
+    },
+    {
+     "valor_pct": 40.0,
+     "atual": false,
+     "series_abandonadas": 1,
+     "escalas_diferentes_da_atual": 3
+    },
+    {
+     "valor_pct": 50.0,
+     "atual": false,
+     "series_abandonadas": 0,
+     "escalas_diferentes_da_atual": 4
+    }
+   ]
+  },
+  "expoente_das_fontes": {
+   "fontes_de_referencia_A4_paisagem": {
+    "title": 16.0,
+    "subtitle": 10.0,
+    "legend": 7.0,
+    "credits": 6.0
+   },
+   "varredura": [
+    {
+     "expoente": 0.4,
+     "atual": false,
+     "fontes_por_pagina": {
+      "A5": {
+       "title": 13.9,
+       "subtitle": 8.7,
+       "legend": 6.1,
+       "credits": 6.0
+      },
+      "A4": {
+       "title": 16.0,
+       "subtitle": 10.0,
+       "legend": 7.0,
+       "credits": 6.0
+      },
+      "A3": {
+       "title": 18.4,
+       "subtitle": 11.5,
+       "legend": 8.0,
+       "credits": 6.9
+      },
+      "A2": {
+       "title": 21.1,
+       "subtitle": 13.2,
+       "legend": 9.2,
+       "credits": 7.9
+      },
+      "A1": {
+       "title": 24.3,
+       "subtitle": 15.2,
+       "legend": 10.6,
+       "credits": 9.1
+      },
+      "A0": {
+       "title": 27.9,
+       "subtitle": 17.4,
+       "legend": 12.2,
+       "credits": 10.5
+      }
+     },
+     "abaixo_de_6pt_em_A5": false
+    },
+    {
+     "expoente": 0.5,
+     "atual": false,
+     "fontes_por_pagina": {
+      "A5": {
+       "title": 13.4,
+       "subtitle": 8.4,
+       "legend": 6.0,
+       "credits": 6.0
+      },
+      "A4": {
+       "title": 16.0,
+       "subtitle": 10.0,
+       "legend": 7.0,
+       "credits": 6.0
+      },
+      "A3": {
+       "title": 19.0,
+       "subtitle": 11.9,
+       "legend": 8.3,
+       "credits": 7.1
+      },
+      "A2": {
+       "title": 22.6,
+       "subtitle": 14.1,
+       "legend": 9.9,
+       "credits": 8.5
+      },
+      "A1": {
+       "title": 26.9,
+       "subtitle": 16.8,
+       "legend": 11.8,
+       "credits": 10.1
+      },
+      "A0": {
+       "title": 32.0,
+       "subtitle": 20.0,
+       "legend": 14.0,
+       "credits": 12.0
+      }
+     },
+     "abaixo_de_6pt_em_A5": false
+    },
+    {
+     "expoente": 0.62,
+     "atual": true,
+     "fontes_por_pagina": {
+      "A5": {
+       "title": 12.9,
+       "subtitle": 8.1,
+       "legend": 6.0,
+       "credits": 6.0
+      },
+      "A4": {
+       "title": 16.0,
+       "subtitle": 10.0,
+       "legend": 7.0,
+       "credits": 6.0
+      },
+      "A3": {
+       "title": 19.8,
+       "subtitle": 12.4,
+       "legend": 8.7,
+       "credits": 7.4
+      },
+      "A2": {
+       "title": 24.6,
+       "subtitle": 15.4,
+       "legend": 10.8,
+       "credits": 9.2
+      },
+      "A1": {
+       "title": 30.5,
+       "subtitle": 19.1,
+       "legend": 13.3,
+       "credits": 11.4
+      },
+      "A0": {
+       "title": 37.8,
+       "subtitle": 23.6,
+       "legend": 16.5,
+       "credits": 14.2
+      }
+     },
+     "abaixo_de_6pt_em_A5": false
+    },
+    {
+     "expoente": 0.7,
+     "atual": false,
+     "fontes_por_pagina": {
+      "A5": {
+       "title": 12.5,
+       "subtitle": 7.8,
+       "legend": 6.0,
+       "credits": 6.0
+      },
+      "A4": {
+       "title": 16.0,
+       "subtitle": 10.0,
+       "legend": 7.0,
+       "credits": 6.0
+      },
+      "A3": {
+       "title": 20.4,
+       "subtitle": 12.7,
+       "legend": 8.9,
+       "credits": 7.6
+      },
+      "A2": {
+       "title": 26.0,
+       "subtitle": 16.2,
+       "legend": 11.4,
+       "credits": 9.7
+      },
+      "A1": {
+       "title": 33.1,
+       "subtitle": 20.7,
+       "legend": 14.5,
+       "credits": 12.4
+      },
+      "A0": {
+       "title": 41.6,
+       "subtitle": 26.0,
+       "legend": 18.2,
+       "credits": 15.6
+      }
+     },
+     "abaixo_de_6pt_em_A5": false
+    },
+    {
+     "expoente": 0.8,
+     "atual": false,
+     "fontes_por_pagina": {
+      "A5": {
+       "title": 12.1,
+       "subtitle": 7.6,
+       "legend": 6.0,
+       "credits": 6.0
+      },
+      "A4": {
+       "title": 16.0,
+       "subtitle": 10.0,
+       "legend": 7.0,
+       "credits": 6.0
+      },
+      "A3": {
+       "title": 21.1,
+       "subtitle": 13.2,
+       "legend": 9.2,
+       "credits": 7.9
+      },
+      "A2": {
+       "title": 27.9,
+       "subtitle": 17.4,
+       "legend": 12.2,
+       "credits": 10.4
+      },
+      "A1": {
+       "title": 36.8,
+       "subtitle": 23.0,
+       "legend": 16.1,
+       "credits": 13.8
+      },
+      "A0": {
+       "title": 41.6,
+       "subtitle": 26.0,
+       "legend": 18.2,
+       "credits": 15.6
+      }
+     },
+     "abaixo_de_6pt_em_A5": false
+    },
+    {
+     "expoente": 1.0,
+     "atual": false,
+     "fontes_por_pagina": {
+      "A5": {
+       "title": 11.5,
+       "subtitle": 7.2,
+       "legend": 6.0,
+       "credits": 6.0
+      },
+      "A4": {
+       "title": 16.0,
+       "subtitle": 10.0,
+       "legend": 7.0,
+       "credits": 6.0
+      },
+      "A3": {
+       "title": 22.6,
+       "subtitle": 14.1,
+       "legend": 9.9,
+       "credits": 8.5
+      },
+      "A2": {
+       "title": 32.0,
+       "subtitle": 20.0,
+       "legend": 14.0,
+       "credits": 12.0
+      },
+      "A1": {
+       "title": 41.6,
+       "subtitle": 26.0,
+       "legend": 18.2,
+       "credits": 15.6
+      },
+      "A0": {
+       "title": 41.6,
+       "subtitle": 26.0,
+       "legend": 18.2,
+       "credits": 15.6
+      }
+     },
+     "abaixo_de_6pt_em_A5": false
+    }
+   ]
+  },
+  "custo_por_celula_vazia": {
+   "varredura": [
+    {
+     "custo": 0.0,
+     "atual": false,
+     "grades": {
+      "3 painéis / A4 paisagem": "3x1",
+      "3 painéis / A4 retrato": "2x2",
+      "3 painéis / A3 paisagem": "2x2",
+      "3 painéis / A3 retrato": "2x2",
+      "4 painéis / A4 paisagem": "3x2",
+      "4 painéis / A4 retrato": "2x2",
+      "4 painéis / A3 paisagem": "3x2",
+      "4 painéis / A3 retrato": "2x2",
+      "5 painéis / A4 paisagem": "4x2",
+      "5 painéis / A4 retrato": "2x3",
+      "5 painéis / A3 paisagem": "3x2",
+      "5 painéis / A3 retrato": "2x3",
+      "6 painéis / A4 paisagem": "4x2",
+      "6 painéis / A4 retrato": "2x3",
+      "6 painéis / A3 paisagem": "3x2",
+      "6 painéis / A3 retrato": "2x3"
+     }
+    },
+    {
+     "custo": 0.1,
+     "atual": false,
+     "grades": {
+      "3 painéis / A4 paisagem": "3x1",
+      "3 painéis / A4 retrato": "2x2",
+      "3 painéis / A3 paisagem": "2x2",
+      "3 painéis / A3 retrato": "2x2",
+      "4 painéis / A4 paisagem": "3x2",
+      "4 painéis / A4 retrato": "2x2",
+      "4 painéis / A3 paisagem": "3x2",
+      "4 painéis / A3 retrato": "2x2",
+      "5 painéis / A4 paisagem": "3x2",
+      "5 painéis / A4 retrato": "2x3",
+      "5 painéis / A3 paisagem": "3x2",
+      "5 painéis / A3 retrato": "2x3",
+      "6 painéis / A4 paisagem": "3x2",
+      "6 painéis / A4 retrato": "2x3",
+      "6 painéis / A3 paisagem": "3x2",
+      "6 painéis / A3 retrato": "2x3"
+     }
+    },
+    {
+     "custo": 0.2,
+     "atual": false,
+     "grades": {
+      "3 painéis / A4 paisagem": "3x1",
+      "3 painéis / A4 retrato": "2x2",
+      "3 painéis / A3 paisagem": "3x1",
+      "3 painéis / A3 retrato": "2x2",
+      "4 painéis / A4 paisagem": "3x2",
+      "4 painéis / A4 retrato": "2x2",
+      "4 painéis / A3 paisagem": "3x2",
+      "4 painéis / A3 retrato": "2x2",
+      "5 painéis / A4 paisagem": "3x2",
+      "5 painéis / A4 retrato": "2x3",
+      "5 painéis / A3 paisagem": "3x2",
+      "5 painéis / A3 retrato": "2x3",
+      "6 painéis / A4 paisagem": "3x2",
+      "6 painéis / A4 retrato": "2x3",
+      "6 painéis / A3 paisagem": "3x2",
+      "6 painéis / A3 retrato": "2x3"
+     }
+    },
+    {
+     "custo": 0.35,
+     "atual": true,
+     "grades": {
+      "3 painéis / A4 paisagem": "3x1",
+      "3 painéis / A4 retrato": "2x2",
+      "3 painéis / A3 paisagem": "3x1",
+      "3 painéis / A3 retrato": "2x2",
+      "4 painéis / A4 paisagem": "2x2",
+      "4 painéis / A4 retrato": "2x2",
+      "4 painéis / A3 paisagem": "2x2",
+      "4 painéis / A3 retrato": "2x2",
+      "5 painéis / A4 paisagem": "3x2",
+      "5 painéis / A4 retrato": "2x3",
+      "5 painéis / A3 paisagem": "3x2",
+      "5 painéis / A3 retrato": "2x3",
+      "6 painéis / A4 paisagem": "3x2",
+      "6 painéis / A4 retrato": "2x3",
+      "6 painéis / A3 paisagem": "3x2",
+      "6 painéis / A3 retrato": "2x3"
+     }
+    },
+    {
+     "custo": 0.5,
+     "atual": false,
+     "grades": {
+      "3 painéis / A4 paisagem": "3x1",
+      "3 painéis / A4 retrato": "2x2",
+      "3 painéis / A3 paisagem": "3x1",
+      "3 painéis / A3 retrato": "2x2",
+      "4 painéis / A4 paisagem": "2x2",
+      "4 painéis / A4 retrato": "2x2",
+      "4 painéis / A3 paisagem": "2x2",
+      "4 painéis / A3 retrato": "2x2",
+      "5 painéis / A4 paisagem": "3x2",
+      "5 painéis / A4 retrato": "2x3",
+      "5 painéis / A3 paisagem": "3x2",
+      "5 painéis / A3 retrato": "2x3",
+      "6 painéis / A4 paisagem": "3x2",
+      "6 painéis / A4 retrato": "2x3",
+      "6 painéis / A3 paisagem": "3x2",
+      "6 painéis / A3 retrato": "2x3"
+     }
+    },
+    {
+     "custo": 0.75,
+     "atual": false,
+     "grades": {
+      "3 painéis / A4 paisagem": "3x1",
+      "3 painéis / A4 retrato": "1x3",
+      "3 painéis / A3 paisagem": "3x1",
+      "3 painéis / A3 retrato": "1x3",
+      "4 painéis / A4 paisagem": "2x2",
+      "4 painéis / A4 retrato": "2x2",
+      "4 painéis / A3 paisagem": "2x2",
+      "4 painéis / A3 retrato": "2x2",
+      "5 painéis / A4 paisagem": "3x2",
+      "5 painéis / A4 retrato": "2x3",
+      "5 painéis / A3 paisagem": "3x2",
+      "5 painéis / A3 retrato": "2x3",
+      "6 painéis / A4 paisagem": "3x2",
+      "6 painéis / A4 retrato": "2x3",
+      "6 painéis / A3 paisagem": "3x2",
+      "6 painéis / A3 retrato": "2x3"
+     }
+    },
+    {
+     "custo": 1.0,
+     "atual": false,
+     "grades": {
+      "3 painéis / A4 paisagem": "3x1",
+      "3 painéis / A4 retrato": "1x3",
+      "3 painéis / A3 paisagem": "3x1",
+      "3 painéis / A3 retrato": "1x3",
+      "4 painéis / A4 paisagem": "2x2",
+      "4 painéis / A4 retrato": "2x2",
+      "4 painéis / A3 paisagem": "2x2",
+      "4 painéis / A3 retrato": "2x2",
+      "5 painéis / A4 paisagem": "5x1",
+      "5 painéis / A4 retrato": "2x3",
+      "5 painéis / A3 paisagem": "3x2",
+      "5 painéis / A3 retrato": "2x3",
+      "6 painéis / A4 paisagem": "3x2",
+      "6 painéis / A4 retrato": "2x3",
+      "6 painéis / A3 paisagem": "3x2",
+      "6 painéis / A3 retrato": "2x3"
+     }
+    }
+   ]
+  }
+ },
+ "paleta": {
+  "preenchimentos atuais (POLYGON_FILLS)": {
+   "pares": [
+    {
+     "par": "cor 3 × cor 7",
+     "cores": [
+      "#F9E7BF",
+      "#F6EF8E"
+     ],
+     "dE_normal": 28.2,
+     "dE_min_simulado": 4.1,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 6 × cor 8",
+     "cores": [
+      "#EBC9DC",
+      "#CCCCCC"
+     ],
+     "dE_normal": 16.0,
+     "dE_min_simulado": 4.7,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 2 × cor 6",
+     "cores": [
+      "#D9EAF3",
+      "#EBC9DC"
+     ],
+     "dE_normal": 20.4,
+     "dE_min_simulado": 7.1,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 3 × cor 6",
+     "cores": [
+      "#F9E7BF",
+      "#EBC9DC"
+     ],
+     "dE_normal": 31.7,
+     "dE_min_simulado": 9.5,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 5 × cor 6",
+     "cores": [
+      "#A2D6F3",
+      "#EBC9DC"
+     ],
+     "dE_normal": 29.0,
+     "dE_min_simulado": 10.2,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 4 × cor 8",
+     "cores": [
+      "#66C5AB",
+      "#CCCCCC"
+     ],
+     "dE_normal": 35.8,
+     "dE_min_simulado": 10.5,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 2 × cor 8",
+     "cores": [
+      "#D9EAF3",
+      "#CCCCCC"
+     ],
+     "dE_normal": 12.2,
+     "dE_min_simulado": 11.5,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 6 × cor 7",
+     "cores": [
+      "#EBC9DC",
+      "#F6EF8E"
+     ],
+     "dE_normal": 59.4,
+     "dE_min_simulado": 12.8,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 2 × cor 5",
+     "cores": [
+      "#D9EAF3",
+      "#A2D6F3"
+     ],
+     "dE_normal": 17.0,
+     "dE_min_simulado": 14.0,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 4 × cor 6",
+     "cores": [
+      "#66C5AB",
+      "#EBC9DC"
+     ],
+     "dE_normal": 51.6,
+     "dE_min_simulado": 14.3,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 3 × cor 8",
+     "cores": [
+      "#F9E7BF",
+      "#CCCCCC"
+     ],
+     "dE_normal": 24.0,
+     "dE_min_simulado": 15.0,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 7 × cor 8",
+     "cores": [
+      "#F6EF8E",
+      "#CCCCCC"
+     ],
+     "dE_normal": 50.1,
+     "dE_min_simulado": 15.7,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 4 × cor 5",
+     "cores": [
+      "#66C5AB",
+      "#A2D6F3"
+     ],
+     "dE_normal": 35.6,
+     "dE_min_simulado": 16.0,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 5 × cor 8",
+     "cores": [
+      "#A2D6F3",
+      "#CCCCCC"
+     ],
+     "dE_normal": 22.0,
+     "dE_min_simulado": 17.7,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 3 × cor 4",
+     "cores": [
+      "#F9E7BF",
+      "#66C5AB"
+     ],
+     "dE_normal": 42.9,
+     "dE_min_simulado": 19.8,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 2 × cor 7",
+     "cores": [
+      "#D9EAF3",
+      "#F6EF8E"
+     ],
+     "dE_normal": 54.4,
+     "dE_min_simulado": 20.2,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 1 × cor 7",
+     "cores": [
+      "#E8A673",
+      "#F6EF8E"
+     ],
+     "dE_normal": 37.5,
+     "dE_min_simulado": 20.3,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 2 × cor 3",
+     "cores": [
+      "#D9EAF3",
+      "#F9E7BF"
+     ],
+     "dE_normal": 28.3,
+     "dE_min_simulado": 20.5,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 2 × cor 4",
+     "cores": [
+      "#D9EAF3",
+      "#66C5AB"
+     ],
+     "dE_normal": 37.2,
+     "dE_min_simulado": 21.3,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 1 × cor 3",
+     "cores": [
+      "#E8A673",
+      "#F9E7BF"
+     ],
+     "dE_normal": 30.0,
+     "dE_min_simulado": 23.5,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 1 × cor 4",
+     "cores": [
+      "#E8A673",
+      "#66C5AB"
+     ],
+     "dE_normal": 61.7,
+     "dE_min_simulado": 24.6,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 1 × cor 6",
+     "cores": [
+      "#E8A673",
+      "#EBC9DC"
+     ],
+     "dE_normal": 42.5,
+     "dE_min_simulado": 27.8,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 1 × cor 8",
+     "cores": [
+      "#E8A673",
+      "#CCCCCC"
+     ],
+     "dE_normal": 41.4,
+     "dE_min_simulado": 35.2,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 5 × cor 7",
+     "cores": [
+      "#A2D6F3",
+      "#F6EF8E"
+     ],
+     "dE_normal": 68.0,
+     "dE_min_simulado": 39.1,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 3 × cor 5",
+     "cores": [
+      "#F9E7BF",
+      "#A2D6F3"
+     ],
+     "dE_normal": 43.5,
+     "dE_min_simulado": 39.5,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 4 × cor 7",
+     "cores": [
+      "#66C5AB",
+      "#F6EF8E"
+     ],
+     "dE_normal": 53.0,
+     "dE_min_simulado": 44.4,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 1 × cor 2",
+     "cores": [
+      "#E8A673",
+      "#D9EAF3"
+     ],
+     "dE_normal": 51.3,
+     "dE_min_simulado": 44.6,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 1 × cor 5",
+     "cores": [
+      "#E8A673",
+      "#A2D6F3"
+     ],
+     "dE_normal": 63.2,
+     "dE_min_simulado": 52.7,
+     "pior": "protanopia"
+    }
+   ],
+   "n_pares": 28,
+   "marcados_por_limiar": {
+    "5": 2,
+    "8": 3,
+    "10": 4,
+    "12": 7,
+    "15": 10,
+    "18": 14,
+    "20": 15,
+    "25": 21,
+    "30": 22
+   }
+  },
+  "paleta anterior (Okabe & Ito clareada 82 %)": {
+   "pares": [
+    {
+     "par": "cor 3 × cor 4",
+     "cores": [
+      "#D1EEE6",
+      "#F6E7EF"
+     ],
+     "dE_normal": 17.7,
+     "dE_min_simulado": 2.3,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 1 × cor 3",
+     "cores": [
+      "#D1E6F1",
+      "#D1EEE6"
+     ],
+     "dE_normal": 10.6,
+     "dE_min_simulado": 2.9,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 4 × cor 5",
+     "cores": [
+      "#F6E7EF",
+      "#FAEED1"
+     ],
+     "dE_normal": 19.0,
+     "dE_min_simulado": 3.6,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 4 × cor 6",
+     "cores": [
+      "#F6E7EF",
+      "#E1F2FB"
+     ],
+     "dE_normal": 11.2,
+     "dE_min_simulado": 3.6,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 5 × cor 7",
+     "cores": [
+      "#FAEED1",
+      "#FCFADD"
+     ],
+     "dE_normal": 5.1,
+     "dE_min_simulado": 3.6,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 1 × cor 4",
+     "cores": [
+      "#D1E6F1",
+      "#F6E7EF"
+     ],
+     "dE_normal": 12.9,
+     "dE_min_simulado": 4.1,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 1 × cor 6",
+     "cores": [
+      "#D1E6F1",
+      "#E1F2FB"
+     ],
+     "dE_normal": 4.7,
+     "dE_min_simulado": 4.5,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 3 × cor 6",
+     "cores": [
+      "#D1EEE6",
+      "#E1F2FB"
+     ],
+     "dE_normal": 10.3,
+     "dE_min_simulado": 4.9,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 2 × cor 5",
+     "cores": [
+      "#F7E2D1",
+      "#FAEED1"
+     ],
+     "dE_normal": 7.6,
+     "dE_min_simulado": 5.2,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 4 × cor 7",
+     "cores": [
+      "#F6E7EF",
+      "#FCFADD"
+     ],
+     "dE_normal": 19.9,
+     "dE_min_simulado": 6.3,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 2 × cor 4",
+     "cores": [
+      "#F7E2D1",
+      "#F6E7EF"
+     ],
+     "dE_normal": 13.2,
+     "dE_min_simulado": 6.4,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 2 × cor 7",
+     "cores": [
+      "#F7E2D1",
+      "#FCFADD"
+     ],
+     "dE_normal": 11.3,
+     "dE_min_simulado": 6.6,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 3 × cor 8",
+     "cores": [
+      "#D1EEE6",
+      "#D1D1D1"
+     ],
+     "dE_normal": 13.6,
+     "dE_min_simulado": 7.5,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 2 × cor 3",
+     "cores": [
+      "#F7E2D1",
+      "#D1EEE6"
+     ],
+     "dE_normal": 18.5,
+     "dE_min_simulado": 8.1,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 4 × cor 8",
+     "cores": [
+      "#F6E7EF",
+      "#D1D1D1"
+     ],
+     "dE_normal": 11.4,
+     "dE_min_simulado": 9.2,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 1 × cor 8",
+     "cores": [
+      "#D1E6F1",
+      "#D1D1D1"
+     ],
+     "dE_normal": 11.0,
+     "dE_min_simulado": 9.8,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 2 × cor 8",
+     "cores": [
+      "#F7E2D1",
+      "#D1D1D1"
+     ],
+     "dE_normal": 13.9,
+     "dE_min_simulado": 11.9,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 6 × cor 8",
+     "cores": [
+      "#E1F2FB",
+      "#D1D1D1"
+     ],
+     "dE_normal": 13.0,
+     "dE_min_simulado": 12.3,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 6 × cor 7",
+     "cores": [
+      "#E1F2FB",
+      "#FCFADD"
+     ],
+     "dE_normal": 20.7,
+     "dE_min_simulado": 12.7,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 5 × cor 8",
+     "cores": [
+      "#FAEED1",
+      "#D1D1D1"
+     ],
+     "dE_normal": 18.7,
+     "dE_min_simulado": 13.0,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 3 × cor 5",
+     "cores": [
+      "#D1EEE6",
+      "#FAEED1"
+     ],
+     "dE_normal": 18.3,
+     "dE_min_simulado": 13.1,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 3 × cor 7",
+     "cores": [
+      "#D1EEE6",
+      "#FCFADD"
+     ],
+     "dE_normal": 16.2,
+     "dE_min_simulado": 13.1,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 7 × cor 8",
+     "cores": [
+      "#FCFADD",
+      "#D1D1D1"
+     ],
+     "dE_normal": 20.3,
+     "dE_min_simulado": 14.1,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 1 × cor 7",
+     "cores": [
+      "#D1E6F1",
+      "#FCFADD"
+     ],
+     "dE_normal": 23.2,
+     "dE_min_simulado": 16.2,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 2 × cor 6",
+     "cores": [
+      "#F7E2D1",
+      "#E1F2FB"
+     ],
+     "dE_normal": 19.4,
+     "dE_min_simulado": 16.3,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 1 × cor 2",
+     "cores": [
+      "#D1E6F1",
+      "#F7E2D1"
+     ],
+     "dE_normal": 20.8,
+     "dE_min_simulado": 16.8,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 5 × cor 6",
+     "cores": [
+      "#FAEED1",
+      "#E1F2FB"
+     ],
+     "dE_normal": 22.0,
+     "dE_min_simulado": 17.0,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 1 × cor 5",
+     "cores": [
+      "#D1E6F1",
+      "#FAEED1"
+     ],
+     "dE_normal": 23.9,
+     "dE_min_simulado": 19.5,
+     "pior": "tritanopia"
+    }
+   ],
+   "n_pares": 28,
+   "marcados_por_limiar": {
+    "5": 8,
+    "8": 13,
+    "10": 16,
+    "12": 17,
+    "15": 23,
+    "18": 27,
+    "20": 28,
+    "25": 28,
+    "30": 28
+   }
+  },
+  "Okabe & Ito (2008) pura": {
+   "pares": [
+    {
+     "par": "cor 3 × cor 6",
+     "cores": [
+      "#009E73",
+      "#56B4E9"
+     ],
+     "dE_normal": 59.5,
+     "dE_min_simulado": 16.1,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 1 × cor 3",
+     "cores": [
+      "#0072B2",
+      "#009E73"
+     ],
+     "dE_normal": 70.1,
+     "dE_min_simulado": 17.0,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 5 × cor 7",
+     "cores": [
+      "#E69F00",
+      "#F0E442"
+     ],
+     "dE_normal": 35.1,
+     "dE_min_simulado": 17.0,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 4 × cor 5",
+     "cores": [
+      "#CC79A7",
+      "#E69F00"
+     ],
+     "dE_normal": 88.6,
+     "dE_min_simulado": 17.2,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 3 × cor 4",
+     "cores": [
+      "#009E73",
+      "#CC79A7"
+     ],
+     "dE_normal": 87.5,
+     "dE_min_simulado": 17.9,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 2 × cor 5",
+     "cores": [
+      "#D55E00",
+      "#E69F00"
+     ],
+     "dE_normal": 33.4,
+     "dE_min_simulado": 18.3,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 4 × cor 6",
+     "cores": [
+      "#CC79A7",
+      "#56B4E9"
+     ],
+     "dE_normal": 56.7,
+     "dE_min_simulado": 20.7,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 1 × cor 4",
+     "cores": [
+      "#0072B2",
+      "#CC79A7"
+     ],
+     "dE_normal": 53.6,
+     "dE_min_simulado": 22.7,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 1 × cor 6",
+     "cores": [
+      "#0072B2",
+      "#56B4E9"
+     ],
+     "dE_normal": 26.4,
+     "dE_min_simulado": 24.8,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 2 × cor 7",
+     "cores": [
+      "#D55E00",
+      "#F0E442"
+     ],
+     "dE_normal": 67.6,
+     "dE_min_simulado": 33.6,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 2 × cor 4",
+     "cores": [
+      "#D55E00",
+      "#CC79A7"
+     ],
+     "dE_normal": 74.3,
+     "dE_min_simulado": 36.4,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 2 × cor 3",
+     "cores": [
+      "#D55E00",
+      "#009E73"
+     ],
+     "dE_normal": 102.4,
+     "dE_min_simulado": 37.2,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 4 × cor 7",
+     "cores": [
+      "#CC79A7",
+      "#F0E442"
+     ],
+     "dE_normal": 104.3,
+     "dE_min_simulado": 38.1,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 3 × cor 5",
+     "cores": [
+      "#009E73",
+      "#E69F00"
+     ],
+     "dE_normal": 88.7,
+     "dE_min_simulado": 51.6,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 3 × cor 8",
+     "cores": [
+      "#009E73",
+      "#000000"
+     ],
+     "dE_normal": 74.8,
+     "dE_min_simulado": 56.6,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 1 × cor 8",
+     "cores": [
+      "#0072B2",
+      "#000000"
+     ],
+     "dE_normal": 61.9,
+     "dE_min_simulado": 57.3,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 6 × cor 7",
+     "cores": [
+      "#56B4E9",
+      "#F0E442"
+     ],
+     "dE_normal": 111.9,
+     "dE_min_simulado": 59.6,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 4 × cor 8",
+     "cores": [
+      "#CC79A7",
+      "#000000"
+     ],
+     "dE_normal": 73.0,
+     "dE_min_simulado": 60.4,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 3 × cor 7",
+     "cores": [
+      "#009E73",
+      "#F0E442"
+     ],
+     "dE_normal": 77.2,
+     "dE_min_simulado": 60.5,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 1 × cor 7",
+     "cores": [
+      "#0072B2",
+      "#F0E442"
+     ],
+     "dE_normal": 125.0,
+     "dE_min_simulado": 61.1,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 2 × cor 8",
+     "cores": [
+      "#D55E00",
+      "#000000"
+     ],
+     "dE_normal": 93.9,
+     "dE_min_simulado": 71.7,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 6 × cor 8",
+     "cores": [
+      "#56B4E9",
+      "#000000"
+     ],
+     "dE_normal": 78.9,
+     "dE_min_simulado": 77.7,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "cor 1 × cor 5",
+     "cores": [
+      "#0072B2",
+      "#E69F00"
+     ],
+     "dE_normal": 120.2,
+     "dE_min_simulado": 79.1,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 5 × cor 8",
+     "cores": [
+      "#E69F00",
+      "#000000"
+     ],
+     "dE_normal": 104.1,
+     "dE_min_simulado": 84.3,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 5 × cor 6",
+     "cores": [
+      "#E69F00",
+      "#56B4E9"
+     ],
+     "dE_normal": 113.1,
+     "dE_min_simulado": 86.9,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 2 × cor 6",
+     "cores": [
+      "#D55E00",
+      "#56B4E9"
+     ],
+     "dE_normal": 113.6,
+     "dE_min_simulado": 88.7,
+     "pior": "protanopia"
+    },
+    {
+     "par": "cor 7 × cor 8",
+     "cores": [
+      "#F0E442",
+      "#000000"
+     ],
+     "dE_normal": 117.5,
+     "dE_min_simulado": 90.1,
+     "pior": "tritanopia"
+    },
+    {
+     "par": "cor 1 × cor 2",
+     "cores": [
+      "#0072B2",
+      "#D55E00"
+     ],
+     "dE_normal": 114.6,
+     "dE_min_simulado": 91.9,
+     "pior": "protanopia"
+    }
+   ],
+   "n_pares": 28,
+   "marcados_por_limiar": {
+    "5": 0,
+    "8": 0,
+    "10": 0,
+    "12": 0,
+    "15": 0,
+    "18": 5,
+    "20": 6,
+    "25": 9,
+    "30": 9
+   }
+  },
+  "pares clássicos": {
+   "pares": [
+    {
+     "par": "amarelo × verde-limão",
+     "cores": [
+      "#FFFF00",
+      "#BFFF00"
+     ],
+     "dE_normal": 26.2,
+     "dE_min_simulado": 3.9,
+     "pior": "protanopia"
+    },
+    {
+     "par": "vermelho-escuro × verde-escuro",
+     "cores": [
+      "#8B0000",
+      "#006400"
+     ],
+     "dE_normal": 94.7,
+     "dE_min_simulado": 4.3,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "laranja × lima",
+     "cores": [
+      "#FF6600",
+      "#66CC00"
+     ],
+     "dE_normal": 112.6,
+     "dE_min_simulado": 6.6,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "azul-claro × rosa",
+     "cores": [
+      "#ADD8E6",
+      "#FFC0CB"
+     ],
+     "dE_normal": 38.0,
+     "dE_min_simulado": 9.6,
+     "pior": "protanopia"
+    },
+    {
+     "par": "vermelho × verde (#FF0000 × #00A000)",
+     "cores": [
+      "#FF0000",
+      "#00A000"
+     ],
+     "dE_normal": 141.2,
+     "dE_min_simulado": 12.1,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "verde × castanho",
+     "cores": [
+      "#2E8B57",
+      "#8B4513"
+     ],
+     "dE_normal": 70.8,
+     "dE_min_simulado": 23.8,
+     "pior": "protanopia"
+    },
+    {
+     "par": "vermelho × verde puros (luminosidades distintas)",
+     "cores": [
+      "#FF0000",
+      "#00FF00"
+     ],
+     "dE_normal": 170.6,
+     "dE_min_simulado": 27.8,
+     "pior": "deuteranopia"
+    },
+    {
+     "par": "azul × roxo",
+     "cores": [
+      "#0000FF",
+      "#800080"
+     ],
+     "dE_normal": 74.2,
+     "dE_min_simulado": 56.1,
+     "pior": "protanopia"
+    }
+   ],
+   "n_pares": 8,
+   "marcados_por_limiar": {
+    "5": 2,
+    "8": 3,
+    "10": 4,
+    "12": 4,
+    "15": 5,
+    "18": 5,
+    "20": 5,
+    "25": 6,
+    "30": 7
+   }
+  }
+ }
+}

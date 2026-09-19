@@ -383,6 +383,12 @@ def _map_units_per_metre(crs: Any, extent: Any, imports: dict[str, Any]) -> floa
 #: passa de meio por cento e as coordenadas saem da faixa válida da zona — foi o
 #: que aconteceu ao mapear o Piauí inteiro em UTM 23S, com eastings de
 #: 1.250.000 numa zona que vai até 834.000.
+#: Ganho mínimo de escala (razão entre os fatores de ajuste) para trocar a
+#: orientação da página ou o arranjo dos itens de apoio. Abaixo disso a troca
+#: não paga a mudança de leitura da folha. Parâmetro declarado, não medido:
+#: tools/threshold_sensitivity.py mostra em que faixa a decisão é estável.
+LAYOUT_SWITCH_GAIN = 1.12
+
 UTM_MAX_LONGITUDE_SPAN_DEGREES = 4.5
 UTM_MAX_LATITUDE_SPAN_DEGREES = 12.0
 REGIONAL_MAX_SPAN_DEGREES = 40.0
@@ -1922,7 +1928,7 @@ def _better_arrangement(extent: Any, frame: Any, plan: LayoutPlan, layout_reques
     alternative_factor = max(extent.width() / alternative.width, extent.height() / alternative.height)
     if alternative_factor <= 0:
         return None
-    return other if current_factor / alternative_factor >= 1.12 else None
+    return other if current_factor / alternative_factor >= LAYOUT_SWITCH_GAIN else None
 
 
 def _better_orientation(
@@ -1946,7 +1952,7 @@ def _better_orientation(
     alternative_factor = max(extent.width() / alternative.width, extent.height() / alternative.height)
     if alternative_factor <= 0:
         return None
-    return flipped if current_factor / alternative_factor >= 1.12 else None
+    return flipped if current_factor / alternative_factor >= LAYOUT_SWITCH_GAIN else None
 
 
 def _orientation_advice(
@@ -2003,7 +2009,7 @@ def _orientation_advice(
     if alternative_factor <= 0:
         return []
     gain = current_factor / alternative_factor
-    if gain < 1.12:  # abaixo disso o ganho não paga o ruído do aviso
+    if gain < LAYOUT_SWITCH_GAIN:  # abaixo disso o ganho não paga o ruído do aviso
         return []
 
     label = "retrato" if flipped == "portrait" else "paisagem"
