@@ -339,6 +339,10 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
         "'landscape'/'portrait' (ou retrato/paisagem), quando não vier junto de 'page'; ou 'auto' para o "
         "SIGMAI girar a folha se o recorte aproveitar melhor a outra orientação (recomendado quando você não sabe)."
     )},
+    "arrangement": {**_S, "description": (
+        "Onde ficam legenda, escala e norte: 'coluna_lateral' (quadro alto) ou 'faixa_inferior' (quadro largo). "
+        "Omitido: o SIGMAI escolhe pela forma do recorte."
+    )},
     "margin_mm": {"description": "Margens da página em mm: um número, ou um objeto {top, right, bottom, left}, ou uma lista [topo, direita, base, esquerda].",
                   "anyOf": [{"type": "number"}, {"type": "object"}, {"type": "array"}]},
     "template": {"type": "string", "enum": ["cientifico", "publicacao", "relatorio_ambiental", "minimalista"]},

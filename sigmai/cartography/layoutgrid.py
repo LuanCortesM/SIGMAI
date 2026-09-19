@@ -173,6 +173,39 @@ class LayoutPlan:
         return self.slots["map"]
 
 
+#: Penalidade, em unidades de |ln(razão de aspecto)|, por célula vazia numa
+#: grade de painéis: uma grade 2x2 com três painéis deixa um canto em branco,
+#: e isso só compensa quando as células ficam bem mais próximas do quadrado.
+EMPTY_CELL_PENALTY = 0.35
+
+
+def panel_grid(panels: int, width: float, height: float, gutter: float) -> tuple[int, int]:
+    """Colunas e linhas para ``panels`` quadros num corpo ``width`` x ``height`` mm.
+
+    Escolhe a grade cujas células ficam mais próximas do quadrado — onde a
+    maioria dos recortes cabe melhor — medindo o desvio por |ln(w/h)| e
+    cobrando ``EMPTY_CELL_PENALTY`` por célula que sobra. Em A4 paisagem três
+    painéis vão em 3x1 (células altas, 0,59) em vez de 2x2 (largas, 1,85, e
+    uma célula vazia); em A4 retrato vão em 2x2 (0,76) em vez de 1x3 (faixas
+    de 2,4). Regras fixas por orientação erravam num dos dois casos.
+    """
+    panels = max(1, int(panels))
+    best: tuple[float, int, int] | None = None
+    for columns in range(1, panels + 1):
+        rows = int(math.ceil(panels / columns))
+        cell_w = (width - gutter * (columns - 1)) / columns
+        cell_h = (height - gutter * (rows - 1)) / rows
+        if cell_w <= 0 or cell_h <= 0:
+            continue
+        mismatch = abs(math.log(cell_w / cell_h))
+        cost = mismatch + EMPTY_CELL_PENALTY * (columns * rows - panels)
+        if best is None or cost < best[0] - 1e-9:
+            best = (cost, columns, rows)
+    if best is None:
+        return 1, panels
+    return best[1], best[2]
+
+
 def map_slot_keys(slots: dict[str, Rect]) -> list[str]:
     """``map``, ``map_2``, ``map_3``… na ordem dos painéis (sem as legendas de painel)."""
     keys = [key for key in slots if key == "map" or (key.startswith("map_") and not key.endswith("_caption"))]
@@ -192,8 +225,17 @@ def solve_layout(
     grid_annotation_gutter_mm: float = 0.0,
     panels: int = 1,
     scale_bar_under_map: bool = False,
+    arrangement: str | None = None,
 ) -> LayoutPlan:
-    """Resolve o template escolhido para a página informada."""
+    """Resolve o template escolhido para a página informada.
+
+    ``arrangement`` força ``"coluna_lateral"`` ou ``"faixa_inferior"``; sem
+    ele (ou ``"auto"``) a escolha segue a proporção da página. O compositor
+    usa o parâmetro para experimentar o arranjo oposto quando a forma dos
+    dados pede — um estado alto e estreito numa A4 retrato aproveita mais a
+    folha com coluna lateral (quadro alto) do que com faixa inferior (quadro
+    quase quadrado).
+    """
     spec = resolve_page(page)
     template_key = template if template in TEMPLATES else DEFAULT_TEMPLATE
     config = TEMPLATES[template_key]
@@ -249,7 +291,11 @@ def solve_layout(
         )
 
     needs_support = include_legend or include_scale_bar or include_scale_text or include_north_arrow or include_logo or include_inset
-    arrangement = "coluna_lateral" if (spec.aspect >= SIDE_COLUMN_MIN_ASPECT and needs_support) else "faixa_inferior"
+    forced = str(arrangement or "auto").strip().lower()
+    if forced in ("coluna_lateral", "faixa_inferior") and needs_support:
+        arrangement = forced
+    else:
+        arrangement = "coluna_lateral" if (spec.aspect >= SIDE_COLUMN_MIN_ASPECT and needs_support) else "faixa_inferior"
     if not needs_support:
         arrangement = "mapa_cheio"
 
@@ -332,16 +378,14 @@ def solve_layout(
         notes.append("Corpo dividido em dois quadros de mapa para comparação, com legenda de painel.")
     elif panels >= 3 and "map" in slots:
         # Figura com N painéis (a), (b), (c)…: grade de quadros iguais no
-        # corpo. Em paisagem, 2 colunas até 4 painéis e 3 acima disso; em
-        # retrato, 1 coluna até 3 painéis e 2 acima disso — cada quadro fica
-        # o mais próximo possível de um quadrado.
+        # corpo. Em paisagem, 3 painéis vão em 3 colunas (uma grade 2x2 deixava
+        # a quarta célula vazia e cada quadro largo demais para um recorte
+        # alto), 4 em 2x2 e acima disso 3 colunas; em retrato, 1 coluna até 3
+        # painéis e 2 acima disso — cada quadro fica o mais próximo possível de
+        # um quadrado e nenhuma célula sobra.
         base = slots["map"]
         panel_gutter = gutter * 1.5
-        if base.width >= base.height:
-            columns = 2 if panels <= 4 else 3
-        else:
-            columns = 1 if panels <= 3 else 2
-        rows = int(math.ceil(panels / columns))
+        columns, rows = panel_grid(panels, base.width, base.height, panel_gutter)
         cell_w = (base.width - panel_gutter * (columns - 1)) / columns
         cell_h = (base.height - panel_gutter * (rows - 1)) / rows
         caption_h = max(5.0, content_h * 0.028)

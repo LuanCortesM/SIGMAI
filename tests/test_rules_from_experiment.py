@@ -77,6 +77,18 @@ class SimulacaoDeDaltonismo(unittest.TestCase):
         so_matiz = [("azul", _tint("#0072B2", 0.82)), ("verde", _tint("#009E73", 0.82))]
         self.assertEqual(len(vision.confusable_pairs(so_matiz)), 1)
 
+    def test_preenchimento_novo_desvia_dos_que_ja_estao_em_uso(self):
+        """Camada preservada de um mapa anterior em laranja + camada nova: a nova não pode sair laranja."""
+        from sigmai.cartography.symbology import POLYGON_FILLS, _next_polygon_fill, _tint
+
+        laranja = _tint(*POLYGON_FILLS[0])
+        accent, amount, proximo = _next_polygon_fill(0, [laranja])
+        self.assertNotEqual((accent, amount), POLYGON_FILLS[0])
+        self.assertEqual(vision.confusable_pairs([("uso", laranja), ("novo", _tint(accent, amount))]), [])
+        self.assertEqual(proximo, 2)
+        # sem nada em uso, a sequência é respeitada
+        self.assertEqual(_next_polygon_fill(0, [])[:2], POLYGON_FILLS[0])
+
     def test_cor_invalida_e_ignorada(self):
         self.assertIsNone(vision.parse_hex("azul"))
         self.assertEqual(vision.confusable_pairs([("a", "azul"), ("b", "#FF0000")]), [])

@@ -158,6 +158,20 @@ class ReceitaNoQgis(unittest.TestCase):
         self.assertEqual(int(erro), 0, _mensagem)
         layer = QgsVectorLayer(caminho, "Quadrado", "ogr")
         self.assertTrue(layer.isValid())
+        if not layer.crs().isValid():
+            # Na suíte inteira (nunca isolado), ~1 corrida em 10 devolve o GPKG
+            # recém-gravado com CRS inválido: nesse estado do processo,
+            # QgsCoordinateReferenceSystem.fromWkt recusa QUALQUER WKT (até o
+            # de EPSG:4326) enquanto EPSG, fromProj e o OSR continuam a
+            # funcionar. Não é o arquivo: o OSR lê o CRS gravado e confirma o
+            # EPSG:31984. Só então o CRS é atribuído pela autoridade — se o
+            # arquivo estiver errado de verdade, a asserção abaixo reprova.
+            from osgeo import ogr
+
+            gravado = ogr.Open(caminho).GetLayer(0).GetSpatialRef()
+            self.assertIsNotNone(gravado, "GPKG gravado sem CRS")
+            self.assertEqual(gravado.GetAuthorityCode(None), "31984", gravado.ExportToWkt()[:120])
+            layer.setCrs(QgsCoordinateReferenceSystem("EPSG:31984"))
         self.assertTrue(layer.crs().isValid())
         project.addMapLayer(layer)
         return layer

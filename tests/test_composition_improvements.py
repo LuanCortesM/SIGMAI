@@ -136,22 +136,29 @@ class PaineisEmGrade(unittest.TestCase):
         self.assertEqual(map_slot_keys(plan.slots), ["map", "map_2", "map_3"])
         a, b, c = (plan.slots[k] for k in ("map", "map_2", "map_3"))
         self.assertAlmostEqual(a.width, b.width, places=3)
-        self.assertGreater(c.y, a.y)  # terceiro painel na segunda linha
-        self.assertTrue(any("3 quadros" in n for n in plan.notes))
+        # O corpo da A3 paisagem (com coluna lateral) é quase quadrado (1,3):
+        # três painéis vão em 2x2 (células 1,33) e não em 3x1 (0,42).
+        self.assertGreater(c.y, a.y)
+        self.assertTrue(any("3 quadros" in n and "2x2" in n for n in plan.notes))
         plan6 = solve_layout(page="A3 landscape", panels=6)
         self.assertEqual(len(map_slot_keys(plan6.slots)), 6)
         self.assertEqual(len({round(plan6.slots[k].width, 3) for k in map_slot_keys(plan6.slots)}), 1)
 
-    def test_corpo_mais_alto_que_largo_empilha(self):
-        # A decisão é pela proporção do CORPO, não da página: em A4 retrato com
-        # faixa de apoio embaixo o corpo ainda é mais largo que alto (2 colunas);
-        # sem itens de apoio o corpo é alto e os painéis empilham.
+    def test_grade_escolhida_pela_celula_mais_proxima_do_quadrado(self):
+        from sigmai.cartography.layoutgrid import panel_grid
+
+        # A4 paisagem, corpo ~270x150: três painéis em 3x1 (células 0,59), não 2x2 (1,85 + célula vazia)
+        self.assertEqual(panel_grid(3, 270.0, 150.0, 6.0), (3, 1))
+        # A4 retrato, corpo ~190x250: três painéis em 2x2 (células 0,76), não 1x3 (faixas de 2,4)
+        self.assertEqual(panel_grid(3, 190.0, 250.0, 6.0), (2, 2))
+        self.assertEqual(panel_grid(4, 270.0, 150.0, 6.0), (2, 2))
+        self.assertEqual(panel_grid(6, 270.0, 150.0, 6.0), (3, 2))
+        self.assertEqual(panel_grid(1, 100.0, 100.0, 6.0), (1, 1))
+        # Em A4 retrato sem itens de apoio o corpo é alto: 2 colunas, um canto vazio.
         plan = solve_layout(page="A4 portrait", panels=3, include_legend=False, include_scale_bar=False,
                             include_scale_text=False, include_north_arrow=False)
         xs = {round(plan.slots[k].x, 3) for k in map_slot_keys(plan.slots)}
-        self.assertEqual(len(xs), 1)
-        ys = sorted(plan.slots[k].y for k in map_slot_keys(plan.slots))
-        self.assertEqual(len(set(round(y, 3) for y in ys)), 3)
+        self.assertEqual(len(xs), 2)
 
 
 @unittest.skipUnless(_pyqgis_disponivel(), "PyQGIS ausente: só existe dentro de uma instalação do QGIS")

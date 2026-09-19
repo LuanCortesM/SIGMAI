@@ -171,6 +171,18 @@ def apply_default_symbology(layers: list[Any], mode: str = "missing", dry_run: b
 
     imports = _imports()
     applied: list[dict[str, Any]] = []
+    # Preenchimentos de polígono já em uso pelas camadas que vão ser
+    # preservadas (estilo do usuário ou de uma composição anterior). Um
+    # preenchimento novo tem de ser distinguível deles: sem isto, a camada
+    # preservada de um mapa anterior e a camada nova de agora saíam no
+    # mesmo laranja — e CART070 reprovava o mapa que o SIGMAI compôs.
+    fills_in_use: list[str] = []
+    if mode == "missing":
+        for layer in layers:
+            if hasattr(layer, "renderer") and hasattr(layer, "geometryType") and not has_default_symbology(layer):
+                colour = _polygon_fill_of(layer, imports)
+                if colour:
+                    fills_in_use.append(colour)
     polygon_slot = 0
 
     for index, layer in enumerate(layers):
@@ -210,9 +222,9 @@ def apply_default_symbology(layers: list[Any], mode: str = "missing", dry_run: b
             # traço as distinguia — no papel, nada as distinguia. A sequência
             # POLYGON_FILLS alterna claridade e matiz para que as camadas de
             # polígono continuem distintas nas simulações de daltonismo.
-            accent, amount = POLYGON_FILLS[polygon_slot % len(POLYGON_FILLS)]
-            polygon_slot += 1
+            accent, amount, polygon_slot = _next_polygon_fill(polygon_slot, fills_in_use)
             style["fill"] = _tint(accent, amount)
+            fills_in_use.append(style["fill"])
         # Cor que de fato aparece no mapa: o preenchimento para polígono, o
         # próprio matiz para linha e ponto. Reportada em ambos os modos —
         # é o que permite a uma simulação dizer "com que cor" sem aplicá-la.
@@ -251,6 +263,42 @@ def apply_default_symbology(layers: list[Any], mode: str = "missing", dry_run: b
             continue
 
     return applied
+
+
+def _polygon_fill_of(layer: Any, imports: dict[str, Any]) -> str:
+    """Cor de preenchimento de uma camada de polígono com símbolo único, ou ''."""
+    try:
+        from .qtcompat import geometry_type
+
+        if layer.geometryType() != geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Polygon"):
+            return ""
+        renderer = layer.renderer()
+        if renderer is None or str(renderer.type()) != "singleSymbol":
+            return ""
+        symbol = renderer.symbol()
+        return str(symbol.color().name()).upper() if symbol is not None else ""
+    except Exception:
+        return ""
+
+
+def _next_polygon_fill(slot: int, fills_in_use: list[str]) -> tuple[str, float, int]:
+    """Próximo preenchimento da sequência que não se confunde com os já usados.
+
+    Percorre ``POLYGON_FILLS`` a partir de ``slot`` e devolve o primeiro cujo
+    tom não é confundível (CART070, ΔE*ab nas três simulações) com nenhum
+    preenchimento já em uso; esgotada a sequência, devolve o próximo da fila
+    mesmo assim — a auditoria dirá.
+    """
+    from .vision import confusable_pairs
+
+    for offset in range(len(POLYGON_FILLS)):
+        candidate = POLYGON_FILLS[(slot + offset) % len(POLYGON_FILLS)]
+        colour = _tint(candidate[0], candidate[1])
+        pairs = [("novo", colour)] + [(f"uso{i}", used) for i, used in enumerate(fills_in_use)]
+        if not fills_in_use or not confusable_pairs(pairs):
+            return candidate[0], candidate[1], (slot + offset + 1) % len(POLYGON_FILLS)
+    candidate = POLYGON_FILLS[slot % len(POLYGON_FILLS)]
+    return candidate[0], candidate[1], (slot + 1) % len(POLYGON_FILLS)
 
 
 def _tint(hex_color: str, amount: float) -> str:

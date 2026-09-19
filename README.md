@@ -110,7 +110,7 @@ Independently of the mode: **output folders** restrict where files may be writte
 - places a real north arrow symbol linked to grid north;
 - declares datum, projection, source, authorship and date;
 - reprojects to the appropriate UTM zone when the project is in geographic coordinates, because a metric scale bar over degrees is wrong across most of the sheet;
-- picks the page orientation from the shape of the data when you ask for `orientation: "auto"`, and lets you ask for a journal figure by column width (`journal_column`, `figure_width_mm`) instead of by paper size;
+- picks the page orientation — and where the legend and scale bar go, side column or bottom band — from the shape of the data when you ask for `orientation: "auto"` (either choice switches only for a 12 % gain in scale; `arrangement` forces one), and lets you ask for a journal figure by column width (`journal_column`, `figure_width_mm`) instead of by paper size;
 - composes two, three or more panels — `second_map` or `panels` — lettered (a), (b), (c) with a shared scale when you ask for one;
 - takes `data_source` per layer and prints each layer's source in the legend, next to the layer it belongs to;
 - knows the field-campaign case (`compose_campaign_map`): sites over a track over an area over its context, with a locator inset and a coordinate table.
@@ -186,7 +186,7 @@ Developed by Luan da Silva Cortes Maciel as a research product associated with H
 @software{maciel_sigmai,
   author  = {Maciel, Luan da Silva Cortes},
   title   = {{SIGMAI}: Secure {GIS}-{AI} Interface},
-  version = {1.1.0},
+  version = {1.1.1},
   url     = {https://github.com/LuanCortesM/SIGMAI},
   license = {GPL-3.0-or-later}
 }
