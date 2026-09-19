@@ -128,8 +128,13 @@ class ToolListTests(unittest.TestCase):
         for expected in (
             "sigmai_status", "sigmai_project_overview", "sigmai_cartographic_rulebook",
             "sigmai_plan_map", "sigmai_compose_map", "sigmai_audit_layout", "sigmai_run_command",
+            # 1.1.0
+            "sigmai_briefing", "sigmai_spatial_relationship", "sigmai_add_context_annotations",
+            "sigmai_campaign_map", "sigmai_export_coordinate_table", "sigmai_map_recipe",
+            "sigmai_recompose_from_recipe", "sigmai_methods_paragraph", "sigmai_undo",
         ):
             self.assertIn(expected, names)
+        self.assertEqual(len(self.tools), 20, sorted(names))
 
     def test_tool_shape_follows_the_specification(self):
         for tool in self.tools:
@@ -146,6 +151,11 @@ class ToolListTests(unittest.TestCase):
         self.assertTrue(by_name["sigmai_status"]["annotations"]["readOnlyHint"])
         self.assertTrue(by_name["sigmai_plan_map"]["annotations"]["readOnlyHint"])
         self.assertFalse(by_name["sigmai_compose_map"]["annotations"]["readOnlyHint"])
+        self.assertTrue(by_name["sigmai_briefing"]["annotations"]["readOnlyHint"])
+        self.assertTrue(by_name["sigmai_spatial_relationship"]["annotations"]["readOnlyHint"])
+        self.assertTrue(by_name["sigmai_methods_paragraph"]["annotations"]["readOnlyHint"])
+        self.assertFalse(by_name["sigmai_undo"]["annotations"]["readOnlyHint"])
+        self.assertFalse(by_name["sigmai_campaign_map"]["annotations"]["readOnlyHint"])
 
     def test_order_is_deterministic(self):
         again = self.client.request("tools/list", message_id=3)["result"]["tools"]

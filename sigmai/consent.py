@@ -86,6 +86,7 @@ ACTION_CATEGORIES: dict[str, tuple[str, str]] = {
     "expressions": ("Expressões", "Avaliar expressões do QGIS"),
     "user_profile": ("Perfil", "Gravar o perfil de autoria do usuário"),
     "gps_gpx": ("GPS", "Carregar e converter trilhas GPX"),
+    "project": ("Projeto", "Desfazer a última ação do assistente no projeto"),
 }
 
 #: Nome canônico da categoria → chave de tradução em ui/strings. O registro
@@ -93,6 +94,7 @@ ACTION_CATEGORIES: dict[str, tuple[str, str]] = {
 #: português para que uma troca de idioma não "esqueça" o que o usuário já
 #: aprovou; a interface traduz só na hora de mostrar.
 CATEGORY_KEYS: dict[str, str] = {
+    "Projeto": "category_projeto",
     "Cartografia": "category_cartografia",
     "Simbologia": "category_simbologia",
     "Camadas": "category_camadas",

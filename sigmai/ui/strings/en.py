@@ -157,6 +157,7 @@ STRINGS: dict[str, str] = {
     "category_expressoes": "Expressions",
     "category_perfil": "Profile",
     "category_gps": "GPS",
+    "category_projeto": "Project",
     "category_desc_cartography": "Create layouts, compose and export maps",
     "category_desc_cartographic_design": "Apply cartographic styles and palettes",
     "category_desc_symbology": "Change layer symbols, colours and labels",
@@ -174,6 +175,7 @@ STRINGS: dict[str, str] = {
     "category_desc_expressions": "Evaluate QGIS expressions",
     "category_desc_user_profile": "Save the user's authorship profile",
     "category_desc_gps_gpx": "Load and convert GPX tracks",
+    "category_desc_project": "Undo the assistant's last action in the project",
     "category_desc_default": "Action that changes the project or writes files",
     # resumo do pedido no diálogo de consentimento
     "consent_action": "Action",

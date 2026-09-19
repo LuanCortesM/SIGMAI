@@ -329,12 +329,16 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
         "relativo, não um caminho de outro sistema operacional. A extensão define o formato quando "
         "'format' não é informado. Ignorado em sigmai_plan_map."
     )},
-    "format": {"type": "string", "enum": ["pdf", "png", "svg"]},
+    "format": {"type": "string", "enum": ["pdf", "png", "svg", "tif", "tiff", "jpg", "jpeg"],
+               "description": "Formato do arquivo. Revistas costumam pedir TIFF a 300-600 dpi para figuras."},
     "page": {**_S, "description": (
         "Formato e orientação, ex.: 'A4 landscape', 'A3 retrato', 'A2 portrait'. "
         "Formatos: A0-A5, B4, B5, LETTER, LEGAL, TABLOID. Um formato desconhecido é recusado."
     )},
-    "orientation": {**_S, "description": "'landscape'/'portrait' (ou retrato/paisagem), quando não vier junto de 'page'."},
+    "orientation": {**_S, "description": (
+        "'landscape'/'portrait' (ou retrato/paisagem), quando não vier junto de 'page'; ou 'auto' para o "
+        "SIGMAI girar a folha se o recorte aproveitar melhor a outra orientação (recomendado quando você não sabe)."
+    )},
     "margin_mm": {"description": "Margens da página em mm: um número, ou um objeto {top, right, bottom, left}, ou uma lista [topo, direita, base, esquerda].",
                   "anyOf": [{"type": "number"}, {"type": "object"}, {"type": "array"}]},
     "template": {"type": "string", "enum": ["cientifico", "publicacao", "relatorio_ambiental", "minimalista"]},
@@ -349,7 +353,15 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
         "a maior que ainda os contém."
     )},
     "dpi": {**_N, "description": "Entre 50 e 1200. Padrão 300."},
-    "data_source": {**_S, "description": "Fonte dos dados, obrigatória para o mapa ser citável (CART007)."},
+    "data_source": {
+        "description": (
+            "Fonte dos dados, obrigatória para o mapa ser citável (CART007). Texto único para o mapa inteiro, "
+            "OU um objeto {camada: fonte} (id ou nome da camada) para procedência POR CAMADA — nesse caso a "
+            "legenda mostra 'Municípios (IBGE, 2024)' e a linha de crédito lista cada fonte com as camadas que "
+            "cobre. Camada sem fonte declarada herda a dos metadados dela, se houver."
+        ),
+        "anyOf": [{"type": "string"}, {"type": "object", "additionalProperties": {"type": "string"}}],
+    },
     "map_author": {**_S, "description": "Autoria do mapa, obrigatória para o mapa ser citável (CART007). NÃO é o autor do plugin."},
     "map_author_email": _S,
     "organization": _S,
@@ -364,11 +376,15 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
         "aplicar por apply_single_symbol é preservada. 'all' força a paleta em todas; 'none' não toca "
         "em nenhuma. A resposta lista camada a camada o que foi feito e por quê."
     )},
-    "subject_layer_id": {**_S, "description": (
-        "Camada que define o recorte; as demais entram como contexto. É assim que se pede "
-        "'mapa DO parque MOSTRANDO os municípios em volta' — sem isso o recorte vira a união "
-        "de todas as camadas e o assunto some."
-    )},
+    "subject_layer_id": {
+        "description": (
+            "Camada que define o recorte; as demais entram como contexto. É assim que se pede "
+            "'mapa DO parque MOSTRANDO os municípios em volta' — sem isso o recorte vira a união "
+            "de todas as camadas e o assunto some. Aceita uma lista quando o assunto são várias camadas "
+            "(pontos de coleta E a trilha)."
+        ),
+        "anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}],
+    },
     "include_inset": {**_B, "description": (
         "Acrescenta um inserto de localização com o retângulo do recorte principal desenhado "
         "por cima. É o elemento que responde 'onde fica' — indispensável em escala grande para "
@@ -403,6 +419,35 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
         "required": ["layer_ids"],
         "additionalProperties": False,
     },
+    "panels": {
+        "type": "array",
+        "description": (
+            "Painéis EXTRAS além do principal, para uma figura (a), (b), (c)… — cada um como second_map "
+            "({layer_ids, subject_layer_id?, panel_title?, margin_percent?}). Até 7 extras. Os quadros ficam "
+            "em grade e recebem letras; igualados na escala mais aberta salvo comparison_same_scale=false. "
+            "Não combine com second_map."
+        ),
+        "items": {
+            "type": "object",
+            "properties": {"layer_ids": _SA, "subject_layer_id": _S, "panel_title": _S, "margin_percent": _N},
+            "required": ["layer_ids"],
+            "additionalProperties": False,
+        },
+    },
+    "figure_width_mm": {**_N, "description": (
+        "Figura para periódico: a página passa a ter esta largura (a largura final impressa) e a altura é "
+        "escolhida para o quadro casar com o recorte. As fontes são julgadas nessa largura (CART071)."
+    )},
+    "figure_height_mm": {**_N, "description": "Altura da figura, se a revista a impõe; senão o SIGMAI escolhe."},
+    "figure_max_height_mm": {**_N, "description": "Altura máxima quando o SIGMAI escolhe (padrão 230 mm)."},
+    "journal_column": {**_S, "description": (
+        "Atalho para figure_width_mm: 'single' (85 mm), 'one_and_half' (120 mm) ou 'double' (175 mm). "
+        "Cada revista tem a sua medida — se a instrução aos autores der outra, passe figure_width_mm."
+    )},
+    "recipe_path": {**_S, "description": (
+        "Caminho absoluto de um .json para gravar a receita reproduzível do mapa (parâmetros, camadas, hashes "
+        "dos dados, versões). A receita vai SEMPRE para o layout e para os metadados do PNG; este arquivo é extra."
+    )},
     "comparison_same_scale": {**_B, "description": "Padrão true. Se false, cada painel anuncia a própria escala e a barra única é removida."},
     "panel_title": {**_S, "description": "Legenda do painel esquerdo/superior num mapa duplo. Sem ela, 'Painel A' na língua do mapa."},
     "include_legend": {**_B, "description": "Padrão true. Sem legenda num mapa de mais de uma camada, CART002 reprova — é uma omissão deliberada que a auditoria aponta."},
@@ -528,6 +573,184 @@ TOOLS: list[dict[str, Any]] = [
         "handler": lambda args: bridge_call("audit_map_layout", dict(args)),
     },
     {
+        "name": "sigmai_briefing",
+        "title": "Briefing do projeto em uma chamada",
+        "description": (
+            "COMECE POR AQUI. Numa chamada: versões, projeto (caminho, CRS), cada camada com id, geometria, "
+            "contagem, CRS, campo de nome provável com exemplos, rótulos ligados, problema de codificação; "
+            "layouts (e quais foram compostos pelo SIGMAI); o modo de acesso e as pastas liberadas; o "
+            "regulamento resumido; os templates; e o caminho recomendado para os pedidos mais comuns. "
+            "Substitui a sequência status → panorama → detalhes → regulamento → capacidades."
+        ),
+        "inputSchema": _obj({}),
+        "annotations": {"title": "Briefing", **READ_ONLY},
+        "handler": lambda args: bridge_call("project_briefing", {}),
+    },
+    {
+        "name": "sigmai_spatial_relationship",
+        "title": "Onde fica o quê: contenção, interseção e vizinho mais próximo",
+        "description": (
+            "Responde, em número e em texto, a relação entre duas camadas: quanto de cada feição de A está "
+            "dentro de B (fração de área), quais feições de B tocam A, e a feição de B mais próxima com a "
+            "distância geodésica em metros. Use ANTES de assumir em que estado/município uma área está — foi "
+            "assim que se descobriu que um parque pedido 'no Piauí' fica no Ceará. Nomes vêm do campo de "
+            "nome da camada (display_field para escolher)."
+        ),
+        "inputSchema": _obj({
+            "layer_id": {**_S, "description": "Camada A (o assunto: a UC, os pontos)."},
+            "other_layer_id": {**_S, "description": "Camada B (o contexto: estados, municípios)."},
+            "feature_id": {**_N, "description": "Só esta feição de A (id numérico)."},
+            "display_field": {**_S, "description": "Campo de B usado como nome nas respostas."},
+            "max_results": {**_N, "description": "Vizinhos/interseções listados por feição (padrão 10, máx. 100)."},
+            "radius_m": {**_N, "description": "Só vizinhos até esta distância em metros."},
+        }, ["layer_id", "other_layer_id"]),
+        "annotations": {"title": "Relação espacial", **READ_ONLY},
+        "handler": lambda args: bridge_call("spatial_relationship", dict(args)),
+    },
+    {
+        "name": "sigmai_add_context_annotations",
+        "title": "Divisa como linha e nomes de região a partir de uma camada",
+        "description": (
+            "Cria, a partir de uma camada de polígonos já carregada, o contexto que um cartógrafo desenha à "
+            "mão: a divisa (fronteira) como linha tracejada, os nomes das regiões (por campo, ou um texto "
+            "único para a união) posicionados pelo polo de inacessibilidade, e rótulos avulsos (o estado "
+            "vizinho, 'Oceano Atlântico') em coordenadas dadas. Devolve os ids criados para incluir em "
+            "layer_ids. Camadas de memória por padrão; output_gpkg as persiste. ESTA AÇÃO ALTERA O PROJETO."
+        ),
+        "inputSchema": _obj({
+            "boundary_layer_id": {**_S, "description": "Camada de polígonos de origem (UF, municípios, bacia)."},
+            "dissolve": {**_B, "description": "Padrão true: uma divisa da união; false: a fronteira de cada feição."},
+            "label_field": {**_S, "description": "Campo com o nome de cada feição (um rótulo por feição; exige dissolve=false para várias)."},
+            "label_text": {**_S, "description": "Um nome só, para a união (ex.: 'Piauí')."},
+            "extra_labels": {"type": "array", "items": {"type": "object",
+                                                        "properties": {"text": _S, "x": _N, "y": _N, "crs": _S, "lon": _N, "lat": _N},
+                                                        "required": ["text"], "additionalProperties": False},
+                             "description": "Rótulos avulsos: {text, x, y, crs?} (crs padrão: o da camada) ou {text, lon, lat} em graus (EPSG:4326)."},
+            "include_boundary": _B,
+            "boundary_color": _S, "boundary_width_mm": _N,
+            "boundary_style": {"type": "string", "enum": ["solid", "dash", "dot", "dash dot"]},
+            "label_font_size": _N, "label_color": _S, "letter_spacing": _N, "uppercase": _B,
+            "output_gpkg": {**_S, "description": "Caminho absoluto de um .gpkg para persistir as camadas (pasta liberada)."},
+        }, ["boundary_layer_id"]),
+        "annotations": {"title": "Anotações de contexto", **WRITES},
+        "handler": lambda args: bridge_call("add_context_annotations", dict(args)),
+    },
+    {
+        "name": "sigmai_campaign_map",
+        "title": "Mapa de campanha de campo",
+        "description": (
+            "A figura 1 de uma dissertação de campo numa chamada: pontos de coleta rotulados, trilha, área de "
+            "estudo em destaque, entorno como contexto e inserto de localização, com o template 'campanha'. "
+            "Opcionalmente grava a tabela de coordenadas dos pontos (CSV com atributos, E/N no CRS pedido e "
+            "lat/lon). Aceita os demais parâmetros de sigmai_compose_map (output_path, dpi, page, "
+            "data_source por camada…). ESTA AÇÃO GRAVA ARQUIVO."
+        ),
+        "inputSchema": _obj({
+            "points_layer_id": {**_S, "description": "Camada de PONTOS dos sítios/coletas (waypoints, não a trilha). Sítios numa planilha? Antes, sigmai_run_command load_vector_layer com o .csv (lon/lat detectados; x_field/y_field/crs para E/N)."},
+            "track_layer_id": {**_S, "description": "Camada de LINHA da trilha percorrida."},
+            "area_layer_ids": {**_SA, "description": "Polígonos da área de estudo (UC, fazenda, bacia)."},
+            "context_layer_ids": {**_SA, "description": "Camadas de contexto (municípios, hidrografia)."},
+            "inset_layer_ids": {**_SA, "description": "Limite para o inserto de localização (estado)."},
+            "label_field": {**_S, "description": "Campo de nome dos pontos (padrão: detectado; acima de 60 pontos só rotula se pedido)."},
+            "subject_layer_id": {"anyOf": [{"type": "string"}, _SA], "description": "Padrão: pontos + trilha."},
+            "title": _S, "subtitle": _S,
+            "campaign_dates": {**_S, "description": "Datas da campanha, viram o subtítulo ('Campanha de campo: …')."},
+            "map_author": _S,
+            "data_source": {"anyOf": [{"type": "string"}, {"type": "object", "additionalProperties": {"type": "string"}}]},
+            "coordinate_table_path": {**_S, "description": "Caminho absoluto de um .csv com as coordenadas dos pontos."},
+            "table_crs": {**_S, "description": "CRS das colunas E/N da tabela (padrão: o da camada); lat/lon saem sempre."},
+            "table_delimiter": {"type": "string", "enum": [",", ";"]},
+            "output_path": _S, "format": _S, "dpi": _N, "page": _S, "orientation": _S, "map_language": _S,
+            "margin_percent": _N, "include_grid": _B, "confirm_overwrite": _B, "layout_name": _S, "recipe_path": _S,
+            "journal_column": _S, "figure_width_mm": _N,
+        }, ["points_layer_id"]),
+        "annotations": {"title": "Mapa de campanha", **WRITES},
+        "handler": lambda args: bridge_call("compose_campaign_map", dict(args)),
+    },
+    {
+        "name": "sigmai_export_coordinate_table",
+        "title": "Tabela de coordenadas (CSV)",
+        "description": (
+            "Grava um CSV com os atributos e as coordenadas de cada feição — E/N no CRS pedido e longitude/"
+            "latitude (EPSG:4326) sempre — para a seção de material examinado ou o apêndice de sítios. "
+            "Feições não pontuais usam o ponto representativo. ESTA AÇÃO GRAVA ARQUIVO."
+        ),
+        "inputSchema": _obj({
+            "layer_id": _S,
+            "output_path": {**_S, "description": "Caminho absoluto do .csv (pasta liberada)."},
+            "crs": {**_S, "description": "CRS das colunas E/N (ex.: 'EPSG:31984'); padrão: o da camada."},
+            "fields": {**_SA, "description": "Campos a incluir (padrão: todos)."},
+            "delimiter": {"type": "string", "enum": [",", ";"]},
+            "decimals": _N, "confirm_overwrite": _B,
+        }, ["layer_id", "output_path"]),
+        "annotations": {"title": "Tabela de coordenadas", **WRITES},
+        "handler": lambda args: bridge_call("export_coordinate_table", dict(args)),
+    },
+    {
+        "name": "sigmai_map_recipe",
+        "title": "Receita reproduzível de um mapa",
+        "description": (
+            "Devolve a receita gravada num layout composto pelo SIGMAI (parâmetros como pedidos, camadas com "
+            "fonte e hash SHA-256 dos arquivos, versões do QGIS/SIGMAI, página, escala, laudo) e diz se os "
+            "dados mudaram desde então. Lê de layout_name, de um .json ou do PNG exportado (a receita vai nos "
+            "metadados dele). Com output_path grava um .json."
+        ),
+        "inputSchema": _obj({
+            "layout_name": _S,
+            "recipe_path": {**_S, "description": "Um .json de receita ou o .png exportado."},
+            "output_path": {**_S, "description": "Grava a receita neste .json (pasta liberada)."},
+            "confirm_overwrite": _B,
+        }),
+        "annotations": {"title": "Receita do mapa", **WRITES},
+        "handler": lambda args: bridge_call("get_map_recipe", dict(args)),
+    },
+    {
+        "name": "sigmai_recompose_from_recipe",
+        "title": "Refazer um mapa a partir da receita",
+        "description": (
+            "Recompõe o mapa com os mesmos parâmetros da receita — quando o dado foi atualizado, quando o "
+            "projeto foi reaberto (camadas localizadas pelo nome se o id mudou) ou noutra máquina — e diz o "
+            "que mudou nos dados desde a receita. 'overrides' sobrescreve parâmetros (novo output_path, "
+            "confirm_overwrite…). ESTA AÇÃO GRAVA ARQUIVO."
+        ),
+        "inputSchema": _obj({
+            "layout_name": _S,
+            "recipe_path": {**_S, "description": "Um .json de receita ou o .png exportado."},
+            "overrides": {"type": "object", "additionalProperties": True, "description": "Parâmetros de compose_map a substituir."},
+        }),
+        "annotations": {"title": "Recompor da receita", **WRITES},
+        "handler": lambda args: bridge_call("recompose_from_recipe", dict(args), dry_run=False),
+    },
+    {
+        "name": "sigmai_methods_paragraph",
+        "title": "Parágrafo de Métodos e referência do software",
+        "description": (
+            "Texto pronto para a seção de Métodos de uma dissertação ou artigo descrevendo como o mapa foi "
+            "feito (software e versões, camadas e fontes, CRS, escala, página, exportação, auditoria), mais a "
+            "referência bibliográfica do SIGMAI. Em pt-BR, en ou es (outras línguas caem no inglês, com nota)."
+        ),
+        "inputSchema": _obj({
+            "layout_name": _S,
+            "recipe_path": _S,
+            "language": {**_S, "description": "'pt-BR' (padrão: a língua do mapa), 'en' ou 'es'."},
+        }),
+        "annotations": {"title": "Parágrafo de Métodos", **READ_ONLY},
+        "handler": lambda args: bridge_call("describe_map_for_methods", dict(args)),
+    },
+    {
+        "name": "sigmai_undo",
+        "title": "Desfazer a última ação no projeto",
+        "description": (
+            "Desfaz a última escrita do SIGMAI no projeto do QGIS nesta sessão: restaura estilos, nomes e "
+            "rótulos das camadas tocadas, restaura layouts substituídos e remove layouts e camadas criados. "
+            "Arquivos gravados em disco NÃO são apagados (a resposta lista quais ficaram). Sem argumentos "
+            "desfaz; com list=true só lista o histórico."
+        ),
+        "inputSchema": _obj({"list": {**_B, "description": "true: só listar o que pode ser desfeito."}}),
+        "annotations": {"title": "Desfazer", **WRITES},
+        "handler": lambda args: bridge_call("list_undo_history" if args.get("list") else "undo_last_action", {}),
+    },
+    {
         "name": "sigmai_list_layouts",
         "title": "Listar layouts do projeto",
         "description": "Layouts de impressão existentes no projeto: tamanho e orientação da página, os itens de cada um (mapa, legenda, barra de escala, inserto…) e o CRS/escala de cada quadro de mapa.",
@@ -606,12 +829,19 @@ TOOLS_BY_NAME = {tool["name"]: tool for tool in TOOLS}
 INSTRUCTIONS = """O SIGMAI conecta você ao QGIS que o usuário tem aberto na máquina dele.
 
 Ordem de trabalho que evita a maioria dos erros:
-1. sigmai_status — confirme que a bridge está online e veja o MODO DE ACESSO.
-2. sigmai_project_overview — pegue os ids reais das camadas. Nunca invente um id.
-3. Para mapas: leia sigmai_cartographic_rulebook uma vez, depois use
-   sigmai_plan_map para simular e sigmai_compose_map para executar.
+1. sigmai_briefing — numa chamada: modo de acesso, ids reais das camadas (nunca
+   invente um id), campo de nome de cada uma, regulamento resumido e o caminho
+   recomendado para o pedido. (sigmai_status/sigmai_project_overview/
+   sigmai_cartographic_rulebook continuam existindo para o detalhe.)
+2. Antes de assumir ONDE algo fica, sigmai_spatial_relationship.
+3. Para mapas: sigmai_plan_map para simular, sigmai_compose_map para executar
+   (orientation 'auto', data_source por camada, include_inset). Para campo,
+   sigmai_campaign_map (sítios em planilha: sigmai_run_command load_vector_layer
+   com o .csv — lon/lat, separador e decimal são detectados); para revista,
+   journal_column/figure_width_mm e format tif; para (a)(b)(c), panels.
 4. Leia o campo `audit` da resposta. Ele traz nota, problemas e o comando que
    corrige cada um. Se a nota não for A, corrija e refaça em vez de entregar.
+5. Errou? sigmai_undo. Vai citar? sigmai_methods_paragraph e sigmai_map_recipe.
 
 Sobre o modo de acesso: em "Somente leitura" (padrão) nenhuma ação de escrita
 executa — simule com dry_run, mostre o resultado e peça ao usuário que libere no

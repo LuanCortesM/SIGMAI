@@ -61,10 +61,11 @@ Step 3 of the panel runs a self-test across the whole path — bridge, authentic
 
 ## What the assistant can do
 
-Eleven MCP tools, deliberately few, each with a validated input schema:
+Twenty MCP tools, each with a validated input schema. `sigmai_briefing` is where an assistant should start: it replaces the usual five opening calls with one.
 
 | Tool | Reads | Writes | Purpose |
 |---|:--:|:--:|---|
+| `sigmai_briefing` | ✓ | | One call: versions, project, every layer (id, geometry, count, CRS, probable name field with examples, labels, encoding problems), layouts, access mode, rulebook summary, templates, recommended paths |
 | `sigmai_status` | ✓ | | Bridge state, QGIS version, current access mode and session limits |
 | `sigmai_project_overview` | ✓ | | Project, CRS, every layer with id, geometry, extent, fields, draw order |
 | `sigmai_layer_details` | ✓ | | Fields, symbology, geometry validity, feature sample |
@@ -72,11 +73,19 @@ Eleven MCP tools, deliberately few, each with a validated input schema:
 | `sigmai_plan_map` | ✓ | | Simulate a composition: page, slots, extent, scale — changes nothing |
 | `sigmai_compose_map` | | ✓ | Compose, export and audit a complete map |
 | `sigmai_audit_layout` | ✓ | | Audit any layout in the project, including hand-made ones |
+| `sigmai_spatial_relationship` | ✓ | | Where is what: containment fraction, intersecting features, nearest feature with geodesic distance |
+| `sigmai_add_context_annotations` | | ✓ | Boundary line and name labels of a context layer, as label-only layers, so the map says which state or municipality it shows |
+| `sigmai_campaign_map` | | ✓ | Field-campaign map: sites + track + area + context + inset, with a coordinate table (CSV); a sites spreadsheet loads through `load_vector_layer` (lon/lat, delimiter and decimal mark detected) |
+| `sigmai_export_coordinate_table` | | ✓ | Coordinates of a point layer in the CRS you name, plus lon/lat |
+| `sigmai_map_recipe` | ✓ | | The exact recipe of a composed map (parameters, layers with SHA-256, versions), from the layout or from the PNG/JSON |
+| `sigmai_recompose_from_recipe` | | ✓ | Reproduce a map from its recipe, with overrides; reports which data changed since |
+| `sigmai_methods_paragraph` | ✓ | | A Methods paragraph (pt-BR, en, es) describing how the map was made, plus the software reference |
+| `sigmai_undo` | | ✓ | Undo the last write in the project: styles, names, labels, layouts, created layers (files on disk stay) |
 | `sigmai_list_layouts` | ✓ | | Print layouts in the project |
 | `sigmai_capabilities` | ✓ | | Command catalogue, filterable, with the parameters each command reads |
 | `sigmai_run_command` | ✓ | ✓ | Any catalogued command: vector, raster, Processing, symbology, workflows |
 
-Behind them sit 221 catalogued commands, 208 of them enabled. `sigmai_run_command` reaches all of the enabled ones; the dedicated tools exist because a typed schema produces fewer wrong calls than a free-form escape hatch. The 13 disabled commands (the atlas family, the PostGIS family and `create_map_hierarchy`) are refused by the bridge as if they did not exist and listed in `get_capabilities` with the reason — the catalogue describes what the plugin does, not what it might do one day.
+Behind them sit 232 catalogued commands, 219 of them enabled. `sigmai_run_command` reaches all of the enabled ones; the dedicated tools exist because a typed schema produces fewer wrong calls than a free-form escape hatch. The 13 disabled commands (the atlas family, the PostGIS family and `create_map_hierarchy`) are refused by the bridge as if they did not exist and listed in `get_capabilities` with the reason — the catalogue describes what the plugin does, not what it might do one day.
 
 ## Access control
 
@@ -100,13 +109,19 @@ Independently of the mode: **output folders** restrict where files may be writte
 - builds the legend from **every layer in the map frame**, not just the primary one;
 - places a real north arrow symbol linked to grid north;
 - declares datum, projection, source, authorship and date;
-- reprojects to the appropriate UTM zone when the project is in geographic coordinates, because a metric scale bar over degrees is wrong across most of the sheet.
+- reprojects to the appropriate UTM zone when the project is in geographic coordinates, because a metric scale bar over degrees is wrong across most of the sheet;
+- picks the page orientation from the shape of the data when you ask for `orientation: "auto"`, and lets you ask for a journal figure by column width (`journal_column`, `figure_width_mm`) instead of by paper size;
+- composes two, three or more panels — `second_map` or `panels` — lettered (a), (b), (c) with a shared scale when you ask for one;
+- takes `data_source` per layer and prints each layer's source in the legend, next to the layer it belongs to;
+- knows the field-campaign case (`compose_campaign_map`): sites over a track over an area over its context, with a locator inset and a coordinate table.
 
-Then it audits what it produced and returns the report.
+Then it audits what it produced, stores the **recipe** of the map in the layout and in the exported PNG (parameters, layers with their SHA-256, QGIS and SIGMAI versions), and returns the report. The recipe can be read back (`sigmai_map_recipe`), re-run with changes (`sigmai_recompose_from_recipe`) and turned into a Methods paragraph with the software reference (`sigmai_methods_paragraph`). Every write to the project goes through an undo stack (`sigmai_undo`).
 
 ## The cartographic rulebook
 
-29 rules across nine categories — elements, scale, orientation, provenance, grid, geometry, typography, projection, data. Each carries its severity, the reason it exists, its reference, and the command that satisfies it. `sigmai_cartographic_rulebook` returns the whole thing as data, so an assistant can read the rules before composing rather than discovering them by failing.
+34 rules across ten categories — elements, scale, orientation, provenance, grid, geometry, typography, projection, data, symbology. Each carries its severity, the reason it exists, its reference, and the command that satisfies it. `sigmai_cartographic_rulebook` returns the whole thing as data, so an assistant can read the rules before composing rather than discovering them by failing.
+
+Five rules came out of the 1.0.3 experiment in which the same request was given to an agent writing raw PyQGIS and to an agent driving SIGMAI, the audit was run on both maps, and the new version was then driven end to end by an emulated assistant: labels the labelling engine could not place (`CART068`), an empty band of the frame that the page shape left unused (`CART069`), colour pairs that a reader with a colour-vision deficiency cannot tell apart, simulated with the Machado, Oliveira & Fernandes (2009) matrices (`CART070`), fonts that fall below the readable size once the figure is printed at column width (`CART071`), and a legend whose content is larger than its box, which QGIS silently clips (`CART072`). The audit also learned to read hand-made layouts — items without an id, headings such as "Data sources", label-only layers — instead of failing them for what it could not see.
 
 A worked example of why this matters is in [docs/CARTOGRAPHIC_QUALITY_MODEL.md](docs/CARTOGRAPHIC_QUALITY_MODEL.md): the same map that the 0.1.1 evaluator graded *"A — Professional map"* with zero warnings scores **E — invalid** under the rulebook, with three blocking errors that a reader would have spotted immediately.
 
@@ -139,11 +154,11 @@ The split between `cartography` and the rest is deliberate: `pagespec`, `scaling
 ```bash
 git clone https://github.com/LuanCortesM/SIGMAI.git
 cd SIGMAI
-python -m pytest tests -q          # 557 tests; the 36 that need PyQGIS skip themselves without QGIS
+python -m pytest tests -q          # 651 tests; the 58 that need PyQGIS (and 5 that need PyQt) skip themselves without them
 python tools/package_qgis_plugin_zip.py
 ```
 
-Tests that need a live QGIS live in `tools/` and run against a real instance: `exercise_commands.py`, `exercise_plugins_and_basemaps.py`, `exercise_third_party_plugin.py`, `scenario_runner.py` (243 multilingual scenarios in `tests/cenarios/`) and `release_battery.py`, the gate a version has to pass before it ships — 672 checks across every template, page, orientation, format, data type and map language. Everything in `tests/` runs on plain Python.
+Tests that need a live QGIS live in `tools/` and run against a real instance: `exercise_commands.py`, `exercise_plugins_and_basemaps.py`, `exercise_third_party_plugin.py`, `scenario_runner.py` (243 multilingual scenarios in `tests/cenarios/`) and `release_battery.py`, the gate a version has to pass before it ships — 683 checks across every template, page, orientation, format, data type and map language. Everything in `tests/` runs on plain Python.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to propose changes, report a problem or ask for help, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the internals.
 
@@ -171,7 +186,7 @@ Developed by Luan da Silva Cortes Maciel as a research product associated with H
 @software{maciel_sigmai,
   author  = {Maciel, Luan da Silva Cortes},
   title   = {{SIGMAI}: Secure {GIS}-{AI} Interface},
-  version = {1.0.3},
+  version = {1.1.0},
   url     = {https://github.com/LuanCortesM/SIGMAI},
   license = {GPL-3.0-or-later}
 }

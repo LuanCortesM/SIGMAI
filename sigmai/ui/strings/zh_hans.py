@@ -157,6 +157,7 @@ STRINGS: dict[str, str] = {
     "category_expressoes": "表达式",
     "category_perfil": "作者档案",
     "category_gps": "GPS",
+    "category_projeto": "项目",
     "category_desc_cartography": "创建布局、编排并导出地图",
     "category_desc_cartographic_design": "应用制图样式与配色",
     "category_desc_symbology": "更改图层的符号、颜色和标注",
@@ -174,6 +175,7 @@ STRINGS: dict[str, str] = {
     "category_desc_expressions": "计算 QGIS 表达式",
     "category_desc_user_profile": "保存用户的作者档案",
     "category_desc_gps_gpx": "加载并转换 GPX 轨迹",
+    "category_desc_project": "撤销助手在项目中的上一步操作",
     "category_desc_default": "修改工程或写入文件的操作",
     # resumo do pedido no diálogo de consentimento
     "consent_action": "操作",

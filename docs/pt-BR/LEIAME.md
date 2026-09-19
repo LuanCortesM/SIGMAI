@@ -66,13 +66,21 @@ Independentemente do modo: as **pastas de saída** restringem onde arquivos pode
 - monta a legenda com **todas as camadas do quadro**, e não só a principal;
 - insere uma rosa dos ventos de verdade, ligada ao norte da grade;
 - declara datum, projeção, fonte, autoria e data;
-- reprojeta para o UTM adequado quando o projeto está em coordenadas geográficas, porque uma barra métrica sobre graus está errada em quase toda a folha.
+- reprojeta para o UTM adequado quando o projeto está em coordenadas geográficas, porque uma barra métrica sobre graus está errada em quase toda a folha;
+- escolhe a orientação da página pela forma dos dados quando você pede `orientation: "auto"`, e aceita um pedido de figura para revista pela largura da coluna (`journal_column`, `figure_width_mm`) em vez do tamanho do papel;
+- compõe dois, três ou mais painéis — `second_map` ou `panels` — com letras (a), (b), (c) e escala comum quando pedida;
+- aceita `data_source` por camada e imprime a fonte de cada camada na legenda, ao lado da camada a que pertence;
+- conhece o caso do mapa de campanha (`compose_campaign_map`): sítios sobre trilha sobre área sobre contexto, com inserto de localização e tabela de coordenadas.
 
-E então audita o que produziu.
+E então audita o que produziu, guarda a **receita** do mapa no layout e no PNG exportado (parâmetros, camadas com SHA-256, versões do QGIS e do SIGMAI) e devolve o laudo. A receita pode ser lida de volta (`sigmai_map_recipe`), reexecutada com alterações (`sigmai_recompose_from_recipe`) e transformada num parágrafo de Métodos com a referência do software (`sigmai_methods_paragraph`). Toda escrita no projeto passa por uma pilha de desfazer (`sigmai_undo`).
+
+Antes de assumir onde algo fica, o assistente pode perguntar (`sigmai_spatial_relationship`): que fração de cada feição de A está dentro de B, quais feições de B tocam A, e qual é a mais próxima, com a distância geodésica em metros. Foi assim que se descobriu que um parque pedido "no Piauí" fica no Ceará. E `sigmai_briefing` devolve numa chamada o que o assistente antes levava cinco para saber: versões, projeto, cada camada com o campo de nome provável e exemplos, layouts, o que você liberou, o regulamento resumido e o caminho recomendado para os pedidos mais comuns.
 
 ## O regulamento cartográfico
 
-29 regras em nove categorias — elementos, escala, orientação, procedência, grade, geometria, tipografia, projeção, dados. Cada uma carrega a severidade, o motivo de existir, a referência que a sustenta e o comando que a satisfaz. O `sigmai_cartographic_rulebook` devolve tudo como dado, para o assistente ler as regras antes de compor em vez de descobri-las falhando.
+34 regras em dez categorias — elementos, escala, orientação, procedência, grade, geometria, tipografia, projeção, dados, simbologia. Cada uma carrega a severidade, o motivo de existir, a referência que a sustenta e o comando que a satisfaz. O `sigmai_cartographic_rulebook` devolve tudo como dado, para o assistente ler as regras antes de compor em vez de descobri-las falhando.
+
+Cinco regras nasceram do experimento da 1.0.3, em que o mesmo pedido foi dado a um agente escrevendo PyQGIS puro e a um agente operando o SIGMAI, a auditoria rodou sobre os dois mapas e a versão nova foi então operada de ponta a ponta por um assistente emulado: rótulos que o motor de rotulagem não conseguiu colocar (`CART068`), uma faixa vazia do quadro que a forma da página deixou sem uso (`CART069`), pares de cores que um leitor com deficiência de visão de cores não distingue, simulados com as matrizes de Machado, Oliveira & Fernandes (2009) (`CART070`), fontes que ficam abaixo do legível quando a figura é impressa na largura da coluna (`CART071`), e uma legenda cujo conteúdo é maior que a caixa, que o QGIS corta em silêncio (`CART072`). A auditoria também aprendeu a ler layouts feitos à mão — itens sem id, cabeçalhos como "Fontes dos dados", camadas só de rótulo — em vez de reprová-los pelo que não enxergava.
 
 O exemplo trabalhado está em [CARTOGRAPHIC_QUALITY_MODEL.md](../CARTOGRAPHIC_QUALITY_MODEL.md): o mesmo mapa que o avaliador da 0.1.1 classificava como *"A — Professional map"*, com zero avisos, recebe **E — inválido** no regulamento, com três erros bloqueantes que qualquer leitor perceberia de imediato.
 

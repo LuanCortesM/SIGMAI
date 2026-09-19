@@ -7,8 +7,9 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from .parameter_introspection import declared_parameters, unread_parameters
-from .permissions import SCHEMA_VERSION, permission_for
+from .permissions import PROJECT_WRITE, SAFE_WRITE, SCHEMA_VERSION, permission_for
 from .security import OutputPathError
+from .undo import EXCLUDED_ACTIONS, UndoStack
 from .validators import ValidationError, validate_command
 
 
@@ -17,6 +18,8 @@ Handler = Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]]
 
 class CommandRegistry:
     def __init__(self, qgis_context: dict[str, Any]):
+        # Uma pilha por registro — isto é, por sessão da ponte no QGIS.
+        self.undo_stack = UndoStack()
         self._handlers: dict[str, Handler] = {}
         self._qgis_context = qgis_context
 
@@ -55,12 +58,35 @@ class CommandRegistry:
             handler_context["request_id"] = request_id
             handler_context["registered_actions"] = sorted(self._handlers)
             handler_context["command_executor"] = self.execute
-            data = handler(normalized.get("params", {}), handler_context)
+            handler_context["undo_stack"] = self.undo_stack
+            # Snapshot antes de qualquer escrita no projeto: é o que
+            # undo_last_action restaura. Falha no snapshot nunca bloqueia a
+            # ação — mas fica registrada em warnings, para que o assistente
+            # saiba que aquela ação não é desfazível.
+            undo_entry = None
+            undo_warning = ""
+            permission = permission_for(action)
+            if (
+                permission is not None
+                and permission.permission_level in (SAFE_WRITE, PROJECT_WRITE)
+                and not normalized.get("dry_run", False)
+                and action not in EXCLUDED_ACTIONS
+            ):
+                try:
+                    undo_entry = self.undo_stack.snapshot(action, normalized.get("params", {}), request_id)
+                except Exception as exc:  # noqa: BLE001
+                    undo_warning = f"Snapshot for undo failed ({type(exc).__name__}); this action cannot be undone."
+            try:
+                data = handler(normalized.get("params", {}), handler_context)
+            except Exception:
+                self.undo_stack.commit(undo_entry, "failed")
+                raise
+            self.undo_stack.commit(undo_entry, "ok")
             # Parâmetro que o manipulador não lê é avisado — nunca engolido.
             # Só para manipuladores "fechados" (ver parameter_introspection);
             # um aviso errado seria pior que nenhum.
             unread, known = unread_parameters(handler, normalized.get("params", {}))
-            warnings: list[str] = []
+            warnings: list[str] = [undo_warning] if undo_warning else []
             if unread:
                 warnings.append(
                     f"Parameters not read by '{action}' and therefore ignored: {', '.join(unread)}. "

@@ -116,7 +116,11 @@ def portao_matriz_composicao(camadas: dict[str, Any], saida: Path) -> Gate:
     # apontar (CART002) — a bateria exige que ele aponte exatamente isso e
     # nada mais. Sem grade, CART010 avisa; nenhuma regra de intervalo ou de
     # anotação pode disparar sobre uma grade que não existe.
-    falhas_permitidas = (set(), {"CART010"}, {"CART002"}, set())
+    # CART069 (faixa do quadro sem dado de área) é PERMITIDA em toda a matriz:
+    # o Parque das Carnaúbas fica no Ceará e a base só tem a malha do Piauí —
+    # a faixa leste vazia é um fato dos dados que a regra tem de apontar, não
+    # um defeito da composição. Continua proibida em qualquer outra regra.
+    falhas_permitidas = ({"CART069"}, {"CART010", "CART069"}, {"CART002", "CART069"}, {"CART069"})
     base = {"layer_ids": [camadas["municipios"].id(), camadas["parque"].id()], "subject_layer_id": camadas["parque"].id(),
             "title": "Matriz", "data_source": "IBGE 2024; CEUC", "map_author": "Bateria", "confirm_overwrite": True, "dpi": 72}
     combinacoes = list(itertools.product(templates, paginas, orientacoes, formatos, range(len(extras))))
@@ -229,7 +233,12 @@ def portao_linguas(camadas: dict[str, Any], saida: Path) -> Gate:
             maptext(lingua, chave).strip() for chave in ("fonte", "elaboracao", "credito_ferramenta", "escala_prefixo")
             if maptext(lingua, chave).strip() and maptext(lingua, chave).strip() not in textos
         )
-        reprovadas = sorted(e["id"] for e in r["audit"]["results"] if e["status"] == "fail")
+        # CART068/CART069 são fatos dos dados desta matriz (a malha rotulada
+        # pelo portão 2 tem 224 nomes que não cabem; o parque fica no Ceará
+        # e a base é só do Piauí), não da língua — o que este portão testa.
+        reprovadas = sorted(
+            e["id"] for e in r["audit"]["results"] if e["status"] == "fail" and e["id"] not in ("CART068", "CART069")
+        )
         if vazamentos:
             gate.falha(lingua, "português vazou: " + ", ".join(repr(v) for v in vazamentos))
         elif ausentes:

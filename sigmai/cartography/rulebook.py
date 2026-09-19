@@ -48,6 +48,23 @@ SCALEBAR_MAX_FRACTION = 0.45
 #: continue sendo um mapa, e não uma moldura com um mapa dentro.
 MAP_DOMINANCE_MIN = 0.35
 
+#: Tinta máxima na faixa em volta de um item desenhado sobre o quadro para
+#: que a sobreposição conte como "num canto vazio" (CART042).
+OVERLAY_MAX_SURROUNDINGS_INK = 0.03
+
+#: CART069 divide o quadro em 3x3 e olha as FAIXAS (cada coluna e cada
+#: linha inteiras): uma faixa cuja cobertura média por dados de área fica
+#: abaixo disto é um terço da folha em branco de ponta a ponta — mar sem
+#: camada de oceano, estado vizinho sem malha, extensão aberta demais.
+#: Cantos vazios de um estado diagonal não formam faixa e não reprovam;
+#: calibrado com a malha do Piauí em retrato (passa) e em paisagem
+#: (reprova: 81% da folha vazia) e com o Parque das Carnaúbas (reprova).
+FRAME_BAND_EMPTY_MAX = 0.05
+#: Sem camada de polígonos a mesma faixa é julgada pela tinta do raster.
+FRAME_BAND_EMPTY_INK = 0.02
+#: Folga, em mm, entre o que a legenda precisa e a caixa que tem (CART072).
+LEGEND_OVERFLOW_TOLERANCE_MM = 0.5
+
 
 @dataclass(frozen=True)
 class Rule:
@@ -569,10 +586,37 @@ def _check_no_overlaps(observation: dict[str, Any]) -> CheckOutcome:
                     "b": second[0],
                     "overlap_mm2": round(overlap_w * overlap_h, 2),
                 })
-    if not collisions:
+    # Um item desenhado SOBRE o quadro do mapa não é colisão se está num
+    # canto vazio: rosa dos ventos, inserto e notas dentro da moldura são
+    # convenção aceita em cartas publicadas. O critério é cartográfico — o
+    # que importa é não cobrir dados — e é medido no raster: a faixa em volta
+    # do item (``surroundings_ink_fraction``, ver inspector) precisa estar
+    # praticamente vazia. Sem raster, a sobreposição continua acusada.
+    by_id = {str(item.get("id")): item for item in _items(observation)}
+    map_ids = {str(item.get("id")) for item in _items(observation) if item.get("role") == "map"}
+    overlays: list[dict[str, Any]] = []
+    real: list[dict[str, Any]] = []
+    for collision in collisions:
+        other = None
+        if collision["a"] in map_ids and collision["b"] not in map_ids:
+            other = by_id.get(collision["b"])
+        elif collision["b"] in map_ids and collision["a"] not in map_ids:
+            other = by_id.get(collision["a"])
+        ring = other.get("surroundings_ink_fraction") if other is not None else None
+        if ring is not None and float(ring) < OVERLAY_MAX_SURROUNDINGS_INK:
+            overlays.append({**collision, "surroundings_ink_fraction": ring})
+        else:
+            real.append(collision)
+    if not real:
+        if overlays:
+            described = ", ".join(f"{item['a']}/{item['b']}" for item in overlays)
+            return _pass(
+                f"Sobreposições aceitas por estarem em área vazia do quadro: {described}.",
+                overlays=overlays,
+            )
         return _pass("Nenhuma sobreposição entre itens do layout.")
-    described = ", ".join(f"{item['a']}/{item['b']}" for item in collisions)
-    return _fail(f"Itens sobrepostos: {described}.", collisions=collisions)
+    described = ", ".join(f"{item['a']}/{item['b']}" for item in real)
+    return _fail(f"Itens sobrepostos: {described}.", collisions=real, overlays=overlays)
 
 
 def _check_map_dominance(observation: dict[str, Any]) -> CheckOutcome:
@@ -715,6 +759,179 @@ def _check_extent_contains_data(observation: dict[str, Any]) -> CheckOutcome:
     return _fail("A extensão do mapa corta parte dos dados das camadas visíveis.", extent=extent, data_extent=data)
 
 
+def _check_labels_placed(observation: dict[str, Any]) -> CheckOutcome:
+    """CART068 — nenhum rótulo descartado pelo motor do QGIS."""
+    frames = [frame for frame in (observation.get("map_frames") or []) if isinstance(frame.get("labels"), dict)]
+    main = _map(observation)
+    if not frames and isinstance(main.get("labels"), dict):
+        frames = [{"item_id": main.get("item_id"), "labels": main["labels"]}]
+    if not frames:
+        return _skip("Sem coleta de rótulos (renderização não disponível).")
+    placed = sum(int(frame["labels"].get("placed", 0)) for frame in frames)
+    unplaced = sum(int(frame["labels"].get("unplaced", 0)) for frame in frames)
+    if placed + unplaced == 0:
+        return _skip("Nenhuma camada rotulada no quadro.")
+    if unplaced == 0:
+        return _pass(f"Todos os {placed} rótulos foram colocados.")
+    by_layer: dict[str, int] = {}
+    samples: list[str] = []
+    for frame in frames:
+        for layer, counts in (frame["labels"].get("by_layer") or {}).items():
+            if int(counts.get("unplaced", 0)):
+                by_layer[layer] = by_layer.get(layer, 0) + int(counts["unplaced"])
+        for sample in frame["labels"].get("unplaced_sample") or []:
+            text = str(sample.get("text", "")).strip()
+            if text and text not in samples:
+                samples.append(text)
+    described = ", ".join(f"{layer} ({count})" for layer, count in by_layer.items())
+    example = f" Exemplos: {', '.join(repr(t) for t in samples[:5])}." if samples else ""
+    return _fail(
+        f"{unplaced} rótulo(s) descartado(s) pelo motor de rótulos — por colisão com outro rótulo ou por "
+        f"cruzar a moldura — em: {described}.{example} As feições existem no mapa mas saem sem nome.",
+        unplaced=unplaced, placed=placed, by_layer=by_layer, samples=samples[:12],
+    )
+
+
+def _empty_bands(cells: list[list[float]], threshold: float) -> list[str]:
+    """Colunas e linhas de uma grade 3x3 cuja média fica abaixo do limiar."""
+    if not cells or any(len(row) != len(cells) for row in cells):
+        return []
+    size = len(cells)
+    bands: list[str] = []
+    column_names = ("oeste", "centro", "leste")[:size]
+    row_names = ("norte", "centro", "sul")[:size]
+    for col in range(size):
+        if sum(float(cells[row][col]) for row in range(size)) / size < threshold:
+            bands.append(f"coluna {column_names[col]}")
+    for row in range(size):
+        if sum(float(cells[row][col]) for col in range(size)) / size < threshold:
+            bands.append(f"linha {row_names[row]}")
+    return bands
+
+
+def _check_frame_coverage(observation: dict[str, Any]) -> CheckOutcome:
+    """CART069 — nenhuma faixa inteira do quadro é papel em branco."""
+    map_info = _map(observation)
+    coverage = map_info.get("polygon_coverage")
+    if isinstance(coverage, dict) and coverage.get("cells"):
+        fraction = float(coverage.get("fraction") or 0.0)
+        bands = _empty_bands(coverage["cells"], FRAME_BAND_EMPTY_MAX)
+        if not bands:
+            return _pass(f"Dados de área cobrem {fraction:.0%} do quadro, sem faixa vazia.", coverage=coverage)
+        return _fail(
+            f"Faixa(s) do quadro sem dado de área: {', '.join(bands)} (cobertura total {fraction:.0%}). "
+            "Se o vazio é território vizinho, acrescente a malha dele; se é mar, uma camada de oceano ou "
+            "linha de costa; se é sobra de extensão, feche o recorte (subject_layer_id, margin_percent) ou "
+            "gire a página (orientation).",
+            coverage=coverage, empty_bands=bands,
+        )
+    grid = map_info.get("rendered_ink_grid")
+    if not grid:
+        return _skip("Sem camada de polígonos e sem raster para medir a ocupação do quadro.")
+    bands = _empty_bands(grid, FRAME_BAND_EMPTY_INK)
+    if not bands:
+        return _pass("Nenhuma faixa do quadro está vazia no raster exportado.", ink_grid=grid)
+    return _fail(
+        f"Faixa(s) do quadro sem tinta no raster: {', '.join(bands)}. Acrescente contexto ou feche o recorte.",
+        ink_grid=grid, empty_bands=bands,
+    )
+
+
+def _check_colour_vision(observation: dict[str, Any]) -> CheckOutcome:
+    """CART070 — as cores da legenda continuam distinguíveis para daltônicos."""
+    from .vision import CONFUSABLE_DELTA_E, confusable_pairs
+
+    layer_colours = _map(observation).get("layer_colours") or []
+    if not layer_colours:
+        return _skip("Sem cores de símbolo observáveis.")
+    families: dict[str, list[tuple[str, str]]] = {}
+    for entry in layer_colours:
+        family = str(entry.get("family", "other"))
+        for klass in entry.get("classes") or []:
+            name = f"{entry.get('layer')}: {klass.get('label')}" if len(entry.get("classes") or []) > 1 else str(entry.get("layer"))
+            families.setdefault(family, []).append((name, str(klass.get("colour", ""))))
+    total_pairs = 0
+    findings: list[dict[str, Any]] = []
+    for family, colours in families.items():
+        if len(colours) < 2:
+            continue
+        total_pairs += len(colours) * (len(colours) - 1) // 2
+        for finding in confusable_pairs(colours):
+            findings.append({**finding, "family": family})
+    if total_pairs == 0:
+        return _skip("Só uma cor por família de símbolo; não há pares para confundir.")
+    if not findings:
+        return _pass(f"{total_pairs} par(es) de cores distinguíveis sob protanopia, deuteranopia e tritanopia.")
+    described = "; ".join(
+        f"{f['a']} × {f['b']} ({f['colours'][0]}/{f['colours'][1]}: ΔE {f['delta_e_simulated']} sob {f['deficiency']})"
+        for f in findings[:6]
+    )
+    return _fail(
+        f"Cores que se confundem para daltônicos (ΔE*ab < {CONFUSABLE_DELTA_E:g} na simulação de Machado et al., 2009): "
+        f"{described}.",
+        confusable=findings,
+    )
+
+
+def _check_legend_fits_box(observation: dict[str, Any]) -> CheckOutcome:
+    """CART072 — o conteúdo da legenda cabe na caixa; o que não cabe é cortado sem aviso."""
+    legend = observation.get("legend")
+    if not legend or not legend.get("item_id"):
+        return _skip("Sem legenda para avaliar.")
+    box = legend.get("box_mm") or {}
+    content = legend.get("content_mm") or {}
+    if not box or not content:
+        return _skip("Tamanho do conteúdo da legenda não medido (QgsLegendRenderer indisponível).")
+    if legend.get("resize_to_contents"):
+        return _pass("A caixa da legenda cresce com o conteúdo (resizeToContents).")
+    overflow_w = float(content.get("width", 0.0)) - float(box.get("width", 0.0))
+    overflow_h = float(content.get("height", 0.0)) - float(box.get("height", 0.0))
+    if overflow_w <= LEGEND_OVERFLOW_TOLERANCE_MM and overflow_h <= LEGEND_OVERFLOW_TOLERANCE_MM:
+        return _pass(
+            f"Legenda de {content.get('width'):g} x {content.get('height'):g} mm cabe na caixa de "
+            f"{box.get('width'):g} x {box.get('height'):g} mm."
+        )
+    axes = []
+    if overflow_w > LEGEND_OVERFLOW_TOLERANCE_MM:
+        axes.append(f"{overflow_w:.1f} mm a mais de largura")
+    if overflow_h > LEGEND_OVERFLOW_TOLERANCE_MM:
+        axes.append(f"{overflow_h:.1f} mm a mais de altura")
+    return _fail(
+        f"O conteúdo da legenda precisa de {content.get('width'):g} x {content.get('height'):g} mm e a caixa tem "
+        f"{box.get('width'):g} x {box.get('height'):g} mm (" + " e ".join(axes) + "): os nomes são cortados na "
+        "borda ou desenhados por cima do item de baixo.",
+        box_mm=box, content_mm=content,
+    )
+
+
+def _check_fonts_at_print_width(observation: dict[str, Any]) -> CheckOutcome:
+    """CART071 — as fontes continuam legíveis na largura em que a figura vai ser impressa."""
+    print_width = observation.get("print_width_mm")
+    page = observation.get("page") or {}
+    page_width = float(page.get("width_mm") or 0.0)
+    if not print_width or page_width <= 0:
+        return _skip("Largura de impressão não informada; as fontes foram julgadas na página (CART044).")
+    factor = float(print_width) / page_width
+    if factor >= 0.999:
+        return _pass("A figura é impressa no tamanho da página; CART044 já cobre as fontes.")
+    small = []
+    for item in _texts(observation):
+        size = item.get("font_size_pt")
+        if not size:
+            continue
+        effective = float(size) * factor
+        if effective < MIN_PRINT_FONT_PT:
+            small.append({"id": item.get("id"), "font_size_pt": float(size), "effective_pt": round(effective, 1)})
+    if not small:
+        return _pass(f"Reduzida a {print_width:g} mm de largura ({factor:.0%}), nenhuma fonte cai abaixo de {MIN_PRINT_FONT_PT:g} pt.")
+    return _fail(
+        f"Impressa a {print_width:g} mm de largura ({factor:.0%} da página), estas fontes ficam abaixo de "
+        f"{MIN_PRINT_FONT_PT:g} pt: " + ", ".join(f"{i['id']} ({i['font_size_pt']:g} → {i['effective_pt']:g} pt)" for i in small) +
+        ". Componha a figura já na largura final (figure_width_mm) em vez de reduzir uma página inteira.",
+        small_texts=small, factor=round(factor, 3),
+    )
+
+
 def _check_map_not_blank(observation: dict[str, Any]) -> CheckOutcome:
     map_info = _map(observation)
     ink = map_info.get("rendered_ink_fraction")
@@ -767,6 +984,15 @@ RULES: tuple[Rule, ...] = (
          "Passe legend_layers com TODAS as camadas do mapa, ou deixe compose_map derivá-las do quadro.",
          "Slocum et al., Thematic Cartography and Geovisualization — legend design",
          _check_legend_covers_visible_layers),
+    Rule("CART072", "elementos", SEVERITY_WARNING,
+         "A legenda cabe na caixa", "Legend content fits its box",
+         "QgsLayoutItemLegend não avisa quando o conteúdo passa da caixa: corta os nomes na borda e "
+         "desenha por cima do que vier abaixo. Numa figura de coluna simples duas entradas com fonte "
+         "por camada já não cabiam, e o leitor via '(IBGE, 20' sobre a linha de crédito.",
+         "Encurte os nomes das camadas, reduza a fonte da legenda até 6 pt, tire as fontes por camada "
+         "(data_source como texto único) ou use uma página maior; compose_map já faz os dois primeiros.",
+         "QGIS API — QgsLegendRenderer::minimumSize; QgsLayoutItemLegend::resizeToContents",
+         _check_legend_fits_box),
     Rule("CART021", "elementos", SEVERITY_WARNING,
          "A legenda não lista camadas ausentes", "Legend lists no phantom layers",
          "Entrada de legenda sem contrapartida no mapa faz o leitor procurar algo que não existe.",
@@ -888,6 +1114,38 @@ RULES: tuple[Rule, ...] = (
          "Reduza a coluna da legenda ou escolha um template com quadro maior.",
          "Brewer, Designing Better Maps — figure/ground and layout balance",
          _check_map_dominance),
+    Rule("CART068", "elementos", SEVERITY_WARNING,
+         "Rótulos colocados", "Labels placed",
+         "O motor de rótulos do QGIS descarta em silêncio um rótulo que colide com outro ou cruza a "
+         "moldura. O mapa sai 'bem-sucedido' com feições sem nome, e ninguém é avisado.",
+         "Reduza label_font_size, aumente o quadro ou a margem (margin_percent) para as feições cortadas "
+         "pela moldura, ou rotule só a camada de assunto (label_layer_id).",
+         "QGIS API — QgsLabelingEngineSettings::CollectUnplacedLabels; QgsLabelingResults::allLabels",
+         _check_labels_placed),
+    Rule("CART069", "dados", SEVERITY_WARNING,
+         "O quadro é ocupado pelos dados", "Frame is occupied by data",
+         "Um quadro em que mais da metade é papel em branco não mostra contexto nem assunto: ou falta "
+         "a camada vizinha (malha do estado ao lado, oceano), ou a extensão está aberta demais.",
+         "Acrescente camadas de contexto para o vazio (inclusive uma camada de oceano/linha de costa se for "
+         "mar) ou feche o recorte com subject_layer_id e margin_percent.",
+         "Brewer, Designing Better Maps — figure/ground; SIGMAI — cobertura geométrica do quadro",
+         _check_frame_coverage),
+    Rule("CART070", "simbologia", SEVERITY_WARNING,
+         "Cores distinguíveis por daltônicos", "Colours distinguishable under colour-vision deficiency",
+         "Cerca de 8% dos homens têm deficiência na visão de cores; um par verde/laranja que o autor "
+         "distingue pode ser idêntico para o leitor, e revistas exigem figuras legíveis por daltônicos.",
+         "Use a paleta de Okabe & Ito (apply_style='all' aplica), ou troque uma das cores do par acusado "
+         "por outra de luminosidade bem diferente; padrões de preenchimento também resolvem.",
+         "Machado, Oliveira & Fernandes (2009), IEEE TVCG 15(6); Okabe & Ito (2008), Color Universal Design",
+         _check_colour_vision),
+    Rule("CART071", "tipografia", SEVERITY_WARNING,
+         "Fontes legíveis na largura final impressa", "Fonts legible at the final print width",
+         "Uma página A4 reduzida a uma coluna de revista (85 mm) encolhe as fontes a 40% do corpo: os 7 pt "
+         "que passavam na página viram 3 pt no papel.",
+         "Passe print_width_mm (ou figure_width_mm/journal_column em compose_map) e componha a figura já "
+         "na largura final, com fontes de pelo menos 6 pt nessa largura.",
+         "Instruções a autores de periódicos científicos — dimensões de figura e tamanho mínimo de fonte",
+         _check_fonts_at_print_width),
     Rule("CART044", "tipografia", SEVERITY_WARNING,
          "Tamanho mínimo de fonte", "Minimum font size",
          "Texto abaixo de 6 pt desaparece na impressão e reprova em qualquer revisão editorial.",
@@ -1043,6 +1301,10 @@ def rulebook_manifest() -> dict[str, Any]:
             "min_print_font_pt": MIN_PRINT_FONT_PT,
             "scalebar_frame_fraction": [SCALEBAR_MIN_FRACTION, SCALEBAR_MAX_FRACTION],
             "map_dominance_min": MAP_DOMINANCE_MIN,
+            "frame_band_empty_max": FRAME_BAND_EMPTY_MAX,
+            "overlay_max_surroundings_ink": OVERLAY_MAX_SURROUNDINGS_INK,
+            "colour_vision_delta_e_min": 15.0,
+            "legend_overflow_tolerance_mm": LEGEND_OVERFLOW_TOLERANCE_MM,
         },
         "categories": by_category,
     }

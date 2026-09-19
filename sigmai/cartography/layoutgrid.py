@@ -14,6 +14,8 @@ mesma decisão que um cartógrafo toma ao escolher onde pôr a legenda.
 
 from __future__ import annotations
 
+import math
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -96,6 +98,19 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "legend_font_pt": 8.5,
         "scale_text_font_pt": 9.0,
     },
+    "campanha": {
+        "description": "Mapa de campanha de campo: pontos de coleta rotulados, trilha e área de estudo em destaque, inserto de localização, rodapé com fontes, datas e autoria.",
+        "title_fraction": 0.056,
+        "subtitle_fraction": 0.034,
+        "footer_fraction": 0.062,
+        "side_column_fraction": 0.25,
+        "gutter_mm": 4.0,
+        "title_font_pt": 14.5,
+        "subtitle_font_pt": 9.5,
+        "footer_font_pt": 7.0,
+        "legend_font_pt": 8.0,
+        "scale_text_font_pt": 8.5,
+    },
     "minimalista": {
         "description": "Só o essencial: título, mapa, escala e fonte. Para apresentações.",
         "title_fraction": 0.055,
@@ -156,6 +171,12 @@ class LayoutPlan:
 
     def map_frame(self) -> Rect:
         return self.slots["map"]
+
+
+def map_slot_keys(slots: dict[str, Rect]) -> list[str]:
+    """``map``, ``map_2``, ``map_3``… na ordem dos painéis (sem as legendas de painel)."""
+    keys = [key for key in slots if key == "map" or (key.startswith("map_") and not key.endswith("_caption"))]
+    return sorted(keys, key=lambda key: 1 if key == "map" else int(key.split("_")[1]))
 
 
 def solve_layout(
@@ -290,7 +311,7 @@ def solve_layout(
     # tamanho. Divide-se no eixo longo — em paisagem, dois quadros lado a lado;
     # em retrato, um sobre o outro — para que cada painel fique o mais próximo
     # possível de um quadrado, que é onde a maioria dos recortes cabe melhor.
-    if panels >= 2 and "map" in slots:
+    if panels == 2 and "map" in slots:
         base = slots["map"]
         panel_gutter = gutter * 1.5
         if base.width >= base.height:
@@ -309,15 +330,36 @@ def solve_layout(
             slots[key + "_caption"] = Rect(panel.x, panel.y, panel.width, caption_h)
             slots[key] = Rect(panel.x, panel.y + caption_h, panel.width, panel.height - caption_h)
         notes.append("Corpo dividido em dois quadros de mapa para comparação, com legenda de painel.")
+    elif panels >= 3 and "map" in slots:
+        # Figura com N painéis (a), (b), (c)…: grade de quadros iguais no
+        # corpo. Em paisagem, 2 colunas até 4 painéis e 3 acima disso; em
+        # retrato, 1 coluna até 3 painéis e 2 acima disso — cada quadro fica
+        # o mais próximo possível de um quadrado.
+        base = slots["map"]
+        panel_gutter = gutter * 1.5
+        if base.width >= base.height:
+            columns = 2 if panels <= 4 else 3
+        else:
+            columns = 1 if panels <= 3 else 2
+        rows = int(math.ceil(panels / columns))
+        cell_w = (base.width - panel_gutter * (columns - 1)) / columns
+        cell_h = (base.height - panel_gutter * (rows - 1)) / rows
+        caption_h = max(5.0, content_h * 0.028)
+        for index in range(panels):
+            row, col = divmod(index, columns)
+            key = "map" if index == 0 else f"map_{index + 1}"
+            x = base.x + col * (cell_w + panel_gutter)
+            y = base.y + row * (cell_h + panel_gutter)
+            slots[key + "_caption"] = Rect(x, y, cell_w, caption_h)
+            slots[key] = Rect(x, y + caption_h, cell_w, cell_h - caption_h)
+        notes.append(f"Corpo dividido em {panels} quadros de mapa ({rows}x{columns}), cada um com legenda de painel.")
 
     # Os rótulos da grade são desenhados FORA do quadro do mapa e invadem o
     # que estiver ao lado. Encolher o quadro é o que impede a colisão com o
     # subtítulo e com a coluna de apoio.
     if grid_annotation_gutter_mm > 0:
         annotation_gutter = float(grid_annotation_gutter_mm)
-        for key in ("map", "map_2"):
-            if key not in slots:
-                continue
+        for key in map_slot_keys(slots):
             raw = slots[key]
             # Sem piso aqui de propósito: um ``max(20.0, ...)`` faria o mesmo
             # que o antigo piso de body_h fazia — fingir que sobrou quadro
@@ -336,7 +378,7 @@ def solve_layout(
     # verificação aqui — depois de tudo, não em cada ramo de arranjo — é o que
     # garante que o pedido falhe do mesmo jeito não importa por qual caminho
     # (coluna lateral, faixa inferior, com ou sem grade) ele passou.
-    for key in ("map", "map_2"):
+    for key in map_slot_keys(slots):
         rect = slots.get(key)
         if rect is None:
             continue

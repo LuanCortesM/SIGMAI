@@ -20,6 +20,15 @@ def handle(params: dict[str, Any], context: dict[str, Any]):
             for field in layer.fields()
         ]
 
+    encoding_problem = None
+    if layer_type_name(layer) == "vector":
+        # "Piau�" nos atributos: codificação errada do DBF. Avisar aqui é o
+        # que permite ao assistente corrigir (set_layer_encoding) antes de
+        # rotular ou citar o nome.
+        from .encoding import detect_encoding_problem
+
+        encoding_problem = detect_encoding_problem(layer)
+
     return {
         "id": layer.id(),
         "name": layer.name(),
@@ -28,6 +37,7 @@ def handle(params: dict[str, Any], context: dict[str, Any]):
         "extent": extent_to_dict(layer),
         "fields": fields,
         "valid": bool(layer.isValid()),
+        "encoding_problem": encoding_problem,
         # layer.source() de camada PostGIS/MSSQL/Oracle carrega a senha em
         # texto puro na string de conexão; esta é uma ação somente-leitura,
         # sem consentimento algum antes de responder à IA. redact_layer_source

@@ -2,11 +2,15 @@ from . import (
     capabilities,
     atlas_reports,
     attributes,
+    briefing,
+    campaign,
     cartography,
     cartography_engine,
+    context_annotations,
     data_sources,
     dev_tools,
     diagnostics,
+    encoding,
     environment,
     expressions,
     export_layout,
@@ -26,8 +30,10 @@ from . import (
     raster,
     run_processing,
     selection,
+    spatial,
     symbology,
     status,
+    undo_actions,
     user_profile,
     workflows,
 )
@@ -45,10 +51,19 @@ def register_actions(registry):
     registry.register("load_vector_layer", load_layers.handle)
     registry.register("get_project_info", get_project_info.handle)
     registry.register("get_project_overview", project_overview.handle)
+    registry.register("project_briefing", briefing.project_briefing)
     registry.register("compose_map", cartography_engine.compose_map)
     registry.register("audit_map_layout", cartography_engine.audit_map_layout)
     registry.register("get_cartographic_rulebook", cartography_engine.get_cartographic_rulebook)
     registry.register("plan_map_layout", cartography_engine.plan_map_layout)
+    registry.register("add_context_annotations", context_annotations.add_context_annotations)
+    registry.register("get_map_recipe", cartography_engine.get_map_recipe)
+    registry.register("recompose_from_recipe", cartography_engine.recompose_from_recipe)
+    registry.register("describe_map_for_methods", cartography_engine.describe_map_for_methods)
+    registry.register("compose_campaign_map", campaign.compose_campaign_map)
+    registry.register("export_coordinate_table", campaign.export_coordinate_table)
+    registry.register("undo_last_action", undo_actions.undo_last_action)
+    registry.register("list_undo_history", undo_actions.list_undo_history)
     registry.register("get_project_crs", get_project_info.project_crs)
     registry.register("get_layer_info", get_layer_info.handle)
     registry.register("diagnose_crs", gis_tools.diagnose_crs)
@@ -65,6 +80,8 @@ def register_actions(registry):
     registry.register("centroids", gis_tools.centroids)
     registry.register("multipart_to_singleparts", gis_tools.multipart_to_singleparts)
     registry.register("count_points_in_polygon", gis_tools.count_points_in_polygon)
+    registry.register("spatial_relationship", spatial.spatial_relationship)
+    registry.register("set_layer_encoding", encoding.set_layer_encoding)
     registry.register("load_raster_layer", raster.load_raster_layer)
     registry.register("raster_info", raster.raster_info)
     registry.register("raster_band_statistics", raster.raster_band_statistics)

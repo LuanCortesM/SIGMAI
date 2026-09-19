@@ -157,6 +157,7 @@ STRINGS: dict[str, str] = {
     "category_expressoes": "式",
     "category_perfil": "プロファイル",
     "category_gps": "GPS",
+    "category_projeto": "プロジェクト",
     "category_desc_cartography": "レイアウトの作成、地図の構成と書き出し",
     "category_desc_cartographic_design": "地図表現のスタイルとパレットの適用",
     "category_desc_symbology": "レイヤのシンボル、色、ラベルの変更",
@@ -174,6 +175,7 @@ STRINGS: dict[str, str] = {
     "category_desc_expressions": "QGIS 式の評価",
     "category_desc_user_profile": "利用者の著作者プロファイルの保存",
     "category_desc_gps_gpx": "GPX トラックの読み込みと変換",
+    "category_desc_project": "アシスタントがプロジェクトで行った直前の操作を元に戻す",
     "category_desc_default": "プロジェクトを変更するかファイルを書き込む操作",
     # resumo do pedido no diálogo de consentimento
     "consent_action": "操作",

@@ -1,7 +1,7 @@
 [general]
 name=SIGMAI
 description=Secure local bridge between AI assistants and QGIS, with cartographic quality control.
-version=1.0.3
+version=1.1.0
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=MACIEL, L. S. C.
@@ -16,7 +16,17 @@ homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=GPL-3.0-or-later
-changelog=1.0.3
+changelog=1.1.0
+    - Novo: sigmai_briefing devolve numa chamada versões, projeto, camadas (com campo de nome provável, exemplos, rótulos, problema de codificação), layouts, modo de acesso, regulamento resumido, templates e caminhos recomendados.
+    - Novo: spatial_relationship (fração dentro, interseção, mais próximo com distância geodésica) — pergunte onde fica antes de assumir; set_layer_encoding e detecção de nomes com "�"; load_vector_layer aceita planilha CSV de pontos (lon/lat, separador e decimal detectados; x_field/y_field/crs para E/N).
+    - Novo: receita reproduzível do mapa guardada no layout e no PNG (parâmetros, camadas com SHA-256, versões); get_map_recipe, recompose_from_recipe (com overrides e aviso de dados alterados) e describe_map_for_methods (parágrafo de Métodos em pt-BR/en/es com a referência do software).
+    - Novo: figura para revista (journal_column single/one_and_half/double ou figure_width_mm; formatos tif e jpg), painéis (a)(b)(c) com panels=[...], orientation "auto" pela forma dos dados, data_source por camada impresso na legenda, add_context_annotations (divisa + nomes do contexto como camadas só-de-rótulo).
+    - Novo: compose_campaign_map (pontos + trilha + área + contexto + inserto + tabela de coordenadas) e export_coordinate_table (CSV com E/N no CRS pedido e lon/lat).
+    - Novo: undo_last_action e list_undo_history — snapshot de estilo, nome, rótulos, codificação e layouts antes de cada escrita no projeto; desfaz restaurando e removendo o que foi criado (arquivos em disco ficam).
+    - Regulamento: 34 regras em dez categorias. CART068 rótulos não colocados (motor de rotulagem), CART069 faixa vazia do quadro (cobertura geométrica 3x3), CART070 cores confundíveis por daltônicos (matrizes de Machado, Oliveira & Fernandes 2009; paleta Okabe & Ito), CART071 fontes na largura final impressa, CART072 legenda cabe na caixa (QgsLegendRenderer.minimumSize); CART042 aceita sobreposição sobre área vazia do mapa.
+    - Paleta de polígonos alterna claridade e matiz (a antiga, clareada 82 por cento, reprovava na própria CART070); a legenda quebra nomes compridos na largura da coluna, reduz a fonte e tira as fontes por camada quando não cabe; a auditoria de um layout composto usa as margens e a largura impressa da receita.
+    - Corrigido: receita quebrava com camada raster (featureCount); acesso a enum incompatível com Qt6 nas anotações de contexto.
+    1.0.3
     - Corrigido: sigmai_audit_layout e list_layouts prometiam funcionar em layouts feitos à mão e descartavam todo item sem id (o padrão da interface do QGIS): um mapa completo recebia nota D por "não ter título". Os itens ganham id sintético e papel inferido (título, subtítulo, fonte, quadro principal, inserto, rosa dos ventos).
     - Corrigido: página 210x297 era auditada como paisagem (tudo abaixo de 210 mm "fora da página", quadro "em branco"); dimensões explícitas passam a dizer a orientação, e a tinta é medida no quadro principal.
     - Corrigido: cabeçalho "FONTES DOS DADOS" (sem dois-pontos) não contava como fonte; camadas só-de-rótulo (QgsNullSymbolRenderer) eram cobradas na legenda.
