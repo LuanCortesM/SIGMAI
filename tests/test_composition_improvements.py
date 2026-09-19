@@ -67,6 +67,19 @@ class ProcedenciaPorCamada(unittest.TestCase):
         self.assertTrue(any("metadados" in n for n in notes))
         self.assertIn("CEUC - CEDIB/COBIO/SEMA (PE das Carnaúbas)", credit)
 
+    def test_camada_derivada_herda_a_fonte_da_origem_e_fica_fora_do_credito(self):
+        """Divisa e nomes derivados do limite estadual não são 'sem fonte' nem entram no crédito."""
+        layers = [("id_uf", "Limite estadual", ""), ("id_div", "Divisa — Limite estadual", "", "id_uf"),
+                  ("id_nomes", "Nomes — Limite estadual", "", "id_uf")]
+        credit, per_layer, notes = resolve_data_sources({"id_uf": "IBGE, 2024"}, layers)
+        self.assertEqual(per_layer, {"id_uf": "IBGE, 2024", "id_div": "IBGE, 2024", "id_nomes": "IBGE, 2024"})
+        self.assertEqual(credit, "IBGE, 2024 (Limite estadual)")
+        self.assertEqual(notes, [])
+        # sem fonte na origem: a derivada também não é cobrada
+        _, per_layer, notes = resolve_data_sources({"id_div": "x"}, [("id_uf", "Limite estadual", ""), ("id_div", "Divisa", "", "id_uf")])
+        self.assertEqual(per_layer, {"id_div": "x"})
+        self.assertTrue(any("'Limite estadual'" in n and "Divisa" not in n for n in notes))
+
     def test_camada_sem_fonte_nenhuma_gera_nota(self):
         _, per_layer, notes = resolve_data_sources({"id_uc": "CEUC"}, self.LAYERS)
         self.assertNotIn("id_mun", per_layer)

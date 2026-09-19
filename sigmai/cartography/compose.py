@@ -755,11 +755,14 @@ def _orientation_is_auto(value: Any) -> bool:
 
 
 def resolve_data_sources(
-    value: Any, layers: list[tuple[str, str, str]]
+    value: Any, layers: list[tuple[str, ...]]
 ) -> tuple[str, dict[str, str], list[str]]:
     """Interpreta ``data_source`` como texto único ou como procedência por camada.
 
-    ``layers`` é ``[(id, nome, fonte_dos_metadados)]``. Aceita:
+    ``layers`` é ``[(id, nome, fonte_dos_metadados[, derivada_de])]``; uma
+    camada derivada de outra pelo SIGMAI (divisa, nomes — ``derivada_de`` é o
+    id da origem) herda a fonte da origem, não conta como "sem fonte" e não
+    aparece na linha de crédito. Aceita:
 
     * texto — uma fonte para o mapa inteiro (comportamento original);
     * dicionário ``{camada: fonte}`` — a chave é o id ou o nome da camada
@@ -798,8 +801,10 @@ def resolve_data_sources(
             f"recebido {type(value).__name__}."
         )
 
+    layers = [tuple(entry) + ("",) * (4 - len(entry)) for entry in layers]
+    derived_of = {layer_id: parent for layer_id, _, _, parent in layers if parent}
     by_key: dict[str, tuple[str, str]] = {}
-    for layer_id, name, _ in layers:
+    for layer_id, name, _, _ in layers:
         by_key[layer_id.lower()] = (layer_id, name)
         by_key[name.lower()] = (layer_id, name)
     per_layer: dict[str, str] = {}
@@ -811,25 +816,31 @@ def resolve_data_sources(
             continue
         per_layer[match[0]] = source.strip()
     if unknown:
-        known = ", ".join(f"{name} ({layer_id})" for layer_id, name, _ in layers)
+        known = ", ".join(f"{name} ({layer_id})" for layer_id, name, _, _ in layers)
         raise CompositionError(
             "data_source cita camadas que não estão no mapa: " + ", ".join(repr(k) for k in unknown) +
             f". Camadas do mapa: {known}. Use o id ou o nome exato de cada camada."
         )
-    for layer_id, name, metadata_source in layers:
-        if layer_id not in per_layer and metadata_source.strip():
+    for layer_id, name, metadata_source, _ in layers:
+        if layer_id not in per_layer and metadata_source.strip() and layer_id not in derived_of:
             per_layer[layer_id] = metadata_source.strip()
             notes.append(f"A fonte de {name!r} veio dos metadados da própria camada: {metadata_source.strip()!r}.")
-    missing = [name for layer_id, name, _ in layers if layer_id not in per_layer]
+    for layer_id, parent in derived_of.items():
+        if layer_id not in per_layer and parent in per_layer:
+            per_layer[layer_id] = per_layer[parent]
+    missing = [name for layer_id, name, _, _ in layers if layer_id not in per_layer and layer_id not in derived_of]
     if missing:
         notes.append(
             "Sem fonte declarada para: " + ", ".join(repr(n) for n in missing) +
             ". Acrescente-as em data_source para que a procedência cubra todas as camadas."
         )
-    # Texto do crédito: fontes distintas, cada uma seguida das camadas que cobre.
+    # Texto do crédito: fontes distintas, cada uma seguida das camadas que cobre
+    # (as derivadas ficam de fora: a origem já responde por elas).
     grouped: dict[str, list[str]] = {}
-    names = {layer_id: name for layer_id, name, _ in layers}
+    names = {layer_id: name for layer_id, name, _, _ in layers}
     for layer_id, source in per_layer.items():
+        if layer_id in derived_of:
+            continue
         grouped.setdefault(source, []).append(names.get(layer_id, layer_id))
     credit = "; ".join(f"{source} ({', '.join(covered)})" for source, covered in grouped.items())
     return credit, per_layer, notes
@@ -1004,7 +1015,8 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # está no mapa é recusa de parâmetro, antes de qualquer mutação.
     source_text, layer_sources, source_notes = resolve_data_sources(
         params.get("data_source"),
-        [(layer.id(), layer.name(), _layer_metadata_source(layer)) for layer in styling_targets],
+        [(layer.id(), layer.name(), _layer_metadata_source(layer),
+          str(_quiet(lambda: layer.customProperty("sigmai/derived_from", "")) or "")) for layer in styling_targets],
     )
     if not isinstance(params.get("data_source"), (dict, list)):
         source_notes = []  # texto único: as notas de cobertura por camada não se aplicam

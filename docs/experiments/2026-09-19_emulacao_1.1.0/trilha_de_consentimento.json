@@ -1,0 +1,116 @@
+{
+ "status": {
+  "mode": "allow_session",
+  "mode_label": "Liberado nesta sessão",
+  "limits": {
+   "writes_per_session": 200,
+   "exports_per_session": 60,
+   "processing_runs_per_session": 120
+  },
+  "counters": {
+   "writes_per_session": 3,
+   "exports_per_session": 1,
+   "processing_runs_per_session": 0
+  },
+  "output_roots": [
+   "<pasta_autorizada>"
+  ],
+  "remembered_categories": [],
+  "denied_categories": [],
+  "never_auto_approved": [
+   "dev_execute_qgis_python",
+   "disable_plugin",
+   "download_qgis_plugin_zip",
+   "enable_plugin",
+   "install_plugin_from_folder",
+   "install_plugin_from_zip",
+   "install_qgis_plugin_from_repository",
+   "reload_plugin",
+   "self_apply_update",
+   "self_rollback",
+   "self_stage_update",
+   "uninstall_plugin",
+   "update_plugin_from_folder"
+  ],
+  "audit_entries": 6
+ },
+ "audit": [
+  {
+   "timestamp": "2026-09-19T01:42:09.668032Z",
+   "event": "mode_changed",
+   "mode": "allow_session"
+  },
+  {
+   "timestamp": "2026-09-19T01:42:09.668069Z",
+   "event": "output_roots_changed",
+   "roots": [
+    "<pasta_autorizada>"
+   ]
+  },
+  {
+   "timestamp": "2026-09-19T01:42:48.973322Z",
+   "event": "allowed",
+   "request": {
+    "action": "load_vector_layer",
+    "group": "layers",
+    "category": "Camadas",
+    "permission_level": "safe_write",
+    "client": "127.0.0.1",
+    "requested_at": "2026-09-19T01:42:48.973131Z",
+    "output_paths": [
+     "<pasta_autorizada>/sitios.csv"
+    ]
+   },
+   "mode": "allow_session",
+   "remembered": false
+  },
+  {
+   "timestamp": "2026-09-19T01:42:49.263585Z",
+   "event": "allowed",
+   "request": {
+    "action": "compose_campaign_map",
+    "group": "cartography",
+    "category": "Cartografia",
+    "permission_level": "safe_write",
+    "client": "127.0.0.1",
+    "requested_at": "2026-09-19T01:42:49.263251Z",
+    "output_paths": [
+     "<pasta_autorizada>/campanha.png",
+     "<pasta_autorizada>/pontos.csv"
+    ]
+   },
+   "mode": "allow_session",
+   "remembered": false
+  },
+  {
+   "timestamp": "2026-09-19T01:43:03.223880Z",
+   "event": "allowed",
+   "request": {
+    "action": "undo_last_action",
+    "group": "project",
+    "category": "Projeto",
+    "permission_level": "safe_write",
+    "client": "127.0.0.1",
+    "requested_at": "2026-09-19T01:43:03.223857Z",
+    "output_paths": []
+   },
+   "mode": "allow_session",
+   "remembered": false
+  },
+  {
+   "timestamp": "2026-09-19T01:43:03.644308Z",
+   "event": "allowed",
+   "request": {
+    "action": "undo_last_action",
+    "group": "project",
+    "category": "Projeto",
+    "permission_level": "safe_write",
+    "client": "127.0.0.1",
+    "requested_at": "2026-09-19T01:43:03.644287Z",
+    "output_paths": []
+   },
+   "mode": "allow_session",
+   "remembered": false
+  }
+ ]
+}

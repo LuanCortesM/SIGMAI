@@ -4,7 +4,7 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [1.1.0] — 2026-09-19
 
-A versão que nasce da pergunta feita depois do experimento da 1.0.3: *o que o SIGMAI pode fazer que um agente escrevendo PyQGIS não faz de graça?* A resposta foi uma lista de treze coisas que nenhum dos dois agentes fez sozinho — auditar rótulos perdidos, saber onde uma área fica antes de desenhá-la, deixar o mapa reproduzível, dimensionar uma figura para a coluna de uma revista, desfazer um erro — e todas as treze estão aqui. Nada de novo entra sem regra ou teste: são 651 testes (94 novos) e a bateria de liberação passou nos sete portões.
+A versão que nasce da pergunta feita depois do experimento da 1.0.3: *o que o SIGMAI pode fazer que um agente escrevendo PyQGIS não faz de graça?* A resposta foi uma lista de treze coisas que nenhum dos dois agentes fez sozinho — auditar rótulos perdidos, saber onde uma área fica antes de desenhá-la, deixar o mapa reproduzível, dimensionar uma figura para a coluna de uma revista, desfazer um erro — e todas as treze estão aqui. Nada de novo entra sem regra ou teste: são 651 testes (94 novos), a bateria de liberação passou nos sete portões (683 verificações) e a versão foi operada de ponta a ponta por um assistente emulado sem acesso ao computador — o que ele encontrou, e o que mudou por causa disso, está em `docs/experiments/2026-09-19_emulacao_1.1.0/`.
 
 ### Novo — a auditoria vê o que o leitor vê
 
