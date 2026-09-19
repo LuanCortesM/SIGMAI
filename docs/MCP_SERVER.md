@@ -51,6 +51,8 @@ A fair question is why any of this is needed when a coding agent with shell acce
 
 The raw map is visually richer — it draws the state boundary, names both states, cites the decree and CNUC code. SIGMAI's value is not that its map is prettier; it is that the cartographic decisions and the QGIS gotchas are encoded once and audited, that a model without code execution (a chat client, a non-programmer's assistant) can still get a correct map, and that the user can see and bound what happened. The experiment also found that `sigmai_audit_layout` did not work on the hand-made layout at all until 1.0.3 — the inspector dropped items without an `id`, which is every item created through the QGIS interface. That defect is fixed and covered by `tests/test_foreign_layout_audit.py`.
 
+The exercise was repeated for 1.1.0 with the new tools — briefing, spatial relationship, context annotations, journal figure, recipe, Methods paragraph, CSV sites, campaign map, undo — driven end to end by an assistant with nothing but the MCP client; `docs/experiments/2026-09-19_emulacao_1.1.0/` records the calls, the figures, the consent trail and the seven defects the run exposed (SIGMAI's own palette failing its own colour-vision rule, legend text clipped without warning, the audit of a composed figure disagreeing with the composer), all fixed in the same version.
+
 ## Calling the bridge
 
 Every tool call becomes one HTTP `POST /command` to the bridge, with the bearer token from the session as `Authorization: Bearer <token>` and a JSON body `{"schema_version": "0.3", "action": ..., "params": ..., "dry_run": ...}`. The server refuses to contact any host other than `127.0.0.1`, `localhost` or `::1`, even if a session file or environment variable claims otherwise.

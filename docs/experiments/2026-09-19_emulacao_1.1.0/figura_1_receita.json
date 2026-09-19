@@ -1,0 +1,170 @@
+{
+ "schema": "sigmai-map-recipe/1",
+ "created_at": "2026-09-19T01:50:44Z",
+ "sigmai_version": "1.1.0",
+ "qgis_version": "3.34.4-Prizren",
+ "project_path": "",
+ "params": {
+  "layer_ids": [
+   "PE_das_Carna_bas_9f975fc7_ba07_4803_ab09_fb288f5be4fc",
+   "Munic_pios_do_Piau__4ac18514_bdc9_47b8_8d0e_bee243dbad1f",
+   "Limite_estadual_do_Piau__daf5b06a_3507_4d7d_854b_eac65887f26d",
+   "Divisa___Limite_estadual_do_Piau__82cf8686_4ea2_4d3e_a822_52b81f637194",
+   "Nomes___Limite_estadual_do_Piau__728f8f85_e4b5_439b_b17a_87b5a36a38c2",
+   "R_tulos_avulsos___Limite_estadual_do_Piau__65ad02df_ee6b_4d5d_b334_9a86b7b238b6"
+  ],
+  "subject_layer_id": "PE_das_Carna_bas_9f975fc7_ba07_4803_ab09_fb288f5be4fc",
+  "title": "Parque Estadual das Carnaúbas",
+  "map_author": "Maria Silva",
+  "data_source": {
+   "PE_das_Carna_bas_9f975fc7_ba07_4803_ab09_fb288f5be4fc": "CEUC/SEMA-CE, 2023",
+   "Munic_pios_do_Piau__4ac18514_bdc9_47b8_8d0e_bee243dbad1f": "IBGE, 2024",
+   "Limite_estadual_do_Piau__daf5b06a_3507_4d7d_854b_eac65887f26d": "IBGE, 2024"
+  },
+  "journal_column": "double",
+  "format": "png",
+  "dpi": 200,
+  "include_inset": true,
+  "inset_layer_ids": [
+   "Limite_estadual_do_Piau__daf5b06a_3507_4d7d_854b_eac65887f26d"
+  ],
+  "margin_percent": 40,
+  "output_path": "<saida>/figura_1.png",
+  "recipe_path": "<saida>/figura_1.json",
+  "layout_name": "Figura 1"
+ },
+ "layers": [
+  {
+   "id": "PE_das_Carna_bas_9f975fc7_ba07_4803_ab09_fb288f5be4fc",
+   "name": "PE das Carnaúbas",
+   "provider": "ogr",
+   "source": "<dados>/PE Carnaubas.kml",
+   "crs": "EPSG:4326",
+   "feature_count": 1,
+   "source_text": "CEUC/SEMA-CE, 2023",
+   "file": {
+    "path": "<dados>/PE Carnaubas.kml",
+    "exists": true,
+    "size_bytes": 6012,
+    "modified": "2026-09-04T05:02:07",
+    "sha256": "87ebd92bf7953185f3ef9b89e7ebbd263245a093218870ad6547678e4e8262bf"
+   }
+  },
+  {
+   "id": "Munic_pios_do_Piau__4ac18514_bdc9_47b8_8d0e_bee243dbad1f",
+   "name": "Municípios do Piauí",
+   "provider": "ogr",
+   "source": "<dados>/PI_Municipios_2024.shp",
+   "crs": "EPSG:4674",
+   "feature_count": 224,
+   "source_text": "IBGE, 2024",
+   "file": {
+    "path": "<dados>/PI_Municipios_2024.shp",
+    "exists": true,
+    "size_bytes": 2387716,
+    "modified": "2026-09-04T05:02:05",
+    "sha256": "74c4ee0f622110a5b1a447d99eb5f9e1ffa61a3c28eafc3b4bffa30b9ee05e17"
+   }
+  },
+  {
+   "id": "Limite_estadual_do_Piau__daf5b06a_3507_4d7d_854b_eac65887f26d",
+   "name": "Limite estadual do Piauí",
+   "provider": "ogr",
+   "source": "<dados>/PI_UF_2024.shp",
+   "crs": "EPSG:4674",
+   "feature_count": 1,
+   "source_text": "IBGE, 2024",
+   "file": {
+    "path": "<dados>/PI_UF_2024.shp",
+    "exists": true,
+    "size_bytes": 158492,
+    "modified": "2026-09-04T05:02:06",
+    "sha256": "5a7aedb0e7e41cb43ac5ffd726166187f8abba3b69d3c7b63374fcfdf2c8869e"
+   }
+  },
+  {
+   "id": "Divisa___Limite_estadual_do_Piau__82cf8686_4ea2_4d3e_a822_52b81f637194",
+   "name": "Divisa — Limite estadual do Piauí",
+   "provider": "memory",
+   "source": "MultiLineString?crs=EPSG:4674&field=origem:string(200)&uid={0538132e-4e5e-4083-b493-47e8c03f6ade}",
+   "crs": "EPSG:4674",
+   "feature_count": 1,
+   "source_text": "IBGE, 2024",
+   "derived_from": "Limite_estadual_do_Piau__daf5b06a_3507_4d7d_854b_eac65887f26d"
+  },
+  {
+   "id": "Nomes___Limite_estadual_do_Piau__728f8f85_e4b5_439b_b17a_87b5a36a38c2",
+   "name": "Nomes — Limite estadual do Piauí",
+   "provider": "memory",
+   "source": "Point?crs=EPSG:4674&field=rotulo:string(200)&uid={79fb32df-d440-4c23-a461-068de8dbf5d6}",
+   "crs": "EPSG:4674",
+   "feature_count": 1,
+   "source_text": "IBGE, 2024",
+   "derived_from": "Limite_estadual_do_Piau__daf5b06a_3507_4d7d_854b_eac65887f26d"
+  },
+  {
+   "id": "R_tulos_avulsos___Limite_estadual_do_Piau__65ad02df_ee6b_4d5d_b334_9a86b7b238b6",
+   "name": "Rótulos avulsos — Limite estadual do Piauí",
+   "provider": "memory",
+   "source": "Point?crs=EPSG:4674&field=rotulo:string(200)&uid={8eeaf43b-f2e0-4105-8d32-a5b6c6b4d992}",
+   "crs": "EPSG:4674",
+   "feature_count": 1,
+   "source_text": "IBGE, 2024",
+   "derived_from": "Limite_estadual_do_Piau__daf5b06a_3507_4d7d_854b_eac65887f26d"
+  }
+ ],
+ "layout_name": "Figura 1",
+ "template": "publicacao",
+ "page": {
+  "name": "figura",
+  "orientation": "landscape",
+  "width_mm": 175.0,
+  "height_mm": 127.5,
+  "margins_mm": {
+   "top": 5.0,
+   "right": 5.0,
+   "bottom": 5.0,
+   "left": 5.0
+  },
+  "content_area_mm": {
+   "x": 5.0,
+   "y": 5.0,
+   "width": 165.0,
+   "height": 117.5
+  }
+ },
+ "print_width_mm": 175.0,
+ "map_crs": "EPSG:31984",
+ "map_crs_description": "SIRGAS 2000 / UTM zone 24S",
+ "scale_denominator": 450000,
+ "extent": {
+  "xmin": 240132.50392175053,
+  "ymin": 9620095.142107088,
+  "xmax": 293457.5039217505,
+  "ymax": 9660370.142107088,
+  "width": 53325.0,
+  "height": 40275.0,
+  "scale_denominator": 450000,
+  "raw_scale_denominator": 445474.0,
+  "frame_aspect": 1.324,
+  "effective_margin_percent": 40.91,
+  "notes": [
+   "Extensão alargada no eixo X para casar com a razão de aspecto do quadro.",
+   "A série cartográfica não oferece um degrau próximo de 1:445.474 sem inflar a margem; usada a escala redonda 1:450.000.",
+   "Margem efetiva de 40.9% (pedida: 40.0%) para fechar na escala 1:450.000."
+  ]
+ },
+ "output": {
+  "path": "<saida>/figura_1.png",
+  "format": "png",
+  "dpi": 200
+ },
+ "audit": {
+  "grade": "A",
+  "score": 95.0,
+  "rule_count": 34,
+  "failed": [
+   "CART069"
+  ]
+ }
+}
