@@ -123,6 +123,8 @@ Then it audits what it produced, stores the **recipe** of the map in the layout 
 
 Five rules came out of the 1.0.3 experiment in which the same request was given to an agent writing raw PyQGIS and to an agent driving SIGMAI, the audit was run on both maps, and the new version was then driven end to end by an emulated assistant: labels the labelling engine could not place (`CART068`), an empty band of the frame that the page shape left unused (`CART069`), colour pairs that a reader with a colour-vision deficiency cannot tell apart, simulated with the Machado, Oliveira & Fernandes (2009) matrices (`CART070`), fonts that fall below the readable size once the figure is printed at column width (`CART071`), and a legend whose content is larger than its box, which QGIS silently clips (`CART072`). The audit also learned to read hand-made layouts — items without an id, headings such as "Data sources", label-only layers — instead of failing them for what it could not see.
 
+Every rule says what it rests on — Brazil's national cartography regulations (Decreto nº 89.817/1984, arts. 12–21), IBGE's SIRGAS2000 resolution, the cartography textbooks of Brewer and Slocum, Snyder's projection manual, the colour-vision model of Machado et al., the figure requirements of journals — or says plainly that a number is a SIGMAI design decision. None of the thresholds was measured with readers, so `tools/threshold_sensitivity.py` re-scores 138 test maps while varying each one and reports which thresholds decide anything and which do not; the tables and a reading of them are in [docs/experiments/2026-09-19_sensibilidade_limiares/](docs/experiments/2026-09-19_sensibilidade_limiares/).
+
 A worked example of why this matters is in [docs/CARTOGRAPHIC_QUALITY_MODEL.md](docs/CARTOGRAPHIC_QUALITY_MODEL.md): the same map that the 0.1.1 evaluator graded *"A — Professional map"* with zero warnings scores **E — invalid** under the rulebook, with three blocking errors that a reader would have spotted immediately.
 
 ## Architecture
@@ -186,7 +188,7 @@ Developed by Luan da Silva Cortes Maciel as a research product associated with H
 @software{maciel_sigmai,
   author  = {Maciel, Luan da Silva Cortes},
   title   = {{SIGMAI}: Secure {GIS}-{AI} Interface},
-  version = {1.1.1},
+  version = {1.1.2},
   url     = {https://github.com/LuanCortesM/SIGMAI},
   license = {GPL-3.0-or-later}
 }

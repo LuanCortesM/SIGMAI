@@ -178,6 +178,13 @@ class LayoutPlan:
 #: e isso só compensa quando as células ficam bem mais próximas do quadrado.
 EMPTY_CELL_PENALTY = 0.35
 
+#: Escala das fontes com o tamanho da página: (diagonal / diagonal de A4 paisagem)
+#: elevado a este expoente, limitado ao intervalo [FONT_SCALE_MIN, FONT_SCALE_MAX].
+#: Parâmetros declarados (ver tools/threshold_sensitivity.py).
+FONT_SCALE_EXPONENT = 0.62
+FONT_SCALE_MIN = 0.72
+FONT_SCALE_MAX = 2.6
+
 
 def panel_grid(panels: int, width: float, height: float, gutter: float) -> tuple[int, int]:
     """Colunas e linhas para ``panels`` quadros num corpo ``width`` x ``height`` mm.
@@ -573,6 +580,6 @@ def _scale_fonts(fonts: dict[str, float], page: PageSpec) -> dict[str, float]:
     """
     reference_diagonal = (297.0 ** 2 + 210.0 ** 2) ** 0.5  # A4 paisagem
     diagonal = (page.width_mm ** 2 + page.height_mm ** 2) ** 0.5
-    factor = (diagonal / reference_diagonal) ** 0.62
-    factor = max(0.72, min(2.6, factor))
+    factor = (diagonal / reference_diagonal) ** FONT_SCALE_EXPONENT
+    factor = max(FONT_SCALE_MIN, min(FONT_SCALE_MAX, factor))
     return {name: round(max(6.0, value * factor), 1) for name, value in fonts.items()}

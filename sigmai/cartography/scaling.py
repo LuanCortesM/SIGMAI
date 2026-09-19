@@ -31,6 +31,11 @@ SCALE_LADDER: tuple[int, ...] = (
 
 #: Fração do quadro do mapa que uma barra de escala deve ocupar. Abaixo de
 #: ~15% ela vira enfeite ilegível; acima de ~45% compete com o mapa.
+#: Margem efetiva máxima (em %) que uma escala da série cartográfica pode
+#: custar antes de o motor abandonar a série por um valor de dois algarismos
+#: significativos. Parâmetro declarado (ver tools/threshold_sensitivity.py).
+MAX_EFFECTIVE_MARGIN_PERCENT = 25.0
+
 SCALEBAR_TARGET_FRACTION = 0.28
 SCALEBAR_MIN_FRACTION = 0.15
 SCALEBAR_MAX_FRACTION = 0.45
@@ -138,7 +143,7 @@ def _round_up_significant(value: float, digits: int = 2) -> int:
 def choose_publication_scale(
     minimum_scale: float,
     target_scale: float,
-    max_effective_margin_percent: float = 25.0,
+    max_effective_margin_percent: float = MAX_EFFECTIVE_MARGIN_PERCENT,
 ) -> tuple[int, str]:
     """Escolhe a escala impressa entre o mínimo que contém os dados e o alvo.
 
@@ -229,7 +234,7 @@ def fit_extent_to_frame(
     margin_percent: float = 5.0,
     snap_to_round_scale: bool = True,
     map_units_per_metre: float = 1.0,
-    max_effective_margin_percent: float = 25.0,
+    max_effective_margin_percent: float = MAX_EFFECTIVE_MARGIN_PERCENT,
 ) -> FittedExtent:
     """Ajusta a extensão ao quadro e, opcionalmente, a uma escala redonda.
 

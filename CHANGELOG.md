@@ -2,6 +2,27 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.1.2] — 2026-09-19
+
+A revisão científica do capítulo da dissertação que descreve o SIGMAI perguntou duas coisas ao regulamento: *em que você se apoia?* e *por que esse número?* As duas respostas estavam fracas, e esta versão as conserta sem mudar uma regra sequer.
+
+### Fundamentos das regras
+
+- **Duas regras citavam normas ABNT erradas.** CART003 (escala indicada) apoiava-se na NBR 6027, que trata de *sumário* de documentos; CART008 (sistema de referência declarado), na NBR 13133, que é execução de levantamento topográfico. Nenhuma diz o que lhes era atribuído. Oito outras regras citavam "convenção cartográfica", "boas práticas" ou "instruções a autores" sem fonte.
+- **Cada regra agora nomeia o chão em que pisa**, nesta ordem: normativo — o Decreto nº 89.817/1984 (Instruções Reguladoras das Normas Técnicas da Cartografia Nacional; arts. 12 título, 13 legenda, 14 escala numérica *e* gráfica "sempre", 15 referenciais, 17 quadriculação, 18 diagrama de situação, 19 datas e fonte, 20 SI, 21 Sistema Geodésico Brasileiro), a Resolução IBGE PR nº 1/2015 (SIRGAS2000) e IBGE (1999) *Noções básicas de cartografia*; acadêmico — Brewer (2016), Slocum et al. (2009), Snyder (1987), Machado, Oliveira & Fernandes (2009), Robertson (1977), Okabe & Ito (2008), e as exigências de figura da PLOS ONE (8–12 pt na largura final) e da Rodriguésia (7 cm coluna simples, 15 cm página, 300 dpi); ou **decisão de projeto do SIGMAI**, dita com essas palavras, quando o número é nosso (6 pt, 15–45 % do quadro, 5 % de cobertura, ΔE < 15, 0,5 mm, 3 % de tinta, 10 mm). A documentação do QGIS passa a aparecer como `verificação:` — diz *como* a regra é conferida, não *por que* existe. `tests/test_rule_references_and_sensitivity.py` impede que uma referência vaga ou uma norma errada volte.
+- O decreto regula a cartografia sistemática; o SIGMAI o aplica por analogia aos mapas temáticos científicos, e a documentação diz isso.
+
+### Por que esse número
+
+- **`tools/threshold_sensitivity.py`.** Compõe 138 mapas com os dados de teste (a matriz da bateria em PNG mais a matriz de dados), guarda a observação que o inspetor entrega ao regulamento e re-pontua tudo variando um limiar de cada vez; para o compositor, recalcula com as funções puras o ganho de troca de orientação/arranjo, a margem efetiva, o expoente das fontes e a grade de painéis. `docs/experiments/2026-09-19_sensibilidade_limiares/` tem as tabelas (`LEIAME.md`), os dados brutos e uma leitura (`LEITURA.md`).
+- O que se aprendeu: máximo da barra, dominância do mapa, tinta em volta de item sobreposto, tolerância da legenda, cobertura do inserto e penalidades de erro e de conselho não mudam nota alguma em faixas largas; cobertura da faixa vazia, piso de 6 pt (acoplado ao piso do compositor), mínimo da barra e penalidade de aviso decidem, e ficam declarados como parâmetros; as pontuações observadas são só 80–100 de 5 em 5, logo "A" é "no máximo um aviso" e "B" é "até quatro"; ΔE < 15 está dentro da única janela — (12,1; 16,1) — que acusa os três pares de calibração sem acusar nenhum par da paleta de Okabe & Ito; e a sequência de preenchimentos do próprio SIGMAI tem **quatro** cores mutuamente distinguíveis por daltônicos, depois das quais a auditoria acusa.
+- Os limiares do compositor viraram constantes nomeadas — `LAYOUT_SWITCH_GAIN` (1,12), `MAX_EFFECTIVE_MARGIN_PERCENT` (25), `FONT_SCALE_EXPONENT` (0,62) com `FONT_SCALE_MIN`/`FONT_SCALE_MAX` — em vez de literais espalhados.
+- `sigmai_cartographic_rulebook` expunha `colour_vision_delta_e_min: 15.0` como literal; agora lê o valor de `vision.CONFUSABLE_DELTA_E`, publica `inset_min_coverage` e um campo `thresholds_provenance` que diz que os limiares são parâmetros declarados e onde está a análise.
+
+### Testes
+
+- O teste da receita mantém viva a referência ao dataset OGR enquanto lê o CRS (um dataset temporário era coletado e a camada virava `None` no caminho de contingência).
+
 ## [1.1.1] — 2026-09-19
 
 Os mapas da 1.1.0 foram compostos de novo para o capítulo da dissertação, com os dados de teste do repositório e um leitor exigente. Quatro coisas apareceram que nenhum teste cobria, e cada uma virou regra numérica e teste antes de entrar.
