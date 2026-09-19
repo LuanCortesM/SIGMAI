@@ -81,7 +81,7 @@ KNOWN_PARAMETERS = frozenset({
     # companhia, que já saem na língua em que o usuário os escreveu.
     "map_language",
     # página e template
-    "page", "orientation", "margin_mm", "template", "layout_template", "layout_name",
+    "page", "orientation", "margin_mm", "template", "layout_template", "layout_name", "arrangement",
     # geografia
     "map_crs", "auto_projected_crs", "margin_percent", "round_scale", "scale",
     # elementos
@@ -1272,6 +1272,39 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         else:
             notes.append(f"Orientação escolhida automaticamente: {'paisagem' if page.orientation == 'landscape' else 'retrato'}.")
 
+    # Arranjo dos itens de apoio (coluna lateral × faixa inferior) escolhido
+    # pela forma dos DADOS, não só pela da página: um estado alto e estreito
+    # numa A4 retrato saía num quadro quase quadrado (faixa inferior), com as
+    # laterais vazias e a escala 1:6.300.000; com coluna lateral o quadro é
+    # alto e a escala sobe. Mesmo critério de _better_orientation: só troca
+    # quando o ganho passa de 12 %.
+    if not extra_specs and not params.get("arrangement"):
+        better = _better_arrangement(extent, frame, plan, layout_request)
+        if better is not None:
+            layout_request["arrangement"] = better
+            try:
+                plan = solve_layout(**layout_request)
+            except ValueError as exc:
+                raise CompositionError(str(exc)) from exc
+            frame = plan.map_frame()
+            notes.append(
+                "Itens de apoio em "
+                + ("coluna lateral" if better == "coluna_lateral" else "faixa inferior")
+                + ": com esse arranjo o quadro aproveita melhor a forma do recorte."
+            )
+    elif params.get("arrangement"):
+        chosen = str(params.get("arrangement")).strip().lower()
+        if chosen not in ("coluna_lateral", "faixa_inferior", "auto"):
+            raise CompositionError(
+                f"arrangement desconhecido: {params.get('arrangement')!r}. Valores aceitos: 'auto', 'coluna_lateral', 'faixa_inferior'."
+            )
+        layout_request["arrangement"] = chosen
+        try:
+            plan = solve_layout(**layout_request)
+        except ValueError as exc:
+            raise CompositionError(str(exc)) from exc
+        frame = plan.map_frame()
+
     fitted = _fit(frame)
 
     # Segunda passada só quando a primeira revela que a barra não cabe legível
@@ -1591,7 +1624,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         max_width_mm=max(12.0, bar_slot_width - label_overhang_mm),
     )
     if include_scale_bar and "scale_bar" in plan.slots and not (comparison_plan or {}).get("per_panel_scale"):
-        _add_scalebar(layout, map_item, bar_spec, plan, imports, mm, page)
+        _add_scalebar(layout, map_item, bar_spec, plan, imports, mm, page, map_language)
         created["scale_bar"] = "scalebar"
 
     # Escala numérica
@@ -1870,6 +1903,26 @@ def _solve_figure_page(
             "largura. Use uma coluna mais larga (journal_column='double'), desative itens de apoio ou aumente figure_max_height_mm."
         )
     return best[1], best[2]
+
+
+def _better_arrangement(extent: Any, frame: Any, plan: LayoutPlan, layout_request: dict[str, Any]) -> str | None:
+    """O arranjo oposto (coluna lateral × faixa inferior), se nele o quadro aproveitar o recorte ≥ 12% melhor."""
+    if plan.arrangement not in ("coluna_lateral", "faixa_inferior"):
+        return None
+    if extent.height() <= 0 or extent.width() <= 0 or frame.height <= 0 or frame.width <= 0:
+        return None
+    other = "faixa_inferior" if plan.arrangement == "coluna_lateral" else "coluna_lateral"
+    try:
+        alternative = solve_layout(**{**layout_request, "arrangement": other}).map_frame()
+    except Exception:
+        return None
+    if alternative.width <= 0 or alternative.height <= 0:
+        return None
+    current_factor = max(extent.width() / frame.width, extent.height() / frame.height)
+    alternative_factor = max(extent.width() / alternative.width, extent.height() / alternative.height)
+    if alternative_factor <= 0:
+        return None
+    return other if current_factor / alternative_factor >= 1.12 else None
 
 
 def _better_orientation(
@@ -2498,7 +2551,33 @@ def _add_legend(
     return legend
 
 
-def _add_scalebar(layout: Any, map_item: Any, spec: Any, plan: LayoutPlan, imports: dict[str, Any], mm: Any, page: PageSpec | None = None) -> Any:
+def _scalebar_number_format(imports: dict[str, Any], map_language: str) -> Any:
+    """Formato numérico dos rótulos da barra na língua do mapa.
+
+    Sem isto o QGIS formata pelo locale do processo: num mapa em português
+    a barra saía "0  1,000  2,000 m" — separador de milhar inglês ao lado de
+    uma escala numérica escrita "1:25.000". O separador vem de maptext.py, o
+    mesmo da escala numérica.
+    """
+    try:
+        from qgis.core import QgsBasicNumericFormat  # type: ignore
+
+        fmt = QgsBasicNumericFormat()
+        thousands = maptext(map_language, "separador_milhar")
+        fmt.setShowThousandsSeparator(bool(thousands))
+        if thousands:
+            fmt.setThousandsSeparator(thousands[0])
+        fmt.setDecimalSeparator("," if thousands == "." else ".")
+        fmt.setShowTrailingZeros(False)
+        return fmt
+    except Exception:
+        return None
+
+
+def _add_scalebar(
+    layout: Any, map_item: Any, spec: Any, plan: LayoutPlan, imports: dict[str, Any], mm: Any, page: PageSpec | None = None,
+    map_language: str = "pt-BR",
+) -> Any:
     bar = imports["QgsLayoutItemScaleBar"](layout)
     bar.setId("scale_bar")
     bar.setLinkedMap(map_item)
@@ -2516,6 +2595,9 @@ def _add_scalebar(layout: Any, map_item: Any, spec: Any, plan: LayoutPlan, impor
     bar.setUnitsPerSegment(float(spec.units_per_segment))
     bar.setNumberOfSegments(int(spec.segments_right))
     bar.setNumberOfSegmentsLeft(int(spec.segments_left))
+    number_format = _scalebar_number_format(imports, map_language)
+    if number_format is not None:
+        _try(lambda: bar.setNumericFormat(number_format))
     try:
         font = imports["QFont"]()
         font.setPointSizeF(max(6.0, float(plan.fonts["scale_text"]) - 1.0))

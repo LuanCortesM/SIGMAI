@@ -174,6 +174,11 @@ class SIGMAIServer:
         self._thread = threading.Thread(target=self._httpd.serve_forever, name="SIGMAIHTTP", daemon=True)
         self._thread.start()
         self._start_qt_timer()
+        # Primeira fotografia do projeto, ainda na thread que chamou start().
+        try:
+            self._project_state()
+        except Exception:
+            pass
         self.logger.record("bridge_started", host=self.host, port=self.port)
 
     def stop(self) -> None:
@@ -189,22 +194,52 @@ class SIGMAIServer:
             self._thread = None
         self.logger.record("bridge_stopped", host=self.host, port=self.port)
 
+    _EMPTY_PROJECT_STATE: dict[str, Any] = {"project_loaded": False, "project_path": "", "project_title": "", "layer_count": 0}
+
     @staticmethod
-    def _project_state() -> dict[str, Any]:
+    def _on_qt_main_thread() -> bool | None:
+        """True/False se há um QCoreApplication; None se não há Qt nenhum."""
+        try:
+            from qgis.PyQt.QtCore import QCoreApplication, QThread  # type: ignore
+
+            app = QCoreApplication.instance()
+            if app is None:
+                return None
+            return QThread.currentThread() is app.thread()
+        except Exception:
+            return None
+
+    def _project_state(self) -> dict[str, Any]:
+        """Estado do projeto para `status`, sem tocar o QgsProject fora da thread principal.
+
+        `status` é um comando rápido, respondido na própria thread HTTP. Ler o
+        QgsProject de lá é, no melhor caso, uma leitura sem sincronização; no
+        pior — quando o singleton ainda não existe, como na suíte de testes —
+        é criá-lo com afinidade à thread HTTP, e todo QgsProject.clear() feito
+        depois pela thread principal vira segfault ou deixa o registro de CRS
+        num estado em que EPSG:4326 resolve como inválido. Fora da thread
+        principal devolve-se a última fotografia tirada pela thread principal
+        (o tick do QTimer atualiza-a a cada 100 ms).
+        """
+        on_main = self._on_qt_main_thread()
+        if on_main is False:
+            return dict(getattr(self, "_project_state_cache", None) or self._EMPTY_PROJECT_STATE)
         try:
             from qgis.core import QgsProject  # type: ignore
 
             project = QgsProject.instance()
             layer_count = len(project.mapLayers())
             file_name = str(project.fileName() or "")
-            return {
+            state = {
                 "project_loaded": bool(file_name) or layer_count > 0,
                 "project_path": file_name,
                 "project_title": str(project.title() or ""),
                 "layer_count": layer_count,
             }
         except Exception:
-            return {"project_loaded": False, "project_path": "", "project_title": "", "layer_count": 0}
+            state = dict(self._EMPTY_PROJECT_STATE)
+        self._project_state_cache = state
+        return state
 
     def status(self) -> dict[str, Any]:
         current = self._current_command_snapshot()
@@ -360,6 +395,11 @@ class SIGMAIServer:
     def process_pending_commands(self) -> None:
         tick_started = time.perf_counter()
         processed = 0
+        # Fotografia do projeto para o `status` respondido fora desta thread.
+        try:
+            self._project_state()
+        except Exception:
+            pass
         while processed < 4 and (time.perf_counter() - tick_started) < 0.05:
             try:
                 item = self.queue.get_nowait()

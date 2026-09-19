@@ -22,10 +22,20 @@ CHECKER = ROOT / "tools" / "check_qt6_compat.py"
 
 
 def _pyqt6_available() -> bool:
+    """Há PyQt6 instalado? Sem importá-lo.
+
+    Importar PyQt6.QtWidgets aqui carregava o Qt6 no MESMO processo em que a
+    suíte roda o QGIS com PyQt5 — dois Qt num processo é comportamento
+    indefinido, e era a origem de falhas intermitentes noutros arquivos
+    (EPSG:4326 resolvendo como CRS inválido, segfault em QgsProject.clear).
+    Os testes que usam o Qt6 rodam em subprocesso; aqui basta saber que ele
+    existe.
+    """
+    import importlib.util
+
     try:
-        import PyQt6.QtWidgets  # noqa: F401
-        return True
-    except ImportError:
+        return importlib.util.find_spec("PyQt6.QtWidgets") is not None
+    except (ImportError, ValueError):
         return False
 
 

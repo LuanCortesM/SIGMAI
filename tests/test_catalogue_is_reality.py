@@ -41,6 +41,38 @@ from sigmai import qgis_actions  # noqa: E402
 from sigmai.qgis_actions import atlas_reports, cartography, data_sources, workflows  # noqa: E402
 
 
+#: Referência viva ao QgsApplication criado por este módulo. Sem ela, o
+#: objeto Python sai de escopo no fim de setUpModule, o sip destrói o
+#: QgsApplication em C++ e o próximo QgsProject.instance().clear() é um
+#: segfault — e, antes de morrer, os CRS EPSG passam a resolver como inválidos.
+_APP = None
+
+
+def setUpModule() -> None:
+    """Inicializa o QgsApplication antes de qualquer objeto QGIS deste módulo.
+
+    Este arquivo criava QgsVectorLayer/QgsDistanceArea sem initQgis(): funciona
+    isolado, mas, na suíte inteira, deixava o registro de CRS meio inicializado
+    e EPSG:4326/EPSG:31984 resolviam como inválidos de forma intermitente nos
+    arquivos seguintes. A mesma inicialização dos demais testes que tocam o
+    PyQGIS — com a referência guardada em _APP — resolve.
+    """
+    global _APP
+    import importlib.util
+    import os
+
+    if importlib.util.find_spec("qgis") is None:
+        return
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from qgis.core import QgsApplication
+
+    _APP = QgsApplication.instance() or QgsApplication([], False)
+    if not getattr(_APP, "_sigmai_iniciado", False):
+        _APP.initQgis()
+        _APP._sigmai_iniciado = True
+
+
+
 #: As 13 ações que a auditoria mandou desabilitar nesta rodada, com o motivo
 #: resumido que também precisa aparecer em capabilities_payload()["limitations"].
 DISABLED_ACTIONS = (

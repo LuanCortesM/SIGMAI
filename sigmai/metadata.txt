@@ -1,7 +1,7 @@
 [general]
 name=SIGMAI
 description=Secure local bridge between AI assistants and QGIS, with cartographic quality control.
-version=1.1.0
+version=1.1.1
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=MACIEL, L. S. C.
@@ -16,7 +16,12 @@ homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=GPL-3.0-or-later
-changelog=1.1.0
+changelog=1.1.1
+    - Compositor: o arranjo dos itens de apoio (coluna lateral ou faixa inferior) passa a ser escolhido pela forma dos dados, como a orientação — só troca quando a escala ganha 12 por cento; parâmetro arrangement (auto, coluna_lateral, faixa_inferior) para forçar.
+    - Compositor: painéis (a)(b)(c) em grade escolhida pela célula mais próxima do quadrado (3 painéis em A3 paisagem ficam 3x1, em A4 retrato 2x2); a barra de escala escreve os números com o separador de milhar da língua do mapa ("2.000 m" em pt-BR).
+    - Simbologia: um preenchimento novo desvia dos que as camadas preservadas já usam (CART070 reprovava o mapa quando uma camada trazia a cor da composição anterior).
+    - Corrigido: a ponte lia o projeto fora da thread principal ao responder status; o estado do projeto passa a ser um instantâneo tirado na thread do Qt.
+    1.1.0
     - Novo: sigmai_briefing devolve numa chamada versões, projeto, camadas (com campo de nome provável, exemplos, rótulos, problema de codificação), layouts, modo de acesso, regulamento resumido, templates e caminhos recomendados.
     - Novo: spatial_relationship (fração dentro, interseção, mais próximo com distância geodésica) — pergunte onde fica antes de assumir; set_layer_encoding e detecção de nomes com "�"; load_vector_layer aceita planilha CSV de pontos (lon/lat, separador e decimal detectados; x_field/y_field/crs para E/N).
     - Novo: receita reproduzível do mapa guardada no layout e no PNG (parâmetros, camadas com SHA-256, versões); get_map_recipe, recompose_from_recipe (com overrides e aviso de dados alterados) e describe_map_for_methods (parágrafo de Métodos em pt-BR/en/es com a referência do software).

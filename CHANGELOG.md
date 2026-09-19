@@ -2,6 +2,25 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.1.1] — 2026-09-19
+
+Os mapas da 1.1.0 foram compostos de novo para o capítulo da dissertação, com os dados de teste do repositório e um leitor exigente. Quatro coisas apareceram que nenhum teste cobria, e cada uma virou regra numérica e teste antes de entrar.
+
+### Compositor
+
+- **Arranjo pela forma dos dados.** A orientação já era escolhida pela forma do recorte; o arranjo dos itens de apoio não. O Piauí em A4 retrato com a faixa inferior fechava em 1:6 300 000; com a legenda e a barra de escala numa coluna lateral, o quadro alto aproveita 12 % mais a página e o mapa sai em 1:5 000 000. O compositor calcula a escala nos dois arranjos (`coluna_lateral`, `faixa_inferior`) e troca quando o ganho passa de 12 % — o mesmo limiar da orientação —, com nota no resultado. O parâmetro `arrangement` (`auto`, `coluna_lateral`, `faixa_inferior`) força um deles.
+- **Grade de painéis pela célula mais próxima do quadrado.** Três painéis em A3 paisagem ficavam em 2 × 2 com uma célula vazia; a grade passa a minimizar |ln(largura ÷ altura da célula)| mais 0,35 por célula vazia: 3 painéis em 270 × 150 mm ficam 3 × 1, em 190 × 250 mm ficam 2 × 2; quatro ficam 2 × 2; seis, 3 × 2.
+- **Números da barra de escala na língua do mapa.** `QgsScaleBarSettings` escrevia "1,000 2,000 m" num mapa em português; a barra recebe um `QgsBasicNumericFormat` com o separador de milhar do idioma (`separador_milhar` nas cadeias do mapa) e a vírgula decimal quando o milhar é ponto.
+
+### Simbologia
+
+- **O preenchimento novo desvia dos que já estão em uso.** Quando `apply_style=missing` preserva o estilo de uma camada, o próximo preenchimento da sequência podia ser confundível com ela (o laranja da composição anterior ao lado do laranja da atual — CART070 reprovava o mapa do próprio SIGMAI). `_next_polygon_fill` recebe as cores preservadas e pula as que `vision.confusable_pairs` marca.
+
+### Ponte e testes
+
+- **Estado do projeto na thread do Qt.** `status` lia `QgsProject.instance()` da thread do servidor HTTP; a ponte passa a servir um instantâneo tirado (e renovado) na thread principal.
+- Testes: a verificação de Qt6 não importa mais PyQt6 num processo PyQt5 (`importlib.util.find_spec`); `test_catalogue_is_reality` inicia o `QgsApplication` no `setUpModule` e guarda a referência (um `app` local era coletado e derrubava o processo em `QgsProject.clear()`); o teste da receita lida com uma falha intermitente do processo de teste (cerca de 1 corrida em 10 da suíte inteira, nunca em isolamento) em que `QgsCoordinateReferenceSystem.fromWkt` passa a recusar qualquer WKT enquanto EPSG, `fromProj` e o OSR continuam a funcionar: o CRS gravado no GeoPackage é conferido pelo OSR (EPSG:31984) e só então atribuído pela autoridade, com o motivo no comentário do teste.
+
 ## [1.1.0] — 2026-09-19
 
 A versão que nasce da pergunta feita depois do experimento da 1.0.3: *o que o SIGMAI pode fazer que um agente escrevendo PyQGIS não faz de graça?* A resposta foi uma lista de treze coisas que nenhum dos dois agentes fez sozinho — auditar rótulos perdidos, saber onde uma área fica antes de desenhá-la, deixar o mapa reproduzível, dimensionar uma figura para a coluna de uma revista, desfazer um erro — e todas as treze estão aqui. Nada de novo entra sem regra ou teste: são 651 testes (94 novos), a bateria de liberação passou nos sete portões (683 verificações) e a versão foi operada de ponta a ponta por um assistente emulado sem acesso ao computador — o que ele encontrou, e o que mudou por causa disso, está em `docs/experiments/2026-09-19_emulacao_1.1.0/`.
