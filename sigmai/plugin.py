@@ -40,7 +40,7 @@ SETTINGS_PREFIX = "SIGMAI"
 SETTINGS_DEFAULTS: dict[str, Any] = {
     "auto_start": True,
     "write_session_file": True,
-    "persist_token": True,
+    "persist_token": False,
     "consent_mode": MODE_READ_ONLY,
     "ui_language": "pt-BR",
     "ui_theme": "auto",
@@ -538,14 +538,20 @@ class SIGMAIPlugin:
 
     # -- token ------------------------------------------------------------
     def _load_or_create_token(self) -> str:
-        """Token estável entre sessões, se o usuário quiser.
+        """Token novo a cada abertura do QGIS, a menos que o usuário peça o contrário.
 
-        Um token novo a cada abertura do QGIS obriga a refazer a configuração
-        do cliente de IA toda vez — era a principal causa de "ontem funcionava".
-        O token fica no QgsSettings do perfil do usuário, mesmo nível de
-        proteção do arquivo de sessão que já o continha em texto puro.
+        A configuração do cliente (passo 2) não contém o token: o servidor MCP
+        o relê do arquivo de sessão a cada chamada. Regenerar não obriga a
+        refazer nada e tranca para fora quem guardou o token de uma sessão
+        anterior — o que SECURITY_MODEL.md promete. Até a 1.1.2 o padrão era
+        manter, com a justificativa (já falsa) de que o cliente precisava ser
+        reconfigurado. Quem colou o token à mão em algum lugar liga a opção.
         """
-        if not bool(self.settings_get("persist_token", True)):
+        if not bool(self.settings_get("persist_token", False)):
+            # Um token guardado por uma versão anterior não fica esquecido nas
+            # configurações do perfil.
+            if self.settings_get("bridge_token", ""):
+                self.settings_set("bridge_token", "")
             return generate_token()
         stored = str(self.settings_get("bridge_token", "") or "")
         if len(stored) >= 32:
@@ -555,7 +561,7 @@ class SIGMAIPlugin:
         return token
 
     def _store_token(self, token: str) -> None:
-        if bool(self.settings_get("persist_token", True)):
+        if bool(self.settings_get("persist_token", False)):
             self.settings_set("bridge_token", token)
 
     # -- auxiliares -------------------------------------------------------

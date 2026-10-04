@@ -56,7 +56,7 @@ If QGIS reports `No module named 'sigmai/qgis_plugin'`, the plugin was installed
 python tools/package_qgis_plugin_zip.py
 ```
 
-Then install `test_outputs/sigmai.zip` from QGIS Plugin Manager. See `docs/FIX_QGIS_PLUGIN_LOAD_ERROR.md`.
+Then install `test_outputs/sigmai.zip` from QGIS Plugin Manager.
 
 ## Scenario E - Only Validate Environment
 

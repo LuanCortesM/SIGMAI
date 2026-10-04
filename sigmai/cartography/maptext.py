@@ -56,6 +56,11 @@ _PT_BR: dict[str, str] = {
     # agrupamento é dado por língua a partir do Unicode CLDR (número
     # "group" de cada locale), a mesma fonte que Qt/QLocale e ICU usam.
     "separador_milhar": ".",
+    # Nomes das camadas que add_context_annotations cria ("Divisa — Piauí"):
+    # entram na legenda, então seguem a língua do mapa.
+    "camada_divisa": "Divisa",
+    "camada_nomes": "Nomes",
+    "camada_rotulos_avulsos": "Rótulos avulsos",
 }
 
 #: Línguas cobertas com confiança. Cada uma é um dicionário parcial: só as
@@ -67,6 +72,9 @@ _PT_BR: dict[str, str] = {
 MAP_TEXT: dict[str, dict[str, str]] = {
     "pt-BR": _PT_BR,
     "en": {
+        "camada_divisa": "Border",
+        "camada_nomes": "Names",
+        "camada_rotulos_avulsos": "Extra labels",
         "fonte": "Source: ",
         "elaboracao": "Prepared by: ",
         "credito_ferramenta": "Produced with SIGMAI/QGIS",
@@ -79,6 +87,9 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ",",
     },
     "es": {
+        "camada_divisa": "Límite",
+        "camada_nomes": "Nombres",
+        "camada_rotulos_avulsos": "Rótulos adicionales",
         "fonte": "Fuente: ",
         "elaboracao": "Elaborado por: ",
         "credito_ferramenta": "Producido con SIGMAI/QGIS",
@@ -91,6 +102,9 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ".",
     },
     "fr": {
+        "camada_divisa": "Limite",
+        "camada_nomes": "Noms",
+        "camada_rotulos_avulsos": "Étiquettes supplémentaires",
         "fonte": "Source : ",
         "elaboracao": "Réalisation : ",
         "credito_ferramenta": "Produit avec SIGMAI/QGIS",
@@ -103,6 +117,9 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": "\u202f",
     },
     "de": {
+        "camada_divisa": "Grenze",
+        "camada_nomes": "Namen",
+        "camada_rotulos_avulsos": "Zusätzliche Beschriftungen",
         "fonte": "Quelle: ",
         "elaboracao": "Erstellt von: ",
         "credito_ferramenta": "Erstellt mit SIGMAI/QGIS",
@@ -115,6 +132,9 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ".",
     },
     "it": {
+        "camada_divisa": "Confine",
+        "camada_nomes": "Nomi",
+        "camada_rotulos_avulsos": "Etichette aggiuntive",
         "fonte": "Fonte: ",
         "elaboracao": "A cura di: ",
         "credito_ferramenta": "Prodotto con SIGMAI/QGIS",
@@ -127,6 +147,9 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ".",
     },
     "ja": {
+        "camada_divisa": "境界",
+        "camada_nomes": "名称",
+        "camada_rotulos_avulsos": "追加ラベル",
         "fonte": "出典：",
         "elaboracao": "作成：",
         "credito_ferramenta": "SIGMAI/QGISで作成",
@@ -140,6 +163,9 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "norte_reserva": "北",
     },
     "zh-Hans": {
+        "camada_divisa": "边界",
+        "camada_nomes": "名称",
+        "camada_rotulos_avulsos": "附加标注",
         "fonte": "来源：",
         "elaboracao": "编制：",
         "credito_ferramenta": "使用 SIGMAI/QGIS 制作",
@@ -153,6 +179,9 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "norte_reserva": "北",
     },
     "zh-Hant": {
+        "camada_divisa": "邊界",
+        "camada_nomes": "名稱",
+        "camada_rotulos_avulsos": "附加標註",
         "fonte": "來源：",
         "elaboracao": "編製：",
         "credito_ferramenta": "使用 SIGMAI/QGIS 製作",
@@ -166,6 +195,9 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "norte_reserva": "北",
     },
     "ko": {
+        "camada_divisa": "경계",
+        "camada_nomes": "이름",
+        "camada_rotulos_avulsos": "추가 레이블",
         "fonte": "출처: ",
         "elaboracao": "작성: ",
         "credito_ferramenta": "SIGMAI/QGIS로 제작",
@@ -178,6 +210,9 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ",",
     },
     "ru": {
+        "camada_divisa": "Граница",
+        "camada_nomes": "Названия",
+        "camada_rotulos_avulsos": "Дополнительные подписи",
         "fonte": "Источник: ",
         "elaboracao": "Составитель: ",
         "credito_ferramenta": "Создано с помощью SIGMAI/QGIS",
@@ -197,6 +232,9 @@ MAP_TEXT: dict[str, dict[str, str]] = {
     # (QgsLayoutItemLabel/QgsTextFormat não expõem controle de direção de
     # texto nesta versão do QGIS).
     "ar": {
+        "camada_divisa": "حدود",
+        "camada_nomes": "أسماء",
+        "camada_rotulos_avulsos": "تسميات إضافية",
         "fonte": "المصدر: ",
         "elaboracao": "الإعداد: ",
         "credito_ferramenta": "أُنتجت باستخدام SIGMAI/QGIS",
@@ -213,6 +251,9 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "norte_reserva": "ش",
     },
     "he": {
+        "camada_divisa": "גבול",
+        "camada_nomes": "שמות",
+        "camada_rotulos_avulsos": "תוויות נוספות",
         "fonte": "מקור: ",
         "elaboracao": "הכנה: ",
         "credito_ferramenta": "הופק באמצעות SIGMAI/QGIS",
@@ -226,6 +267,9 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "norte_reserva": "צ",
     },
     "el": {
+        "camada_divisa": "Όριο",
+        "camada_nomes": "Ονόματα",
+        "camada_rotulos_avulsos": "Επιπλέον ετικέτες",
         "fonte": "Πηγή: ",
         "elaboracao": "Σύνταξη: ",
         "credito_ferramenta": "Παρήχθη με SIGMAI/QGIS",
@@ -239,6 +283,9 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "norte_reserva": "Β",
     },
     "th": {
+        "camada_divisa": "เขตแดน",
+        "camada_nomes": "ชื่อ",
+        "camada_rotulos_avulsos": "ป้ายกำกับเพิ่มเติม",
         "fonte": "แหล่งที่มา: ",
         "elaboracao": "จัดทำโดย: ",
         "credito_ferramenta": "ผลิตด้วย SIGMAI/QGIS",

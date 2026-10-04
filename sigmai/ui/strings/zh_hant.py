@@ -81,7 +81,7 @@ STRINGS: dict[str, str] = {
     "advanced_autostart": "隨 QGIS 一起啟動橋接",
     "advanced_write_session": "寫入工作階段檔案，讓 AI 用戶端能找到橋接",
     "advanced_persist_token": "在多次 QGIS 工作階段之間保持同一權杖",
-    "advanced_persist_hint": "若不啟用，每次開啟 QGIS 權杖都會改變，用戶端設定必須重做。",
+    "advanced_persist_hint": "關閉（預設）時，每次開啟 QGIS 權杖都會改變；在步驟 2 中設定的用戶端會從工作階段檔案讀取新權杖，無需重做任何設定。僅當您曾手動貼上權杖時才需要開啟。",
     "advanced_token_warning": "請像對待密碼一樣對待權杖。持有它的人都能透過本機橋接操控此 QGIS。",
     # Modo DEV
     "dev_title": "開發者模式",

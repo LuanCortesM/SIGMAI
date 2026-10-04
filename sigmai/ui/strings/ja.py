@@ -81,7 +81,7 @@ STRINGS: dict[str, str] = {
     "advanced_autostart": "QGIS の起動時にブリッジも起動する",
     "advanced_write_session": "AI クライアントがブリッジを見つけられるようセッションファイルを書き出す",
     "advanced_persist_token": "QGIS のセッションをまたいで同じトークンを使う",
-    "advanced_persist_hint": "これを無効にすると QGIS を開くたびにトークンが変わり、クライアントの設定をやり直す必要があります。",
+    "advanced_persist_hint": "オフ（既定）の場合、QGIS を開くたびにトークンが変わりますが、手順 2 で設定したクライアントはセッションファイルから新しいトークンを読み取るので、設定をやり直す必要はありません。トークンを手作業でどこかに貼り付けた場合のみオンにしてください。",
     "advanced_token_warning": "トークンはパスワードと同じように扱ってください。持っている人は誰でも、ローカルブリッジ経由でこの QGIS を操作できます。",
     # Modo DEV
     "dev_title": "開発者モード",

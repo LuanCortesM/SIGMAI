@@ -309,6 +309,24 @@ class ContextoDerivadoNoQgis(unittest.TestCase):
         self.assertEqual(centros, [(500, "Piauí"), (1500, "Ceará")])
         self.assertTrue(any("memória" in n for n in resultado["notes"]))
 
+    def test_nomes_das_camadas_criadas_seguem_a_lingua_do_mapa(self):
+        """As camadas criadas entram na legenda: num mapa em inglês, "Divisa —"
+        aparecia em português ao lado de "Legend" (vista na figura do artigo)."""
+        from sigmai.qgis_actions.context_annotations import add_context_annotations
+
+        layer = self._estados()
+        criado = add_context_annotations(
+            {"boundary_layer_id": layer.id(), "label_field": "nome", "dissolve": False, "map_language": "en",
+             "extra_labels": [{"text": "Ocean", "x": 1500, "y": 1200}]},
+            {"dry_run": False},
+        )
+        nomes = {c["kind"]: c["name"] for c in criado["created_layers"]}
+        self.assertEqual(nomes["boundary_line"], "Border — Estados")
+        self.assertEqual(nomes["label_only_points"], "Names — Estados")
+        self.assertEqual(nomes["extra_labels"], "Extra labels — Estados")
+        padrao = add_context_annotations({"boundary_layer_id": layer.id()}, {"dry_run": True})
+        self.assertEqual(padrao["boundary_layer"], "Divisa — Estados")
+
     def test_persiste_em_geopackage(self):
         from qgis.core import QgsProject
 

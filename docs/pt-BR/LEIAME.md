@@ -22,7 +22,7 @@ O SIGMAI segue um terceiro caminho. Ele roda dentro do QGIS como plugin e expõe
 
 **Pelo repositório oficial** — `Complementos ▸ Gerenciar e instalar complementos ▸ Todos`, procure por *SIGMAI*.
 
-**Por arquivo ZIP** — baixe `dist/sigmai.zip` de uma release e use `Complementos ▸ Gerenciar e instalar complementos ▸ Instalar a partir do ZIP`.
+**Por arquivo ZIP** — baixe `sigmai-<versão>.zip` da [última versão publicada](https://github.com/LuanCortesM/SIGMAI/releases/latest) e use `Complementos ▸ Gerenciar e instalar complementos ▸ Instalar a partir do ZIP`.
 
 Depois abra o painel do SIGMAI na barra de ferramentas. Nenhum pacote Python externo é necessário: o SIGMAI roda no interpretador que acompanha o QGIS/OSGeo4W.
 
