@@ -190,14 +190,13 @@ Developed by Luan da Silva Cortes Maciel as a research product associated with H
   author  = {Maciel, Luan da Silva Cortes},
   title   = {{SIGMAI}: Secure {GIS}-{AI} Interface},
   version = {1.1.3},
+  doi     = {10.5281/zenodo.23146006},
   url     = {https://github.com/LuanCortesM/SIGMAI},
   license = {MIT}
 }
 ```
 
-The first public version is archived on Zenodo:
-
-MACIEL, L. S. C. (2026). SIGMAI: Local AI-QGIS interface with auditable commands. (V0.1.0). Zenodo. https://doi.org/10.5281/zenodo.20389287
+Every release is archived on Zenodo. To cite SIGMAI in general, use the DOI that always resolves to the latest version, [10.5281/zenodo.20389286](https://doi.org/10.5281/zenodo.20389286); to cite the exact version you used, use its own DOI — 1.1.3 is [10.5281/zenodo.23146006](https://doi.org/10.5281/zenodo.23146006), and the first public version, V0.1.0, is [10.5281/zenodo.20389287](https://doi.org/10.5281/zenodo.20389287).
 
 Machine-readable metadata: [CITATION.cff](CITATION.cff).
 
