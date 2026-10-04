@@ -81,7 +81,7 @@ STRINGS: dict[str, str] = {
     "advanced_autostart": "随 QGIS 一起启动桥接",
     "advanced_write_session": "写入会话文件，让 AI 客户端能找到桥接",
     "advanced_persist_token": "在多次 QGIS 会话之间保持同一令牌",
-    "advanced_persist_hint": "若不启用，每次打开 QGIS 令牌都会改变，客户端配置需要重做。",
+    "advanced_persist_hint": "关闭（默认）时，每次打开 QGIS 令牌都会改变；在步骤 2 中配置的客户端会从会话文件读取新令牌，无需重做任何设置。仅当您曾手动粘贴令牌时才需要开启。",
     "advanced_token_warning": "请像对待密码一样对待令牌。持有它的人都能通过本地桥接操控此 QGIS。",
     # Modo DEV
     "dev_title": "开发者模式",

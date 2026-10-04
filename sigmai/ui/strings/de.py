@@ -81,7 +81,7 @@ STRINGS: dict[str, str] = {
     "advanced_autostart": "Brücke zusammen mit QGIS starten",
     "advanced_write_session": "Sitzungsdatei schreiben, damit KI-Clients die Brücke finden",
     "advanced_persist_token": "Dasselbe Token über QGIS-Sitzungen hinweg behalten",
-    "advanced_persist_hint": "Ohne dies ändert sich das Token bei jedem Start von QGIS, und die Client-Konfiguration muss neu gemacht werden.",
+    "advanced_persist_hint": "Aus (Standard): Das Token ändert sich bei jedem Start von QGIS, und in Schritt 2 eingerichtete Clients lesen das neue Token aus der Sitzungsdatei, ohne dass etwas neu gemacht werden muss. Nur einschalten, wenn Sie das Token irgendwo von Hand eingefügt haben.",
     "advanced_token_warning": "Behandeln Sie das Token wie ein Passwort. Wer es besitzt, kann dieses QGIS über die lokale Brücke steuern.",
     # Modo DEV
     "dev_title": "Entwicklermodus",

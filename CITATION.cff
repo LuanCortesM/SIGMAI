@@ -6,6 +6,8 @@ authors:
   - family-names: Maciel
     given-names: Luan da Silva Cortes
     email: herpetomantiqueira@gmail.com
+    orcid: "https://orcid.org/0009-0002-7242-9650"
+    affiliation: "Escola Nacional de Botânica Tropical, Instituto de Pesquisas Jardim Botânico do Rio de Janeiro"
     alias: "MACIEL, L. S. C."
 repository-code: "https://github.com/LuanCortesM/SIGMAI"
 url: "https://plugins.qgis.org/plugins/sigmai/"

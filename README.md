@@ -27,7 +27,7 @@ That last step is the part that matters. Producing a map is easy; producing a ma
 
 **From the QGIS Plugin Repository** — `Plugins ▸ Manage and Install Plugins ▸ All`, search for *SIGMAI*.
 
-**From a ZIP** — download `dist/sigmai.zip` from a release, then `Plugins ▸ Manage and Install Plugins ▸ Install from ZIP`.
+**From a ZIP** — download `sigmai-<version>.zip` from the [latest release](https://github.com/LuanCortesM/SIGMAI/releases/latest), then `Plugins ▸ Manage and Install Plugins ▸ Install from ZIP`.
 
 Then open the SIGMAI panel from the toolbar. No external Python packages are required: SIGMAI runs on the interpreter that ships with QGIS/OSGeo4W.
 
@@ -157,7 +157,7 @@ The split between `cartography` and the rest is deliberate: `pagespec`, `scaling
 ```bash
 git clone https://github.com/LuanCortesM/SIGMAI.git
 cd SIGMAI
-python -m pytest tests -q          # 679 tests; those that need PyQGIS, a given PyQt or a POSIX system skip themselves without it
+python -m pytest tests -q          # 680 tests; those that need PyQGIS, a given PyQt or a POSIX system skip themselves without it
 python tools/package_qgis_plugin_zip.py
 ```
 
@@ -174,7 +174,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to propose changes, report a prob
 - Existing files are never overwritten without `confirm_overwrite`.
 - Logs and audit records never contain tokens, passwords or credentials.
 
-Full model: [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md) · [docs/MCP_SECURITY_MODEL.md](docs/SECURITY_MODEL.md).
+Full model: [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md) · what the MCP layer adds: [docs/MCP_SECURITY_MODEL.md](docs/MCP_SECURITY_MODEL.md).
 
 ## Authorship
 

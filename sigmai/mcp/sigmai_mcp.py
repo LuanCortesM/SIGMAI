@@ -635,6 +635,7 @@ TOOLS: list[dict[str, Any]] = [
             "boundary_style": {"type": "string", "enum": ["solid", "dash", "dot", "dash dot"]},
             "label_font_size": _N, "label_color": _S, "letter_spacing": _N, "uppercase": _B,
             "output_gpkg": {**_S, "description": "Caminho absoluto de um .gpkg para persistir as camadas (pasta liberada)."},
+            "map_language": {**_S, "description": "Língua dos nomes das camadas criadas, que aparecem na legenda — use a mesma de map_language do compose_map (padrão pt-BR)."},
         }, ["boundary_layer_id"]),
         "annotations": {"title": "Anotações de contexto", **WRITES},
         "handler": lambda args: bridge_call("add_context_annotations", dict(args)),

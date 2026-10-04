@@ -81,7 +81,7 @@ STRINGS: dict[str, str] = {
     "advanced_autostart": "Iniciar el puente junto con QGIS",
     "advanced_write_session": "Escribir el archivo de sesión para que los clientes de IA encuentren el puente",
     "advanced_persist_token": "Mantener el mismo token entre sesiones de QGIS",
-    "advanced_persist_hint": "Sin esto, el token cambia cada vez que se abre QGIS y hay que rehacer la configuración del cliente.",
+    "advanced_persist_hint": "Desactivado (predeterminado), el token cambia cada vez que se abre QGIS y los clientes configurados en el paso 2 leen el nuevo token del archivo de sesión, sin rehacer nada. Actívelo solo si pegó el token a mano en algún lugar.",
     "advanced_token_warning": "Trate el token como una contraseña. Quien lo tenga puede controlar este QGIS a través del puente local.",
     # Modo DEV
     "dev_title": "Modo Desarrollador",

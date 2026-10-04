@@ -81,7 +81,7 @@ STRINGS: dict[str, str] = {
     "advanced_autostart": "Démarrer le pont en même temps que QGIS",
     "advanced_write_session": "Écrire le fichier de session pour que les clients IA trouvent le pont",
     "advanced_persist_token": "Conserver le même jeton d'une session QGIS à l'autre",
-    "advanced_persist_hint": "Sans cela, le jeton change à chaque ouverture de QGIS et la configuration du client est à refaire.",
+    "advanced_persist_hint": "Désactivé (par défaut), le jeton change à chaque ouverture de QGIS et les clients configurés à l'étape 2 lisent le nouveau jeton dans le fichier de session, sans rien refaire. Activez-le seulement si vous avez collé le jeton à la main quelque part.",
     "advanced_token_warning": "Traitez le jeton comme un mot de passe. Quiconque le détient peut piloter ce QGIS par le pont local.",
     # Modo DEV
     "dev_title": "Mode développeur",

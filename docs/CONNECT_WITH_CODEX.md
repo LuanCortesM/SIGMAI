@@ -24,4 +24,4 @@ python tools/sigmai.py connect SG-4821-KQ9M
 
 The pairing code is shown in the SIGMAI panel. This path exists for scripting and debugging; the MCP server is the supported route for AI assistants, because it is the one that carries tool schemas, annotations and the audit report back to the model.
 
-See also [DIRECT_CODEX_CONNECTION.md](CONNECT_WITH_CODEX.md) and, for diagnosis, the troubleshooting section of [CONNECT_WITH_CLAUDE.md](CONNECT_WITH_CLAUDE.md#when-it-does-not-connect).
+See also [DIRECT_CODEX_CONNECTION.md](DIRECT_CODEX_CONNECTION.md) and, for diagnosis, the troubleshooting section of [CONNECT_WITH_CLAUDE.md](CONNECT_WITH_CLAUDE.md#when-it-does-not-connect).

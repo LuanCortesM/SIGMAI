@@ -90,5 +90,5 @@ The exact path for your machine is shown in the panel under **Avançado ▸ Arqu
 ## Related
 
 - [MCP_SERVER.md](MCP_SERVER.md) — the tools, their schemas, and the protocol details
-- [MCP_SECURITY_MODEL.md](SECURITY_MODEL.md) — what the consent layer does and does not cover
+- [SECURITY_MODEL.md](SECURITY_MODEL.md) — what the consent layer does and does not cover; [MCP_SECURITY_MODEL.md](MCP_SECURITY_MODEL.md) — what the MCP layer adds
 - [CONNECT_WITH_CURSOR.md](CONNECT_WITH_CURSOR.md) · [CONNECT_WITH_CODEX.md](CONNECT_WITH_CODEX.md)

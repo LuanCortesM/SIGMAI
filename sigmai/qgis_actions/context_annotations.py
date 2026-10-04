@@ -26,6 +26,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from ..cartography.maptext import maptext
 from ..cartography.symbology import STYLE_ORIGIN_PALETTE, mark_style_origin
 from ..security import ensure_parent_exists, normalize_output_path
 from ..validators import ValidationError, require_param
@@ -272,10 +273,14 @@ def add_context_annotations(params: dict[str, Any], context: dict[str, Any]) -> 
             raise ValidationError("BAD_REQUEST", f"output_gpkg precisa terminar em .gpkg: {gpkg}", {"path": str(gpkg)})
         ensure_parent_exists(gpkg)
 
+    # As camadas criadas entram na legenda: o nome segue a língua do mapa
+    # (o mesmo map_language do compose_map), e não fica em português num mapa
+    # em inglês. Sem map_language, português, como antes.
+    language = str(params.get("map_language") or "pt-BR")
     plan = {
         "source_layer": {"id": source.id(), "name": source.name(), "features": int(source.featureCount())},
-        "boundary_layer": f"Divisa — {source.name()}" if include_boundary else None,
-        "label_layer": (f"Nomes — {source.name()}" if (label_field or label_text) else None),
+        "boundary_layer": f"{maptext(language, 'camada_divisa')} — {source.name()}" if include_boundary else None,
+        "label_layer": (f"{maptext(language, 'camada_nomes')} — {source.name()}" if (label_field or label_text) else None),
         "extra_labels": len(extra_labels),
         "persisted_to": str(gpkg) if gpkg else None,
     }
@@ -352,7 +357,7 @@ def add_context_annotations(params: dict[str, Any], context: dict[str, Any]) -> 
 
     if extra_labels:
         fmt = _text_format(imports, label_size, label_colour, letter_spacing, bold=True)
-        extra_layer = _label_only_layer(imports, f"Rótulos avulsos — {source.name()}", crs, fmt, uppercase)
+        extra_layer = _label_only_layer(imports, f"{maptext(language, 'camada_rotulos_avulsos')} — {source.name()}", crs, fmt, uppercase)
         features = []
         for index, entry in enumerate(extra_labels):
             entry = _normalise_extra_label(entry, index)
