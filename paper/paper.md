@@ -9,7 +9,8 @@ tags:
   - reproducible research
   - biodiversity
 authors:
-  - name: Luan da Silva Cortes Maciel
+  - given-names: Luan da Silva Cortes
+    surname: Maciel
     orcid: 0009-0002-7242-9650
     affiliation: 1
     corresponding: true
