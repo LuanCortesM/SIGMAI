@@ -32,6 +32,7 @@ import io
 import json
 import os
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -75,7 +76,7 @@ def _sessions_dirs() -> list[Path]:
         dirs.append(Path.home() / "Library" / "Application Support" / APP_NAME / "sessions")
     else:
         dirs.append(Path.home() / ".local" / "share" / "sigmai" / "sessions")
-    temp = os.environ.get("TEMP") or os.environ.get("TMPDIR") or "/tmp"
+    temp = os.environ.get("TEMP") or tempfile.gettempdir()
     dirs.append(Path(temp) / APP_NAME / "sessions")
     return dirs
 
@@ -196,7 +197,7 @@ def bridge_call(action: str, params: dict[str, Any] | None = None, dry_run: bool
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310 - http://<loopback>:<port>, host checked just above.
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")

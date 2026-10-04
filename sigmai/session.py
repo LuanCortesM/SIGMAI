@@ -57,10 +57,10 @@ except Exception:
         return ".git" not in {part.lower() for part in path.resolve().parts}
 
     def generate_pairing_code() -> str:
-        import random
+        import secrets
         import string
 
-        return "SG-" + "".join(random.choice(string.digits) for _ in range(4)) + "-" + "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(4))
+        return "SG-" + "".join(secrets.choice(string.digits) for _ in range(4)) + "-" + "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(4))
 
 SCHEMA_VERSION = SESSION_SCHEMA_VERSION
 

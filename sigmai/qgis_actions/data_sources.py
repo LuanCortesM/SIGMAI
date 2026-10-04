@@ -6,7 +6,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlparse
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # nosec B405 - input is size-limited and DTD/entity declarations are rejected before parsing (see B314 notes).
 
 from ..security import normalize_output_path
 from ..validators import ValidationError, require_param
@@ -127,7 +127,7 @@ def test_service_connection(params: dict[str, Any], context: dict[str, Any]):
     request = urllib.request.Request(request_url, method=method, headers={"User-Agent": "SIGMAI/1.0"})
     started = time.perf_counter()
     try:
-        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:  # nosec B310 - _safe_url accepts only http/https without credentials.
             status_code = int(getattr(response, "status", None) or response.getcode())
         return {
             "url": redact_source(url),

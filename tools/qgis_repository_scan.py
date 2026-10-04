@@ -2,22 +2,27 @@
 """Roda no pacote as mesmas varreduras do repositório de plugins do QGIS.
 
 Desde 2026 o plugins.qgis.org varre toda versão enviada com Bandit,
-detect-secrets, Flake8 e uma análise de arquivos. Achado *crítico* do Bandit
-ou do detect-secrets bloqueia a versão para download e aprovação, e uma versão
-bloqueada não se desbloqueia: é preciso enviar outra. Os demais são avisos.
-Documentação: https://plugins.qgis.org/docs/security-scanning
+detect-secrets, Flake8 e uma análise de arquivos, e uma versão bloqueada não se
+desbloqueia: é preciso enviar outra. Documentação:
+https://plugins.qgis.org/docs/security-scanning
 
-A 1.1.3 teria sido bloqueada por 40 falsos positivos da regra B105 (chaves de
-texto da interface como ``advanced_token``, a opção ``persist_token``, o par
-``"token_required": True``) e um da B107 (``token=""`` como argumento padrão).
-Este script existe para que isso apareça no CI, e não depois do upload.
+O critério que de fato bloqueia não é o da tabela de regras do site, e sim o do
+código dele (``qgis-app/plugins/security_scanner.py`` e
+``tasks/run_security_scan.py`` do QGIS-Plugins-Website): a verificação do
+Bandit e a do detect-secrets têm gravidade crítica *inteiras* e só passam com
+zero achados entre as regras ativas. A gravidade de cada regra só muda a
+exibição. Flake8, permissões e arquivos suspeitos apenas informam.
+
+Por isso a 1.1.4 foi bloqueada com 159 achados de regras que a tabela chama de
+"aviso" (try/except/pass, urlopen, random...), depois de este script — que
+então só olhava as regras "críticas" — aprová-la. As regras de aviso podem ser
+desligadas no formulário de envio; as que o SIGMAI desliga, e por quê, estão em
+``UPLOAD_SKIPPED_RULES``. Tudo o mais tem de dar zero.
 
 Uso::
 
     python tools/qgis_repository_scan.py              # varre sigmai/
     python tools/qgis_repository_scan.py dist/x.zip   # varre o ZIP enviado
-
-Avisos (regras que o site não bloqueia) são listados sem reprovar.
 
 Requer ``bandit``, ``detect-secrets`` e ``flake8`` (``pip install bandit
 detect-secrets flake8``). Sai com código 1 se houver achado bloqueante.
@@ -35,37 +40,49 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "sigmai"
 
-#: Regras que o repositório classifica como Critical (bloqueantes), conforme
-#: https://plugins.qgis.org/docs/security-scanning/rules em 2026-10-04: 38 do
-#: Bandit, 23 detectores do detect-secrets, 6 do Flake8 e FILE_SUSPICIOUS. A
-#: lista do site é viva; se ela mudar, acompanhe aqui.
-BANDIT_CRITICAL = frozenset({
+#: Regras do Bandit ativas no site em 2026-10-04 (74): as 38 que não se pode
+#: pular (https://plugins.qgis.org/docs/security-scanning/rules) e as 36 que o
+#: formulário de envio deixa desligar. A lista do site é viva; se mudar,
+#: acompanhe aqui.
+BANDIT_MANDATORY = frozenset({
     "B102", "B103", "B105", "B106", "B107", "B111", "B201", "B202", "B301",
     "B302", "B304", "B305", "B306", "B307", "B312", "B321", "B323", "B401",
     "B402", "B412", "B413", "B501", "B502", "B503", "B505", "B506", "B507",
     "B601", "B602", "B604", "B605", "B609", "B610", "B611", "B612", "B613",
     "B615", "B701",
 })
+BANDIT_SKIPPABLE = frozenset({
+    "B101", "B104", "B108", "B110", "B112", "B113", "B303", "B308", "B310",
+    "B311", "B313", "B314", "B315", "B316", "B317", "B318", "B319", "B320",
+    "B324", "B403", "B405", "B406", "B407", "B408", "B409", "B504", "B508",
+    "B509", "B603", "B606", "B607", "B608", "B614", "B702", "B703", "B704",
+})
 
-#: Os únicos detectores do detect-secrets que o site trata como aviso
-#: (KeywordDetector, Base64HighEntropyString, HexHighEntropyString); os demais
-#: — chaves de AWS, GitHub, OpenAI, chaves privadas etc. — são críticos.
-SECRET_WARNING_TYPES = frozenset({"Secret Keyword", "Base64 High Entropy String", "Hex High Entropy String"})
+#: Regras que o SIGMAI desliga no formulário de envio, com o motivo. Cada uma
+#: tem de estar em BANDIT_SKIPPABLE; ao enviar, desligue exatamente estas.
+UPLOAD_SKIPPED_RULES = {
+    "B110": "try/except/pass: ~130 pontos de compatibilidade entre as APIs do QGIS 3.28 a 4.x, "
+            "em que um recurso ausente na versão instalada deve ser ignorado, não derrubar o mapa",
+    "B112": "try/except/continue: o mesmo, dentro de laços sobre camadas e itens de layout",
+}
 
-#: Erros do Flake8 que indicam código que nem roda. O site bloqueia E901,
-#: E902, E999, F821, F823 e F831; F63, F7 e F822 entram por serem erros reais.
+#: Erros do Flake8 que indicam código que nem roda. No site o Flake8 só
+#: informa; aqui reprova, porque são erros reais.
 FLAKE8_FATAL = "E9,F63,F7,F821,F822,F823,F831"
 
-#: Extensões que a análise de arquivos do site aponta como suspeitas
-#: (FILE_SUSPICIOUS, crítica).
+#: Extensões que a análise de arquivos do site aponta como suspeitas. No site
+#: é aviso; aqui reprova, porque o pacote não deve levar nenhuma.
 SUSPICIOUS_SUFFIXES = frozenset({
     ".exe", ".dll", ".so", ".dylib", ".bat", ".cmd", ".ps1", ".sh", ".vbs",
     ".msi", ".com", ".scr", ".jar", ".pyc", ".pyo",
 })
 
 
-def _run(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([sys.executable, "-m", *args], capture_output=True, text=True, encoding="utf-8")
+def _run(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-m", *args], capture_output=True, text=True, encoding="utf-8",
+        cwd=str(cwd) if cwd else None,
+    )
 
 
 def _require(module: str, package: str) -> None:
@@ -75,31 +92,34 @@ def _require(module: str, package: str) -> None:
 
 
 def bandit_findings(target: Path) -> list[str]:
+    """Achados das regras ativas que o envio não desliga (como o site roda)."""
     _require("bandit", "bandit")
-    result = _run("bandit", "-r", str(target), "-f", "json", "-q")
+    tests = sorted((BANDIT_MANDATORY | BANDIT_SKIPPABLE) - set(UPLOAD_SKIPPED_RULES))
+    result = _run("bandit", "-r", str(target), "-f", "json", "--quiet", "-t", ",".join(tests))
     report = json.loads(result.stdout or "{}")
     findings = []
     for item in report.get("results", []):
-        if item["test_id"] in BANDIT_CRITICAL:
-            path = Path(item["filename"]).relative_to(target)
-            findings.append(f"{item['test_id']} {path}:{item['line_number']} {item['issue_text']}")
+        path = Path(item["filename"]).relative_to(target)
+        findings.append(f"{item['test_id']} {path}:{item['line_number']} {item['issue_text']}")
     for error in report.get("errors", []):
         findings.append(f"bandit não conseguiu ler {error.get('filename')}: {error.get('reason')}")
     return findings
 
 
-def secret_findings(target: Path) -> tuple[list[str], list[str]]:
-    """(críticos, avisos) do detect-secrets."""
+def secret_findings(target: Path) -> list[str]:
+    """Achados do detect-secrets, com os mesmos argumentos do site."""
     _require("detect_secrets", "detect-secrets")
-    result = _run("detect_secrets", "scan", "--all-files", str(target))
+    result = _run(
+        "detect_secrets", "scan", "--all-files",
+        "--exclude-files", r"metadata\.txt", "--exclude-files", r"\.secrets\.baseline", ".",
+        cwd=target,
+    )
     report = json.loads(result.stdout or "{}")
-    critical: list[str] = []
-    warnings: list[str] = []
-    for filename, entries in report.get("results", {}).items():
-        for entry in entries:
-            line = f"{entry['type']} {Path(filename)}:{entry['line_number']}"
-            (warnings if entry["type"] in SECRET_WARNING_TYPES else critical).append(line)
-    return critical, warnings
+    return [
+        f"{entry['type']} {Path(filename)}:{entry['line_number']}"
+        for filename, entries in report.get("results", {}).items()
+        for entry in entries
+    ]
 
 
 def flake8_findings(target: Path) -> list[str]:
@@ -118,24 +138,22 @@ def suspicious_files(target: Path) -> list[str]:
 
 
 def scan(target: Path) -> int:
-    secrets_critical, secrets_warning = secret_findings(target)
+    invalid = sorted(set(UPLOAD_SKIPPED_RULES) - BANDIT_SKIPPABLE)
+    if invalid:
+        raise SystemExit(f"o site não deixa pular {', '.join(invalid)}: corrija o código em vez de pular")
     blocking = {
-        "Bandit (CRITICAL)": bandit_findings(target),
-        "detect-secrets (CRITICAL)": secrets_critical,
+        "Bandit (regras ativas, menos as desligadas no envio)": bandit_findings(target),
+        "detect-secrets": secret_findings(target),
         "Flake8 (erro fatal)": flake8_findings(target),
-        "Arquivos suspeitos (FILE_SUSPICIOUS)": suspicious_files(target),
+        "Arquivos suspeitos": suspicious_files(target),
     }
-    advisory = {"detect-secrets": secrets_warning}
     failed = False
     for title, findings in blocking.items():
         print(f"{title}: {len(findings)}")
         for finding in findings:
             print(f"  {finding}")
         failed = failed or bool(findings)
-    for title, findings in advisory.items():
-        print(f"{title} (aviso): {len(findings)}")
-        for finding in findings:
-            print(f"  {finding}")
+    print("Ao enviar, desligue no formulário: " + ", ".join(sorted(UPLOAD_SKIPPED_RULES)))
     print("REPROVADO: o repositório do QGIS bloquearia esta versão." if failed else "OK: nada bloqueante.")
     return 1 if failed else 0
 

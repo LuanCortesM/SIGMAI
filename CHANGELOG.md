@@ -2,6 +2,18 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.1.6] — 2026-10-04
+
+A 1.1.4 terminou a varredura do plugins.qgis.org **bloqueada**, com 159 achados do Bandit, nenhum de regra "crítica" da tabela do site; a 1.1.5, com o mesmo código, seguiria o mesmo caminho. O motivo está no código do site (`security_scanner.py` e `tasks/run_security_scan.py` do QGIS-Plugins-Website): a verificação do Bandit e a do detect-secrets têm gravidade crítica *inteiras* e só passam com zero achados entre as regras ativas; a gravidade de cada regra só muda a exibição. As regras de aviso podem ser desligadas no formulário de envio, uma a uma, e ficam registradas para os administradores. O `tools/qgis_repository_scan.py` da 1.1.4 seguia a tabela e por isso aprovou o pacote.
+
+### Repositório de plugins do QGIS
+
+- **Código de pareamento com gerador criptográfico** (B311): `generate_pairing_code` usava `random.choice`; passa a `secrets.choice`, em `sigmai/session.py` e em `core/session_paths.py`. O formato não muda.
+- **Pasta temporária do sistema no servidor MCP** (B108): a última pasta candidata de sessões era `TEMP`, `TMPDIR` ou `"/tmp"` escrito à mão; passa a `TEMP` ou `tempfile.gettempdir()`, que consulta `TMPDIR` e cai em `/tmp` do mesmo jeito.
+- **`# nosec` com motivo onde a chamada já é restrita**, como o código já fazia em B102, B310 e B314: as quatro chamadas à ponte local (B310; host de loopback verificado ou a própria ponte do plugin), o teste de serviço OGC (B310; `_safe_url` só aceita http/https sem credenciais), os dois `import xml.etree` (B405; entrada com tamanho limitado e DTD/entidades recusadas antes do parse) e o lançamento do servidor MCP no autoteste (B603; lista de argumentos, sem shell).
+- **Ficam B110 e B112** (126 `try/except/pass` e 22 `try/except/continue`): pontos de compatibilidade entre as APIs do QGIS 3.28 a 4.x, em que um recurso ausente na versão instalada deve ser ignorado e não derrubar o mapa. São regras de aviso que o formulário deixa desligar; o envio da 1.1.6 as desliga.
+- **`tools/qgis_repository_scan.py` passa a seguir o critério real do site**: roda o Bandit com as 74 regras ativas menos as desligadas no envio (`UPLOAD_SKIPPED_RULES`, com o motivo de cada uma, e reprova se alguma não for das que o site deixa pular), o detect-secrets com os mesmos argumentos do site, e reprova qualquer achado. No ZIP da 1.1.4 ele dá os mesmos 159 achados do site (11 fora de B110/B112); na 1.1.6, zero.
+
 ## [1.1.5] — 2026-10-04
 
 Nenhuma mudança de comportamento. A 1.1.4 foi enviada ao plugins.qgis.org e a aba "Qt6 Check" — a que decide o selo "QGIS 4 Ready" — saiu com dois apontamentos, embora o plugin já rodasse no QGIS 4.0.2: o site passa o pacote pelo `pyqt5_to_pyqt6.py` do próprio QGIS, que lê o texto do código, não o comportamento.
