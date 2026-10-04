@@ -127,7 +127,7 @@ def main() -> int:
             for label, output_path in (
                 ("pasta como saída", directory),
                 ("sem extensão", str(Path(directory) / "sem_extensao")),
-                ("extensão desconhecida", str(Path(directory) / "mapa.tiff")),
+                ("extensão desconhecida", str(Path(directory) / "mapa.xyz")),  # .tif/.tiff são aceitos desde a 1.1.0
                 ("pasta inexistente", str(Path(directory) / "nao_existe" / "m.png")),
             ):
                 try:

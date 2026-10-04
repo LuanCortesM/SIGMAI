@@ -31,7 +31,7 @@ O autor do plugin **não** é o autor dos mapas. Pergunte ao usuário o que deve
 | `sigmai/mcp/` | Servidor MCP; roda como processo separado, sem QGIS |
 | `sigmai/bridge_server.py` | Ponte HTTP local, token, fila de comandos |
 | `sigmai/consent.py` | Modo de acesso, pastas, limites, auditoria |
-| `sigmai/qgis_actions/` | Manipuladores dos 218 comandos |
+| `sigmai/qgis_actions/` | Manipuladores dos 219 comandos habilitados |
 | `sigmai/cartography/` | Página, escala, layout, regulamento, composição |
 | `sigmai/ui/` | Painel dentro do QGIS |
 | `core/` | Protocolo, esquemas e exemplos |

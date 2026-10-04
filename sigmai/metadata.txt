@@ -22,6 +22,7 @@ changelog=1.1.3
     - Corrigido: o autoteste (passo 3) congelava o QGIS por 15 s e reprovava o projeto à toa, e aprovava um servidor MCP que não subia. Agora roda fora da thread da interface e lança o servidor como o cliente de IA lançará, até a ponte.
     - Corrigido: no Windows duas instâncias do QGIS ligavam a ponte na mesma porta, e a IA podia falar com a instância errada. A porta passa a ser exclusiva e a segunda instância desvia para a seguinte.
     - Corrigido: planilha CSV de pontos (load_vector_layer, mapa de campanha) não carregava no Windows.
+    - Corrigido: compor mapa quebrava no Python 3.9 (QGIS 3.28 e 3.30 no Windows).
     - Corrigido: com dois QGIS abertos, fechar um desconectava a IA do outro (a ponte encerrava a sessão gravada pela outra instância).
     - Testes: a suíte com PyQGIS passa no Windows com QGIS 4.0.2 (Qt6) e 3.40 LTR (Qt5); verificação de ponta a ponta com o QGIS aberto, do cliente MCP ao mapa, nas duas versões.
     1.1.2

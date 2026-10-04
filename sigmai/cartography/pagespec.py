@@ -204,7 +204,10 @@ def _extract_orientation(text: str) -> tuple[str | None, list[str]]:
                 break
 
     remaining: list[str] = []
-    for word, word_folded, used in zip(words, folded, consumed, strict=True):
+    # As três listas nascem de ``words`` e têm o mesmo tamanho. Sem
+    # ``strict=True``: ele só existe a partir do Python 3.10, e o QGIS 3.28
+    # traz o 3.9 no Windows — compor um mapa quebrava ali (CI 3.9 vermelho).
+    for word, word_folded, used in zip(words, folded, consumed):
         if used:
             continue
         hit = _ORIENTATION_TERMS.get(word_folded)
