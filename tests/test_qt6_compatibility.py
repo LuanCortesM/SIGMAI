@@ -39,6 +39,15 @@ def _pyqt6_available() -> bool:
         return False
 
 
+def _pyqgis_available() -> bool:
+    import importlib.util
+
+    try:
+        return importlib.util.find_spec("qgis.core") is not None
+    except (ImportError, ValueError):
+        return False
+
+
 class StaticCheckerTests(unittest.TestCase):
     def test_checker_exists(self):
         self.assertTrue(CHECKER.exists(), "tools/check_qt6_compat.py sumiu")
@@ -50,6 +59,20 @@ class StaticCheckerTests(unittest.TestCase):
             cwd=ROOT, capture_output=True, text=True,
         )
         self.assertEqual(result.returncode, 0, f"acessos incompatíveis com Qt6:\n{result.stdout}")
+
+    @unittest.skipUnless(_pyqgis_available(), "PyQGIS não instalado")
+    def test_package_has_no_deprecated_qgis_enum_alias(self):
+        """A passagem QGIS do verificador nunca rodava na suíte (só ``--mode qt``).
+
+        Na verificação de prontidão da 1.1.2 ela achou dois
+        ``QgsCoordinateTransform.ReverseTransform`` — apelido depreciado desde o
+        QGIS 3.22 — que tinham entrado na 1.1.0 sem que nenhum teste visse.
+        """
+        result = subprocess.run(
+            [sys.executable, str(CHECKER), "sigmai", "--mode", "qgis"],
+            cwd=ROOT, capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, f"acessos depreciados ou sem escopo na API do QGIS:\n{result.stdout}")
 
     def test_checker_flags_a_known_bad_pattern(self):
         """O verificador precisa reprovar o padrão exato que causou a falha."""

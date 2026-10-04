@@ -243,7 +243,7 @@ class CaminhoDeSaidaDeOutroSistemaOuRelativo(unittest.TestCase):
     def test_classificacao(self) -> None:
         from sigmai.security import classify_output_path
 
-        self.assertEqual(classify_output_path(r"C:\Users\Fulano\Documentos\mapa.png"), "foreign")
+        self.assertEqual(classify_output_path(r"C:\Dados\Fulano\Documentos\mapa.png"), "foreign")
         self.assertEqual(classify_output_path(r"\\servidor\pasta\mapa.png"), "foreign")
         self.assertEqual(classify_output_path("D:/mapas/mapa.png"), "foreign")
         self.assertEqual(classify_output_path("mapa.png"), "relative")
@@ -257,7 +257,7 @@ class CaminhoDeSaidaDeOutroSistemaOuRelativo(unittest.TestCase):
         from sigmai.security import OutputPathError, normalize_output_path
 
         with self.assertRaises(OutputPathError) as ctx:
-            normalize_output_path(r"C:\Users\Fulano\mapa.png")
+            normalize_output_path(r"C:\Dados\Fulano\mapa.png")
         self.assertIn("Windows", str(ctx.exception))
         with self.assertRaises(OutputPathError) as ctx:
             normalize_output_path("mapa.png")
@@ -269,7 +269,7 @@ class CaminhoDeSaidaDeOutroSistemaOuRelativo(unittest.TestCase):
         from sigmai.cartography.compose import CompositionError, _resolve_output_path
 
         with self.assertRaises(CompositionError) as ctx:
-            _resolve_output_path({"output_path": r"C:\Users\Fulano\Documentos\mapa.png"})
+            _resolve_output_path({"output_path": r"C:\Dados\Fulano\Documentos\mapa.png"})
         self.assertIn("caminho do Windows", str(ctx.exception))
         with self.assertRaises(CompositionError) as ctx:
             _resolve_output_path({"output_path": "mapa.png"})

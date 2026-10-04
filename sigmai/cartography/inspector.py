@@ -581,7 +581,11 @@ def _polygon_coverage(map_item: Any, layers: Any) -> dict[str, Any] | None:
     cálculo não é seguro (camada grande demais, CRS inválido).
     """
     try:
-        from qgis.core import QgsCoordinateTransform, QgsFeatureRequest, QgsGeometry, QgsProject  # type: ignore
+        from qgis.core import Qgis, QgsCoordinateTransform, QgsFeatureRequest, QgsGeometry, QgsProject  # type: ignore
+
+        from .qtcompat import qt_enum
+
+        reverse = qt_enum(Qgis, "TransformDirection", "Reverse")
     except Exception:
         return None
     try:
@@ -611,7 +615,7 @@ def _polygon_coverage(map_item: Any, layers: Any) -> dict[str, Any] | None:
                 if layer.crs().isValid() and layer.crs().authid() != crs.authid():
                     transform = QgsCoordinateTransform(layer.crs(), crs, QgsProject.instance())
                 request_rect = extent if transform is None else transform.transformBoundingBox(
-                    extent, QgsCoordinateTransform.ReverseTransform
+                    extent, reverse
                 )
                 request = QgsFeatureRequest().setFilterRect(request_rect).setNoAttributes()
                 layer_pieces: list[Any] = []
