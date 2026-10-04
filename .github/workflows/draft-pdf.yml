@@ -1,0 +1,28 @@
+name: JOSS paper draft
+
+# Compila paper/paper.md no formato da JOSS (Open Journals) e publica o PDF
+# como artefato da execução. Roda só quando o artigo muda, ou à mão.
+on:
+  push:
+    paths:
+      - "paper/**"
+      - ".github/workflows/draft-pdf.yml"
+  workflow_dispatch:
+
+jobs:
+  paper:
+    runs-on: ubuntu-latest
+    name: Paper draft
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build draft PDF
+        uses: openjournals/openjournals-draft-action@master
+        with:
+          journal: joss
+          paper-path: paper/paper.md
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper
+          path: paper/paper.pdf

@@ -170,7 +170,7 @@ def extract_codex_client() -> list[str]:
 
 
 def extract_mcp() -> list[str]:
-    base = ROOT / "mcp_server"
+    base = ROOT / "sigmai" / "mcp"
     found: set[str] = set()
     if not base.exists():
         return []
@@ -178,6 +178,7 @@ def extract_mcp() -> list[str]:
         text = path.read_text(encoding="utf-8", errors="replace")
         found.update(re.findall(r'"action"\s*:\s*"([^"]+)"', text))
         found.update(re.findall(r'bridge_command\("([^"]+)"', text))
+        found.update(re.findall(r'bridge_call\("([^"]+)"', text))
         found.update(re.findall(r'action\s*=\s*"([^"]+)"', text))
     return sorted(found)
 

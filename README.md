@@ -157,7 +157,7 @@ The split between `cartography` and the rest is deliberate: `pagespec`, `scaling
 ```bash
 git clone https://github.com/LuanCortesM/SIGMAI.git
 cd SIGMAI
-python -m pytest tests -q          # 680 tests; those that need PyQGIS, a given PyQt or a POSIX system skip themselves without it
+python -m pytest tests -q          # 679 tests; those that need PyQGIS, a given PyQt or a POSIX system skip themselves without it
 python tools/package_qgis_plugin_zip.py
 ```
 
