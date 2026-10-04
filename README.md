@@ -189,14 +189,14 @@ Developed by Luan da Silva Cortes Maciel as a research product associated with H
 @software{maciel_sigmai,
   author  = {Maciel, Luan da Silva Cortes},
   title   = {{SIGMAI}: Secure {GIS}-{AI} Interface},
-  version = {1.1.4},
+  version = {1.1.5},
   doi     = {10.5281/zenodo.20389286},
   url     = {https://github.com/LuanCortesM/SIGMAI},
   license = {MIT}
 }
 ```
 
-Every release is archived on Zenodo. To cite SIGMAI in general, use the DOI that always resolves to the latest version, [10.5281/zenodo.20389286](https://doi.org/10.5281/zenodo.20389286); to cite the exact version you used, use its own DOI — 1.1.3 is [10.5281/zenodo.23146006](https://doi.org/10.5281/zenodo.23146006), and the first public version, V0.1.0, is [10.5281/zenodo.20389287](https://doi.org/10.5281/zenodo.20389287).
+Every release is archived on Zenodo. To cite SIGMAI in general, use the DOI that always resolves to the latest version, [10.5281/zenodo.20389286](https://doi.org/10.5281/zenodo.20389286); to cite the exact version you used, use its own DOI, listed under *Versions* on that record — 1.1.4, for example, is [10.5281/zenodo.23146393](https://doi.org/10.5281/zenodo.23146393), and the first public version, V0.1.0, is [10.5281/zenodo.20389287](https://doi.org/10.5281/zenodo.20389287).
 
 Machine-readable metadata: [CITATION.cff](CITATION.cff).
 

@@ -2,6 +2,25 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.1.5] — 2026-10-04
+
+Nenhuma mudança de comportamento. A 1.1.4 foi enviada ao plugins.qgis.org e a aba "Qt6 Check" — a que decide o selo "QGIS 4 Ready" — saiu com dois apontamentos, embora o plugin já rodasse no QGIS 4.0.2: o site passa o pacote pelo `pyqt5_to_pyqt6.py` do próprio QGIS, que lê o texto do código, não o comportamento.
+
+### Repositório de plugins do QGIS
+
+- **`box.exec_()` em `plugin.py`** (diálogo de consentimento): ramo de compatibilidade para um Qt sem `exec()`. Todo PyQt5 que o QGIS 3.28 ou mais novo traz já tem `exec()`; o ramo saiu.
+- **`from PyQt5.QtGui import QPalette` em `ui/theme.py`**: reserva para rodar fora do QGIS. `is_dark_palette` passa a tirar a classe da própria paleta que recebe (`type(palette)`), sem importar PyQt5 nem PyQt6; o teste da detecção do tema escuro passa a rodar também sob o PyQt6 do QGIS 4, onde antes era pulado.
+- **`tools/qgis_qt6_check.py`** baixa o `pyqt5_to_pyqt6.py` do QGIS numa versão fixa e o roda no pacote ou no ZIP em modo de simulação; sai com erro se houver apontamento. O job "Qt6 / QGIS 4 compatibility" do CI passa a rodá-lo. Contra o ZIP da 1.1.4 ele reproduz os dois apontamentos do site.
+- **`tools/qgis_repository_scan.py` segue a lista viva de regras críticas do site** (conferida em 2026-10-04): entram as quatro regras do Bandit que faltavam (B323, B501, B503, B507); arquivo de tipo suspeito passa a reprovar, como no site (FILE_SUSPICIOUS é crítica); e os três detectores do detect-secrets que o site só avisa (palavra-chave, entropia Base64 e hexadecimal) são listados sem reprovar.
+
+### Testes
+
+- O teste da migração da opção "manter o mesmo token" contra o `QgsSettings` real passa a gravar num `.ini` temporário: com `QgsSettings()` sem argumentos ele só passava se outro teste tivesse iniciado o `QgsApplication` antes.
+
+### Citação
+
+- `CITATION.cff` e o BibTeX do README citam o DOI que reúne todas as versões; o DOI de cada versão fica no registro do Zenodo, que o gera depois da publicação da versão.
+
 ## [1.1.4] — 2026-10-04
 
 Nenhuma mudança de comportamento. A 1.1.3 não chegou ao repositório oficial de plugins do QGIS: desde 2026 o plugins.qgis.org varre cada versão enviada com Bandit e detect-secrets, achado *crítico* bloqueia a versão para download e aprovação, e uma versão bloqueada não se desbloqueia — é preciso enviar outra. Rodadas as mesmas ferramentas no pacote da 1.1.3, o Bandit deu 41 achados críticos, todos falsos positivos.

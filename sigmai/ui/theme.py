@@ -136,11 +136,11 @@ def is_dark_palette(palette: Any) -> bool:
     as versões de Qt 5 e 6 que o QGIS 3.28+ usa.
     """
     try:
-        try:
-            from qgis.PyQt.QtGui import QPalette  # type: ignore
-        except Exception:  # pragma: no cover - fora do QGIS
-            from PyQt5.QtGui import QPalette  # type: ignore
-        role = getattr(getattr(QPalette, "ColorRole", QPalette), "Window")
+        # A classe vem da própria paleta, e não de um import: assim serve ao
+        # PyQt5 e ao PyQt6 sem nomear nenhum dos dois (a verificação de Qt6
+        # do repositório de plugins reprova ``from PyQt5``).
+        palette_class = type(palette)
+        role = getattr(getattr(palette_class, "ColorRole", palette_class), "Window")
         colour = palette.color(role)
         return float(colour.lightnessF()) < 0.5
     except Exception:

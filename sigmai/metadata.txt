@@ -1,7 +1,7 @@
 [general]
 name=SIGMAI
 description=Secure local bridge between AI assistants and QGIS, with cartographic quality control.
-version=1.1.4
+version=1.1.5
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=MACIEL, L. S. C.
@@ -16,7 +16,10 @@ homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=MIT
-changelog=1.1.4
+changelog=1.1.5
+    - QGIS 4 Ready: a verificação de Qt6 do repositório de plugins (o pyqt5_to_pyqt6.py do QGIS) apontava dois trechos de compatibilidade — box.exec_() num ramo para Qt antigo e um "from PyQt5" de reserva fora do QGIS. Os dois saíram; nenhum era necessário no QGIS 3.28 ou mais novo.
+    - tools/qgis_qt6_check.py roda essa mesma verificação no pacote ou no ZIP, e o CI reprova qualquer apontamento.
+    1.1.4
     - Repositório de plugins do QGIS: a varredura de segurança do plugins.qgis.org (Bandit) acusava 41 falsos positivos críticos — nomes de chave com "token" tomados por senha embutida — e bloquearia a versão. Os nomes mudaram; o comportamento, não. A opção "manter o mesmo token" passa a ser gravada como persist_access_key, e quem a tinha ligado continua com ela ligada.
     - tools/qgis_repository_scan.py roda no pacote as mesmas varreduras do repositório (Bandit, detect-secrets, Flake8), e o CI reprova qualquer achado bloqueante.
     1.1.3

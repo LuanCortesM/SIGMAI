@@ -17,6 +17,8 @@ Uso::
     python tools/qgis_repository_scan.py              # varre sigmai/
     python tools/qgis_repository_scan.py dist/x.zip   # varre o ZIP enviado
 
+Avisos (regras que o site não bloqueia) são listados sem reprovar.
+
 Requer ``bandit``, ``detect-secrets`` e ``flake8`` (``pip install bandit
 detect-secrets flake8``). Sai com código 1 se houver achado bloqueante.
 """
@@ -33,21 +35,29 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "sigmai"
 
-#: Testes do Bandit que o repositório classifica como CRITICAL (bloqueantes),
-#: conforme https://plugins.qgis.org/docs/security-scanning/rules. A lista do
-#: site é viva; se ela crescer, acrescente aqui.
+#: Regras que o repositório classifica como Critical (bloqueantes), conforme
+#: https://plugins.qgis.org/docs/security-scanning/rules em 2026-10-04: 38 do
+#: Bandit, 23 detectores do detect-secrets, 6 do Flake8 e FILE_SUSPICIOUS. A
+#: lista do site é viva; se ela mudar, acompanhe aqui.
 BANDIT_CRITICAL = frozenset({
     "B102", "B103", "B105", "B106", "B107", "B111", "B201", "B202", "B301",
-    "B302", "B304", "B305", "B306", "B307", "B312", "B321", "B401", "B402",
-    "B412", "B413", "B502", "B505", "B506", "B601", "B602", "B604", "B605",
-    "B609", "B610", "B611", "B612", "B613", "B615", "B701",
+    "B302", "B304", "B305", "B306", "B307", "B312", "B321", "B323", "B401",
+    "B402", "B412", "B413", "B501", "B502", "B503", "B505", "B506", "B507",
+    "B601", "B602", "B604", "B605", "B609", "B610", "B611", "B612", "B613",
+    "B615", "B701",
 })
 
-#: Erros do Flake8 que indicam código que nem roda (não bloqueiam no site,
-#: mas não há razão para publicá-los).
+#: Os únicos detectores do detect-secrets que o site trata como aviso
+#: (KeywordDetector, Base64HighEntropyString, HexHighEntropyString); os demais
+#: — chaves de AWS, GitHub, OpenAI, chaves privadas etc. — são críticos.
+SECRET_WARNING_TYPES = frozenset({"Secret Keyword", "Base64 High Entropy String", "Hex High Entropy String"})
+
+#: Erros do Flake8 que indicam código que nem roda. O site bloqueia E901,
+#: E902, E999, F821, F823 e F831; F63, F7 e F822 entram por serem erros reais.
 FLAKE8_FATAL = "E9,F63,F7,F821,F822,F823,F831"
 
-#: Extensões que a análise de arquivos do site aponta como suspeitas.
+#: Extensões que a análise de arquivos do site aponta como suspeitas
+#: (FILE_SUSPICIOUS, crítica).
 SUSPICIOUS_SUFFIXES = frozenset({
     ".exe", ".dll", ".so", ".dylib", ".bat", ".cmd", ".ps1", ".sh", ".vbs",
     ".msi", ".com", ".scr", ".jar", ".pyc", ".pyo",
@@ -78,15 +88,18 @@ def bandit_findings(target: Path) -> list[str]:
     return findings
 
 
-def secret_findings(target: Path) -> list[str]:
+def secret_findings(target: Path) -> tuple[list[str], list[str]]:
+    """(críticos, avisos) do detect-secrets."""
     _require("detect_secrets", "detect-secrets")
     result = _run("detect_secrets", "scan", "--all-files", str(target))
     report = json.loads(result.stdout or "{}")
-    return [
-        f"{entry['type']} {Path(filename)}:{entry['line_number']}"
-        for filename, entries in report.get("results", {}).items()
-        for entry in entries
-    ]
+    critical: list[str] = []
+    warnings: list[str] = []
+    for filename, entries in report.get("results", {}).items():
+        for entry in entries:
+            line = f"{entry['type']} {Path(filename)}:{entry['line_number']}"
+            (warnings if entry["type"] in SECRET_WARNING_TYPES else critical).append(line)
+    return critical, warnings
 
 
 def flake8_findings(target: Path) -> list[str]:
@@ -105,12 +118,14 @@ def suspicious_files(target: Path) -> list[str]:
 
 
 def scan(target: Path) -> int:
+    secrets_critical, secrets_warning = secret_findings(target)
     blocking = {
         "Bandit (CRITICAL)": bandit_findings(target),
-        "detect-secrets": secret_findings(target),
+        "detect-secrets (CRITICAL)": secrets_critical,
         "Flake8 (erro fatal)": flake8_findings(target),
+        "Arquivos suspeitos (FILE_SUSPICIOUS)": suspicious_files(target),
     }
-    advisory = {"Arquivos suspeitos": suspicious_files(target)}
+    advisory = {"detect-secrets": secrets_warning}
     failed = False
     for title, findings in blocking.items():
         print(f"{title}: {len(findings)}")

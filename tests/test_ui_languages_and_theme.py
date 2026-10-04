@@ -134,9 +134,15 @@ class TemaClaroEEscuro(unittest.TestCase):
 
     def test_automatico_segue_a_paleta_do_qgis(self) -> None:
         try:
-            from PyQt5.QtGui import QColor, QPalette
-        except ImportError:  # pragma: no cover
-            self.skipTest("PyQt5 não instalado")
+            from qgis.PyQt.QtGui import QColor, QPalette
+        except ImportError:
+            try:
+                from PyQt6.QtGui import QColor, QPalette
+            except ImportError:
+                try:
+                    from PyQt5.QtGui import QColor, QPalette
+                except ImportError:  # pragma: no cover
+                    self.skipTest("nem PyQGIS, nem PyQt6, nem PyQt5")
         role = getattr(getattr(QPalette, "ColorRole", QPalette), "Window")
         escura, clara = QPalette(), QPalette()
         escura.setColor(role, QColor("#323232"))

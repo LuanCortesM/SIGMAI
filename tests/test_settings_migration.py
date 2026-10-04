@@ -9,6 +9,7 @@ escolha na atualização.
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -66,28 +67,37 @@ class MigracaoDaOpcaoDeManterOToken(unittest.TestCase):
 
 
 class MigracaoComQgsSettingsDeVerdade(unittest.TestCase):
-    """O mesmo, contra o ``QgsSettings`` real, num prefixo só de teste."""
+    """O mesmo, contra o ``QgsSettings`` real, gravando num ``.ini`` temporário.
 
-    PREFIXO = "_sigmai_teste_migracao"
+    Um ``QgsSettings()`` sem argumentos só grava depois que algum teste
+    iniciou o ``QgsApplication``; com arquivo próprio o teste não depende da
+    ordem da suíte nem toca nas configurações do usuário.
+    """
 
     def setUp(self) -> None:
         try:
             from qgis.core import QgsSettings
+            from qgis.PyQt.QtCore import QSettings
         except ImportError:
             self.skipTest("PyQGIS indisponível")
-        self.settings = QgsSettings()
-        self.settings.remove(self.PREFIXO)
-
-    def tearDown(self) -> None:
-        self.settings.remove(self.PREFIXO)
-        self.settings.sync()
+        pasta = tempfile.TemporaryDirectory(prefix="sigmai_settings_")
+        self.addCleanup(pasta.cleanup)
+        formato = getattr(getattr(QSettings, "Format", QSettings), "IniFormat")
+        arquivo = str(Path(pasta.name) / "QGIS.ini")
+        self.abrir = lambda: QgsSettings(arquivo, formato)
 
     def test_opcao_ligada_sobrevive_a_atualizacao(self) -> None:
-        self.settings.setValue(f"{self.PREFIXO}/persist_token", True)
-        self.settings.sync()
-        migrate_legacy_settings(self.settings, self.PREFIXO)
-        self.assertFalse(self.settings.contains(f"{self.PREFIXO}/persist_token"))
-        self.assertTrue(self.settings.value(f"{self.PREFIXO}/persist_access_key", False, type=bool))
+        antes = self.abrir()
+        antes.setValue("SIGMAI/persist_token", True)
+        antes.sync()
+        del antes
+        migrar = self.abrir()
+        migrate_legacy_settings(migrar)
+        migrar.sync()
+        del migrar
+        depois = self.abrir()
+        self.assertFalse(depois.contains("SIGMAI/persist_token"))
+        self.assertTrue(depois.value("SIGMAI/persist_access_key", False, type=bool))
 
 
 if __name__ == "__main__":

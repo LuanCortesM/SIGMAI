@@ -512,7 +512,7 @@ class SIGMAIPlugin:
         box.setCheckBox(remember)
         allow = box.addButton(translate(self.language, "consent_allow"), qt_enum(QMessageBox, "ButtonRole", "AcceptRole"))
         box.addButton(translate(self.language, "consent_deny"), qt_enum(QMessageBox, "ButtonRole", "RejectRole"))
-        box.exec() if hasattr(box, "exec") else box.exec_()
+        box.exec()
         allowed = box.clickedButton() is allow
         self._refresh_panel()
         return (DECISION_ALLOWED if allowed else DECISION_DENIED, bool(remember.isChecked()))
