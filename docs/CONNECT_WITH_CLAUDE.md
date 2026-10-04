@@ -39,7 +39,7 @@ Then **quit Claude Desktop completely** — closing the window is not enough —
 
 Two details cause most failures, and the panel handles both for you:
 
-- **`command` must be a real Python interpreter, given as an absolute path.** Inside QGIS on Windows, `sys.executable` is `qgis-bin.exe`, which cannot run a script; the usable interpreter sits at `apps\PythonXXX\python.exe` in the OSGeo4W tree. And the process Claude launches does not inherit your terminal's `PATH`, so a bare `python` often resolves to nothing.
+- **`command` must be a real Python interpreter, given as an absolute path.** Inside QGIS on Windows, `sys.executable` is `qgis-bin.exe`, which cannot run a script; the usable interpreter sits at `apps\PythonXXX\python.exe` in the OSGeo4W tree. Not `bin\python.exe`: that one is a launcher that only works with the `PYTHONHOME` QGIS sets for itself, and launched by Claude it dies before running a line (earlier versions of the panel pointed there). And the process Claude launches does not inherit your terminal's `PATH`, so a bare `python` often resolves to nothing. Step 3 of the panel launches the server exactly as Claude will, so a wrong `command` shows up there.
 - **`args` must be absolute too.** The working directory of the launched process is not the plugin folder.
 
 ## Claude Code

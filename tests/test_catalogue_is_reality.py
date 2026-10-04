@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import inspect
 import re
+import shutil
 import sys
 import tempfile
 import time
@@ -63,7 +64,7 @@ def setUpModule() -> None:
 
     if importlib.util.find_spec("qgis") is None:
         return
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    os.environ.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "offscreen")  # offscreen no Windows não tem fontes
     from qgis.core import QgsApplication
 
     _APP = QgsApplication.instance() or QgsApplication([], False)
@@ -320,6 +321,7 @@ class MapGpxTrackComponeOMapa(unittest.TestCase):
 
     def test_dry_run_anuncia_os_dois_passos_sem_carregar_nada(self) -> None:
         tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
         gpx_path = tmp / "trilha.gpx"
         gpx_path.write_text(
             "<?xml version='1.0'?><gpx version='1.1'><trk><trkseg>"
@@ -334,6 +336,7 @@ class MapGpxTrackComponeOMapa(unittest.TestCase):
 
     def test_recusa_arquivo_sem_extensao_gpx(self) -> None:
         tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
         not_gpx = tmp / "trilha.txt"
         not_gpx.write_text("nada")
         with self.assertRaises(ValidationError) as ctx:
@@ -352,6 +355,7 @@ class GpxTrackLengthCalculaDistanciaReal(unittest.TestCase):
         # equador, para o resultado ter uma faixa esperada fácil de checar
         # sem depender de nenhuma calculadora externa.
         tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
         gpx_path = tmp / "trilha.gpx"
         gpx_path.write_text(
             "<?xml version='1.0'?><gpx version='1.1'><trk><trkseg>"
@@ -372,7 +376,10 @@ class GpxTrackLengthCalculaDistanciaReal(unittest.TestCase):
 
     def test_arquivo_inexistente_recusa_com_erro_real(self) -> None:
         with self.assertRaises(ValidationError) as ctx:
-            data_sources.gpx_track_length({"path": "/tmp/sigmai_nao_existe_de_verdade.gpx"}, {"dry_run": False})
+            # Caminho absoluto em qualquer sistema: "/tmp/..." no Windows é
+            # relativo à unidade e é recusado antes de chegar ao teste do arquivo.
+            inexistente = Path(tempfile.gettempdir()) / "sigmai_nao_existe_de_verdade.gpx"
+            data_sources.gpx_track_length({"path": str(inexistente)}, {"dry_run": False})
         self.assertEqual(ctx.exception.code, "FILE_NOT_FOUND")
 
 
@@ -387,6 +394,7 @@ class RepairDataSourcePathConserta(unittest.TestCase):
         self.project = QgsProject.instance()
         self.project.clear()
         self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
         self.original = self.tmp / "original.geojson"
         self.original.write_text(
             '{"type":"FeatureCollection","features":[{"type":"Feature","properties":{},'
@@ -672,6 +680,7 @@ class ExportReportPdfNaoRecusaMaisIncondicionalmente(unittest.TestCase):
 
     def test_dry_run_reconhece_formato_pdf_sem_escrever_nada(self) -> None:
         tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
         saida = tmp / "relatorio.pdf"
         resultado = atlas_reports.export_report_pdf(
             {"report_name": "Relatorio Z", "output_path": str(saida)}, {"dry_run": True}
@@ -682,6 +691,7 @@ class ExportReportPdfNaoRecusaMaisIncondicionalmente(unittest.TestCase):
 
     def test_generate_workflow_report_pdf_e_o_mesmo_caminho(self) -> None:
         tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
         saida = tmp / "relatorio_workflow.pdf"
         resultado = atlas_reports.generate_workflow_report_pdf(
             {"report_name": "Relatorio Z", "output_path": str(saida)}, {"dry_run": True}
@@ -690,6 +700,7 @@ class ExportReportPdfNaoRecusaMaisIncondicionalmente(unittest.TestCase):
 
     def test_recusa_sobrescrever_sem_confirmacao(self) -> None:
         tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
         saida = tmp / "existe.pdf"
         saida.write_bytes(b"conteudo antigo")
         with self.assertRaises(ValidationError) as ctx:

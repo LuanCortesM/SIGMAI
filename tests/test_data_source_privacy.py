@@ -269,6 +269,8 @@ class SessaoRecusaSymlink(unittest.TestCase):
         self.assertEqual(vitima.read_text(encoding="utf-8"), "x")
 
 
+@unittest.skipIf(os.name == "nt", "modo POSIX 0600 não existe no Windows: lá o arquivo fica em %LOCALAPPDATA%, "
+                 "protegido pela ACL do perfil, e os.chmod só liga/desliga o somente-leitura")
 class PermissaoDoArquivoDeSessao(unittest.TestCase):
     """O token de sessão não pode existir, nem por um instante, com permissão mais aberta que 0600."""
 

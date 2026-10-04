@@ -1,7 +1,7 @@
 [general]
 name=SIGMAI
 description=Secure local bridge between AI assistants and QGIS, with cartographic quality control.
-version=1.1.2
+version=1.1.3
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=MACIEL, L. S. C.
@@ -16,7 +16,15 @@ homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=MIT
-changelog=1.1.2
+changelog=1.1.3
+    - Corrigido: abrir o painel congelava o QGIS 4 e derrubava o QGIS 3.40 (desde a 1.0.1). Aplicar o tema disparava StyleChange, que reaplicava o tema, num ciclo sem fim.
+    - Corrigido: o bloco de configuração do passo 2 apontava, no Windows, para bin\python.exe do QGIS, um lançador que só funciona com o PYTHONHOME do próprio QGIS; lançado pelo Claude, Cursor ou Codex, o servidor MCP morria antes de começar. Agora aponta para apps\PythonXXX\python.exe.
+    - Corrigido: o autoteste (passo 3) congelava o QGIS por 15 s e reprovava o projeto à toa, e aprovava um servidor MCP que não subia. Agora roda fora da thread da interface e lança o servidor como o cliente de IA lançará, até a ponte.
+    - Corrigido: no Windows duas instâncias do QGIS ligavam a ponte na mesma porta, e a IA podia falar com a instância errada. A porta passa a ser exclusiva e a segunda instância desvia para a seguinte.
+    - Corrigido: planilha CSV de pontos (load_vector_layer, mapa de campanha) não carregava no Windows.
+    - Corrigido: com dois QGIS abertos, fechar um desconectava a IA do outro (a ponte encerrava a sessão gravada pela outra instância).
+    - Testes: a suíte com PyQGIS passa no Windows com QGIS 4.0.2 (Qt6) e 3.40 LTR (Qt5); verificação de ponta a ponta com o QGIS aberto, do cliente MCP ao mapa, nas duas versões.
+    1.1.2
     - Licença: MIT em todo o projeto (o GitHub já declarava MIT; o plugin ainda dizia GPL-3.0-or-later). Texto integral na raiz e no pacote.
     - Fundamentos das regras corrigidos: duas regras citavam normas ABNT que não dizem o que lhes era atribuído (NBR 6027 é sumário; NBR 13133 é levantamento topográfico) e oito citavam "convenção" ou "boas práticas" sem fonte. Agora cada regra cita o Decreto 89.817/1984 (Normas Técnicas da Cartografia Nacional, arts. 12 a 21), a Resolução IBGE PR 1/2015, IBGE (1999), Brewer (2016), Slocum et al. (2009), Snyder (1987), Machado et al. (2009), Robertson (1977), Okabe & Ito (2008), PLOS ONE ou Rodriguésia — ou declara que o número é decisão de projeto do SIGMAI; a API do QGIS aparece como verificação, não como fundamento. Teste garante.
     - Análise de sensibilidade dos limiares (tools/threshold_sensitivity.py): 138 mapas re-pontuados variando cada limiar do regulamento e as decisões do compositor recalculadas; registro em docs/experiments/2026-09-19_sensibilidade_limiares/. Os limiares do compositor viraram constantes nomeadas (LAYOUT_SWITCH_GAIN, MAX_EFFECTIVE_MARGIN_PERCENT, FONT_SCALE_EXPONENT).

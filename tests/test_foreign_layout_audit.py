@@ -165,7 +165,7 @@ class LayoutFeitoAMaoNoQgis(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        os.environ.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "offscreen")  # offscreen no Windows não tem fontes
         from qgis.core import QgsApplication
 
         cls.app = QgsApplication.instance() or QgsApplication([], False)

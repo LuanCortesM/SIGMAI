@@ -13,6 +13,8 @@ desenho do símbolo.
 
 from __future__ import annotations
 
+import atexit
+import shutil
 import sys
 import tempfile
 import time
@@ -189,7 +191,10 @@ class SimulacaoDeSimbologiaNaoMuta(unittest.TestCase):
 
 
 def _server() -> SIGMAIServer:
-    return SIGMAIServer(token="t", log_dir=Path(tempfile.mkdtemp()) / "logs")
+    # A pasta do log sai no fim da suíte: cada chamada deixava uma no %TEMP%.
+    pasta = tempfile.mkdtemp(prefix="sigmai_dryrun_")
+    atexit.register(shutil.rmtree, pasta, True)
+    return SIGMAIServer(token="t", log_dir=Path(pasta) / "logs")
 
 
 class NeverAutoApprovedAntesDoAtalhoDeDryRun(unittest.TestCase):

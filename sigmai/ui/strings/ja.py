@@ -204,7 +204,8 @@ STRINGS: dict[str, str] = {
     "selftest_session_ok": "書き出し済みで、ブリッジと一致しています",
     "selftest_mcp_missing": "ファイルがありません: {path}",
     "selftest_mcp_no_python": "インタープリターが見つかりません: {executable}",
-    "selftest_mcp_ok": "{server} は {python} で準備完了",
+    "selftest_mcp_ok": "{server} が応答し、ブリッジに到達しました（AI クライアントと同じ方法で起動: {python}）",
+    "selftest_mcp_failed": "AI クライアントは {python} で SIGMAI を使用できません（段階 {stage}）: {error}",
     "selftest_mode_read_only": "読み取り専用: AI は調査とシミュレーションはできますが、地図は生成できません。必要なときに「アクセス」タブで変更してください。",
     # clientes de IA (passo 2)
     "client_generic_label": "その他の MCP クライアント",

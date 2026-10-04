@@ -21,7 +21,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "offscreen")  # offscreen no Windows não tem fontes
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
@@ -32,8 +32,12 @@ class MCPClient:
     """Cliente MCP mínimo, do tipo que o Claude Desktop implementa."""
 
     def __init__(self, server: Path, env: dict[str, str]):
+        from sigmai.ui.client_configs import python_executable
+
+        # O interpretador do bloco de configuração, não sys.executable: no
+        # OSGeo4W este é o lançador bin\python.exe, que sem PYTHONHOME não sobe.
         self.process = subprocess.Popen(
-            [sys.executable, str(server)],
+            [python_executable(), str(server)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, encoding="utf-8", bufsize=1, env=env,
         )
@@ -133,14 +137,17 @@ def main() -> int:
     for limit in ("exports_per_session", "processing_runs_per_session", "writes_per_session"):
         server.consent.set_limit(limit, 500)
 
-    env = {
-        "PATH": "/usr/bin:/bin",
+    from sigmai.ui.client_configs import client_environment
+
+    # O ambiente que um cliente MCP real repassa (no Windows ele inclui
+    # SYSTEMROOT, sem o qual o Winsock não carrega).
+    env = client_environment({
         "PYTHONUNBUFFERED": "1",
         "PYTHONUTF8": "1",
         "SIGMAI_HOST": server.host,
         "SIGMAI_PORT": str(server.port),
         "SIGMAI_TOKEN": TOKEN,
-    }
+    })
     client = MCPClient(ROOT / "sigmai" / "mcp" / "sigmai_mcp.py", env)
 
     # A conversa MCP roda numa thread de trabalho enquanto a thread principal

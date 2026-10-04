@@ -17,7 +17,6 @@ from __future__ import annotations
 import importlib.util
 import os
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -29,6 +28,7 @@ from sigmai.cartography import vision  # noqa: E402
 from sigmai.cartography.rulebook import (  # noqa: E402
     FRAME_BAND_EMPTY_MAX, OVERLAY_MAX_SURROUNDINGS_INK, RULES_BY_ID, _empty_bands, evaluate,
 )
+from qgis_temp import pasta_temporaria  # noqa: E402
 
 
 def _pyqgis_disponivel() -> bool:
@@ -268,7 +268,7 @@ class RegulamentoRegistraAsNovasRegras(unittest.TestCase):
 class MedicoesNoQgis(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        os.environ.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "offscreen")  # offscreen no Windows não tem fontes
         from qgis.core import QgsApplication
 
         cls.app = QgsApplication.instance() or QgsApplication([], False)
@@ -366,7 +366,7 @@ class MedicoesNoQgis(unittest.TestCase):
         outra.dataProvider().addFeatures([f])
         outra.updateExtents()
         QgsProject.instance().addMapLayer(outra)
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             r = compose_map({"layer_ids": [layer.id(), outra.id()], "title": "F", "map_author": "a",
                              "data_source": {layer.id(): "IBGE, Malha Municipal 2024", outra.id(): "IBGE, Malha Municipal 2024"},
                              "journal_column": "single", "output_path": os.path.join(pasta, "f.png"), "format": "png",
@@ -378,14 +378,15 @@ class MedicoesNoQgis(unittest.TestCase):
         from qgis.PyQt.QtGui import QColor, QImage, QPainter
 
         from sigmai.cartography.inspector import measure_ink_grid, measure_surroundings_ink
+        from sigmai.cartography.qtcompat import qt_enum
 
         # Página 100x100 mm a 2 px/mm; metade oeste pintada de azul.
-        image = QImage(200, 200, QImage.Format_ARGB32)
+        image = QImage(200, 200, qt_enum(QImage, "Format", "Format_ARGB32"))
         image.fill(QColor("white"))
         painter = QPainter(image)
         painter.fillRect(0, 0, 100, 200, QColor("#0072B2"))
         painter.end()
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             caminho = os.path.join(pasta, "p.png")
             image.save(caminho)
             quadro = {"x": 0, "y": 0, "width": 100, "height": 100}

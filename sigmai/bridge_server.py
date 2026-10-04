@@ -20,8 +20,20 @@ from .command_registry import CommandRegistry, make_response
 from .logging_utils import filter_error_records
 from .qgis_actions import register_actions
 from .permissions import READ_ONLY, permission_for
-from .security import DEFAULT_HOST, DEFAULT_PORT, find_available_port, is_localhost, validate_bearer_header
+from .security import (
+    DEFAULT_HOST, DEFAULT_PORT, REUSE_ADDRESS, claim_port, find_available_port, is_localhost, validate_bearer_header,
+)
 from .validators import ValidationError, validate_command
+
+
+class BridgeHTTPServer(ThreadingHTTPServer):
+    """``ThreadingHTTPServer`` dono exclusivo da porta (ver ``security.claim_port``)."""
+
+    allow_reuse_address = REUSE_ADDRESS
+
+    def server_bind(self) -> None:
+        claim_port(self.socket)
+        super().server_bind()
 
 
 def _now() -> str:
@@ -165,12 +177,14 @@ class SIGMAIServer:
         # serviço — procura a próxima livre em vez de falhar com um erro de
         # socket que não diz nada ao usuário.
         try:
-            self._httpd = ThreadingHTTPServer((self.host, self.port), handler)
+            self._httpd = BridgeHTTPServer((self.host, self.port), handler)
         except OSError:
             fallback = find_available_port(self.host, self.port)
             self.logger.record("bridge_port_fallback", requested=self.port, chosen=fallback)
             self.port = fallback
-            self._httpd = ThreadingHTTPServer((self.host, self.port), handler)
+            self._httpd = BridgeHTTPServer((self.host, self.port), handler)
+        # A porta em que de fato ligou (com port=0 o sistema escolhe uma).
+        self.port = int(self._httpd.server_address[1])
         self._thread = threading.Thread(target=self._httpd.serve_forever, name="SIGMAIHTTP", daemon=True)
         self._thread.start()
         self._start_qt_timer()

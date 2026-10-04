@@ -6,7 +6,6 @@ import csv
 import importlib.util
 import os
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -17,6 +16,7 @@ if str(ROOT) not in sys.path:
 from sigmai.cartography.layoutgrid import TEMPLATES  # noqa: E402
 from sigmai.permissions import COMMAND_PERMISSIONS  # noqa: E402
 from sigmai.qgis_actions.campaign import MAX_AUTO_LABELLED_POINTS, build_campaign_params  # noqa: E402
+from qgis_temp import pasta_temporaria  # noqa: E402
 
 
 def _pyqgis_disponivel() -> bool:
@@ -61,7 +61,7 @@ class ParametrosDeCampanha(unittest.TestCase):
 class CampanhaNoQgis(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        os.environ.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "offscreen")  # offscreen no Windows não tem fontes
         from qgis.core import QgsApplication
 
         cls.app = QgsApplication.instance() or QgsApplication([], False)
@@ -102,7 +102,7 @@ class CampanhaNoQgis(unittest.TestCase):
         from sigmai.qgis_actions.campaign import compose_campaign_map
 
         pontos, trilha, area = self._cenario()
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             r = compose_campaign_map({
                 "points_layer_id": pontos.id(), "track_layer_id": trilha.id(), "area_layer_ids": [area.id()],
                 "title": "Campanha", "map_author": "T", "data_source": "GPS 2025", "campaign_dates": "março de 2025",
@@ -149,7 +149,7 @@ class CampanhaNoQgis(unittest.TestCase):
         with self.assertRaises(ValidationError) as ctx:
             compose_campaign_map({"points_layer_id": pontos.id(), "label_field": "nada", "title": "x"}, {"dry_run": True})
         self.assertEqual(ctx.exception.code, "FIELD_NOT_FOUND")
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             with self.assertRaises(ValidationError) as ctx:
                 export_coordinate_table({"layer_id": pontos.id(), "output_path": os.path.join(pasta, "t.xlsx")}, {})
             self.assertEqual(ctx.exception.code, "BAD_REQUEST")

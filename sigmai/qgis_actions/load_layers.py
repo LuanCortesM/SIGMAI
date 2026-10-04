@@ -128,10 +128,12 @@ def delimited_text_uri(
         decimal = str(wanted["decimal"])
     # O provedor lê ``delimiter`` e ``decimalPoint`` literalmente (``%3B`` não
     # é ';' para ele, e a tabulação é o par de caracteres ``\t``); os nomes de
-    # coluna e o caminho podem ir percent-encoded.
+    # coluna e o caminho podem ir percent-encoded. O caminho vai por
+    # ``as_uri()``: ``file://`` + ``quote(str(path))`` dava
+    # ``file://C%3A%5CUsers...`` no Windows, e nenhuma planilha carregava.
     delimiter_literal = "\\t" if delimiter == "\t" else delimiter
     uri = (
-        f"file://{quote(str(path))}?type=csv&delimiter={delimiter_literal}"
+        f"{Path(path).resolve().as_uri()}?type=csv&delimiter={delimiter_literal}"
         f"&xField={quote(x_field, safe='')}&yField={quote(y_field, safe='')}&crs={crs}"
         f"&decimalPoint={decimal}&encoding={'UTF-8' if encoding == 'utf-8-sig' else encoding}&detectTypes=yes&geomType=point"
     )

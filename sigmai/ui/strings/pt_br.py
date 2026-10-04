@@ -204,7 +204,8 @@ STRINGS: dict[str, str] = {
     "selftest_session_ok": "gravado e coerente com a ponte",
     "selftest_mcp_missing": "arquivo ausente: {path}",
     "selftest_mcp_no_python": "interpretador não encontrado: {executable}",
-    "selftest_mcp_ok": "{server} pronto, com {python}",
+    "selftest_mcp_ok": "{server} respondeu e alcançou a ponte, lançado como o cliente de IA lançará: {python}",
+    "selftest_mcp_failed": "o cliente de IA não conseguirá usar o SIGMAI com {python} (etapa {stage}): {error}",
     "selftest_mode_read_only": "somente leitura: a IA pode inspecionar e simular, mas não gerar mapas. Mude na aba Acesso quando quiser.",
     # clientes de IA (passo 2)
     "client_generic_label": "Outro cliente MCP",
