@@ -43,7 +43,16 @@ def main(argv: list[str]) -> int:
             print(json.dumps({"error": f"argumentos não são JSON válido: {exc}"}, ensure_ascii=False))
             return 2
 
-    env = {k: v for k, v in os.environ.items() if k in {"PATH", "SIGMAI_SESSION_FILE", "SIGMAI_HOST", "SIGMAI_PORT", "SIGMAI_TOKEN", "HOME"}}
+    # O que um cliente MCP real repassa: a lista DEFAULT_INHERITED_ENV_VARS
+    # dos SDKs oficiais, mais as variáveis do SIGMAI. Sem SYSTEMROOT o Winsock
+    # não carrega no Windows (WinError 10106) e o servidor não alcança a ponte.
+    herdadas = (
+        {"APPDATA", "HOMEDRIVE", "HOMEPATH", "LOCALAPPDATA", "PATH", "PROCESSOR_ARCHITECTURE",
+         "SYSTEMDRIVE", "SYSTEMROOT", "TEMP", "USERNAME", "USERPROFILE", "PROGRAMFILES"}
+        if os.name == "nt" else {"HOME", "LOGNAME", "PATH", "SHELL", "TERM", "USER"}
+    )
+    herdadas |= {"SIGMAI_SESSION_FILE", "SIGMAI_HOST", "SIGMAI_PORT", "SIGMAI_TOKEN"}
+    env = {k: v for k, v in os.environ.items() if k.upper() in herdadas}
     env.update({"PYTHONUNBUFFERED": "1", "PYTHONUTF8": "1"})
     process = subprocess.Popen(
         [sys.executable, str(SERVER)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,

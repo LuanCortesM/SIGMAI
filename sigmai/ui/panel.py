@@ -135,6 +135,7 @@ class SigmaiPanel(QWidget):
         self.controller = controller
         self.setObjectName("sigmaiRoot")
         self.theme = THEME_LIGHT
+        self._applying_theme = False
         self._building = True
         self._build()
         self._building = False
@@ -147,15 +148,27 @@ class SigmaiPanel(QWidget):
         Quem decide o tema é o controlador (preferência do usuário × paleta do
         QGIS, ver ``ui/theme.resolve_theme``); o painel só guarda qual está em
         vigor, porque o autoteste pinta ✓/✗ com as cores da paleta corrente.
+
+        ``setStyleSheet`` e o repolimento disparam ``StyleChange`` neste mesmo
+        widget, e ``changeEvent`` responde a ``StyleChange`` chamando de volta
+        o controlador, que chama este método. Sem a trava e sem pular a folha
+        idêntica, abrir o painel entrava nesse ciclo: o QGIS 4 congelava e o
+        QGIS 3.40 caía com falha de segmentação (1.0.1 a 1.1.2).
         """
         self.theme = THEME_DARK if theme == THEME_DARK else THEME_LIGHT
-        self.setStyleSheet(stylesheet)
-        self._repolish(self)
+        if self._applying_theme or stylesheet == self.styleSheet():
+            return
+        self._applying_theme = True
+        try:
+            self.setStyleSheet(stylesheet)
+            self._repolish(self)
+        finally:
+            self._applying_theme = False
 
     def changeEvent(self, event: Any) -> None:  # noqa: N802 — nome da API Qt
         super().changeEvent(event)
         try:
-            if event.type() in _THEME_EVENTS and not self._building:
+            if event.type() in _THEME_EVENTS and not self._building and not self._applying_theme:
                 self._call("apply_theme")
         except Exception:
             pass

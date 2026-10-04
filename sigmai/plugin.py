@@ -15,6 +15,8 @@ from __future__ import annotations
 DEV_MODE_CONFIRMATION_WORDS = frozenset({"SIM", "YES"})
 
 import json
+import threading
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -204,7 +206,7 @@ class SIGMAIPlugin:
 
     def stop_bridge(self, quiet: bool = False) -> None:
         self.server.stop()
-        invalidate_session_file()
+        invalidate_session_file(self.session_id)
         if not quiet:
             self._message(self._tr("msg_stopped"))
         self._refresh_panel()
@@ -341,13 +343,45 @@ class SIGMAIPlugin:
             return results
 
         base = f"http://{self.server.host}:{self.server.port}"
-        results.append(self._probe_health(base))
-        results.append(self._probe_auth(base))
-        results.append(self._probe_command(base))
+        results.append(self._off_ui_thread(lambda: self._probe_health(base), self._tr("selftest_bridge"), 10))
+        results.append(self._off_ui_thread(lambda: self._probe_auth(base), self._tr("selftest_auth"), 10))
+        results.append(self._off_ui_thread(lambda: self._probe_command(base), self._tr("selftest_project"), 20))
         results.append(self._probe_session_file())
-        results.append(self._probe_mcp_server())
+        results.append(self._off_ui_thread(self._probe_mcp_server, self._tr("selftest_mcp"), 30))
         results.append(self._probe_consent())
         return results
+
+    def _off_ui_thread(self, probe: Any, label: str, timeout: float) -> dict[str, Any]:
+        """Roda uma sonda numa thread e mantém o laço de eventos do Qt girando.
+
+        O autoteste é chamado por um botão, na thread da interface. A sonda de
+        projeto pede ``get_project_overview`` à ponte, e a ponte executa esse
+        comando num QTimer DESSA MESMA thread: com a requisição feita ali, a
+        interface ficava parada esperando a si mesma até o tempo esgotar —
+        15 s de "Não respondendo" e um "timed out" falso no relatório.
+        """
+        box: dict[str, Any] = {}
+
+        def worker() -> None:
+            try:
+                box["result"] = probe()
+            except Exception as exc:  # noqa: BLE001 — vira linha do relatório
+                box["result"] = {"ok": False, "label": label, "detail": str(exc)}
+
+        thread = threading.Thread(target=worker, name="SIGMAISelfTest", daemon=True)
+        thread.start()
+        try:
+            from qgis.PyQt.QtCore import QCoreApplication  # type: ignore
+
+            pump = QCoreApplication.processEvents if QCoreApplication.instance() is not None else None
+        except Exception:
+            pump = None
+        deadline = time.monotonic() + timeout
+        while thread.is_alive() and time.monotonic() < deadline:
+            if pump is not None:
+                pump()
+            thread.join(0.02)
+        return box.get("result") or {"ok": False, "label": label, "detail": f"sem resposta em {timeout:g} s"}
 
     def _probe_health(self, base: str) -> dict[str, Any]:
         try:
@@ -409,12 +443,21 @@ class SIGMAIPlugin:
         server = Path(__file__).resolve().parent / "mcp" / "sigmai_mcp.py"
         if not server.exists():
             return {"ok": False, "label": self._tr("selftest_mcp"), "detail": self._tr("selftest_mcp_missing", path=server)}
-        from .ui.client_configs import python_executable
+        from .ui.client_configs import probe_mcp_server, python_executable
 
         executable = python_executable()
         if not Path(executable).exists() and executable not in {"python", "python3"}:
             return {"ok": False, "label": self._tr("selftest_mcp"), "detail": self._tr("selftest_mcp_no_python", executable=executable)}
-        return {"ok": True, "label": self._tr("selftest_mcp"), "detail": self._tr("selftest_mcp_ok", server=server.name, python=Path(executable).name)}
+        # O mesmo interpretador, o mesmo servidor e as mesmas variáveis do bloco
+        # de configuração do passo 2 — senão o teste aprova o que o cliente
+        # não consegue lançar.
+        session = session_file_path() if bool(self.settings_get("write_session_file", True)) else None
+        outcome = probe_mcp_server(executable, str(server), session_file=str(session) if session else None,
+                                   expected_port=self.server.port)
+        if not outcome["ok"]:
+            return {"ok": False, "label": self._tr("selftest_mcp"),
+                    "detail": self._tr("selftest_mcp_failed", python=executable, stage=outcome["stage"], error=outcome["error"])}
+        return {"ok": True, "label": self._tr("selftest_mcp"), "detail": self._tr("selftest_mcp_ok", server=server.name, python=executable)}
 
     def _probe_consent(self) -> dict[str, Any]:
         status = self.consent.status()

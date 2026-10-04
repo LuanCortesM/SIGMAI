@@ -204,7 +204,8 @@ STRINGS: dict[str, str] = {
     "selftest_session_ok": "已写入，且与桥接一致",
     "selftest_mcp_missing": "文件缺失：{path}",
     "selftest_mcp_no_python": "未找到解释器：{executable}",
-    "selftest_mcp_ok": "{server} 已就绪，使用 {python}",
+    "selftest_mcp_ok": "{server} 已响应并连通桥接（以 AI 客户端相同的方式启动：{python}）",
+    "selftest_mcp_failed": "AI 客户端无法通过 {python} 使用 SIGMAI（阶段 {stage}）：{error}",
     "selftest_mode_read_only": "只读：AI 可以检查和模拟，但不能生成地图。需要时可在“访问”标签页中更改。",
     # clientes de IA (passo 2)
     "client_generic_label": "其他 MCP 客户端",

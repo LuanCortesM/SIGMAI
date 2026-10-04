@@ -194,11 +194,20 @@ def write_session_file(payload: dict[str, Any]) -> Path:
     raise RuntimeError("Could not write SIGMAI session file. " + " | ".join(errors))
 
 
-def invalidate_session_file() -> None:
+def invalidate_session_file(session_id: str | None = None) -> None:
+    """Marca como encerrada a sessão desta instância.
+
+    Com ``session_id``, só os arquivos que essa instância gravou. Sem ele,
+    marcava todos — e com dois QGIS abertos, fechar um derrubava a sessão que
+    o outro tinha acabado de gravar em ``current_bridge_session.json``: o
+    cliente de IA ficava sem ponte embora uma continuasse no ar.
+    """
     for path in list(sessions_dir().glob("SG-*.json")) + [session_file_path(), fallback_session_file_path()]:
         try:
             if path.exists():
                 data = json.loads(_read_text_secure(path))
+                if session_id is not None and str(data.get("session_id", "")) != str(session_id):
+                    continue
                 data["running"] = False
                 data["active"] = False
                 data["stopped_at"] = utc_now()

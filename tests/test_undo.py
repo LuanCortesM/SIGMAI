@@ -5,7 +5,6 @@ from __future__ import annotations
 import importlib.util
 import os
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -15,6 +14,7 @@ if str(ROOT) not in sys.path:
 
 from sigmai.permissions import COMMAND_PERMISSIONS  # noqa: E402
 from sigmai.undo import EXCLUDED_ACTIONS, LAYER_KEYS, UndoStack, _collect_ids, _collect_paths  # noqa: E402
+from qgis_temp import pasta_temporaria  # noqa: E402
 
 
 def _pyqgis_disponivel() -> bool:
@@ -49,7 +49,7 @@ class ColetaDeReferencias(unittest.TestCase):
 class DesfazerNoQgis(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        os.environ.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "offscreen")  # offscreen no Windows não tem fontes
         from qgis.core import QgsApplication
 
         cls.app = QgsApplication.instance() or QgsApplication([], False)
@@ -92,7 +92,7 @@ class DesfazerNoQgis(unittest.TestCase):
         self.assertEqual(historico["entries"][0]["action"], "apply_single_symbol")
         self.assertEqual(historico["entries"][0]["touched_layers"], ["Quadrado"])
 
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             saida = os.path.join(pasta, "m.png")
             self._run(registry, "compose_map", {"layer_ids": [layer.id()], "title": "Primeiro", "map_author": "a", "data_source": "s",
                                                 "output_path": saida, "format": "png", "dpi": 72, "layout_name": "L"})

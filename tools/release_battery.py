@@ -43,7 +43,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "offscreen")  # offscreen no Windows não tem fontes
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 

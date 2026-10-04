@@ -204,7 +204,8 @@ STRINGS: dict[str, str] = {
     "selftest_session_ok": "geschrieben und stimmig mit der Brücke",
     "selftest_mcp_missing": "Datei fehlt: {path}",
     "selftest_mcp_no_python": "Interpreter nicht gefunden: {executable}",
-    "selftest_mcp_ok": "{server} bereit, mit {python}",
+    "selftest_mcp_ok": "{server} hat geantwortet und die Brücke erreicht, gestartet wie der KI-Client es tun wird: {python}",
+    "selftest_mcp_failed": "Der KI-Client kann SIGMAI mit {python} nicht verwenden (Schritt {stage}): {error}",
     "selftest_mode_read_only": "nur lesen: Die KI kann untersuchen und simulieren, aber keine Karten erzeugen. Ändern Sie es jederzeit im Reiter „Zugriff“.",
     # clientes de IA (passo 2)
     "client_generic_label": "Anderer MCP-Client",

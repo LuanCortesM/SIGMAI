@@ -9,7 +9,6 @@ from __future__ import annotations
 import importlib.util
 import os
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -19,6 +18,7 @@ if str(ROOT) not in sys.path:
 
 from sigmai.qgis_actions.load_layers import delimited_text_uri  # noqa: E402
 from sigmai.validators import ValidationError  # noqa: E402
+from qgis_temp import pasta_temporaria  # noqa: E402
 
 
 def _pyqgis_disponivel() -> bool:
@@ -33,7 +33,7 @@ def _escreve(pasta: str, nome: str, texto: str, encoding: str = "utf-8") -> Path
 
 class DeteccaoDaPlanilha(unittest.TestCase):
     def test_lon_lat_com_virgula_assume_wgs84(self):
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             csv_path = _escreve(pasta, "sitios.csv", "codigo,sitio,lon,lat\nS1,Cachoeira,-45.07,-22.49\nS2,Mirante,-45.06,-22.49\n")
             d = delimited_text_uri(csv_path)
             self.assertEqual((d["x_field"], d["y_field"], d["crs"], d["delimiter"], d["decimal"]), ("lon", "lat", "EPSG:4326", ",", "."))
@@ -41,14 +41,14 @@ class DeteccaoDaPlanilha(unittest.TestCase):
             self.assertTrue(d["uri"].startswith("file:///"))
 
     def test_ponto_e_virgula_com_decimal_brasileiro(self):
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             csv_path = _escreve(pasta, "sitios.csv", "Sítio;Longitude;Latitude\nBrejo;-45,059;-22,493\nCapão;-45,035;-22,487\n")
             d = delimited_text_uri(csv_path)
             self.assertEqual((d["x_field"], d["y_field"], d["delimiter"], d["decimal"]), ("Longitude", "Latitude", ";", ","))
             self.assertIn("delimiter=;", d["uri"]); self.assertIn("decimalPoint=,", d["uri"])
 
     def test_utm_sem_crs_e_recusado_com_nome_das_colunas(self):
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             csv_path = _escreve(pasta, "utm.csv", "id,este,norte\n1,262000,9640000\n")
             with self.assertRaises(ValidationError) as ctx:
                 delimited_text_uri(csv_path)
@@ -58,7 +58,7 @@ class DeteccaoDaPlanilha(unittest.TestCase):
             self.assertEqual((d["x_field"], d["y_field"], d["crs"]), ("este", "norte", "EPSG:31984"))
 
     def test_sem_coluna_de_coordenada_ou_coluna_errada(self):
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             csv_path = _escreve(pasta, "x.csv", "id,nome,altitude\n1,a,900\n")
             with self.assertRaises(ValidationError) as ctx:
                 delimited_text_uri(csv_path)
@@ -68,7 +68,7 @@ class DeteccaoDaPlanilha(unittest.TestCase):
             self.assertEqual(ctx.exception.code, "FIELD_NOT_FOUND")
 
     def test_latin1_e_detectado(self):
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             csv_path = _escreve(pasta, "l.csv", "sitio,lon,lat\nCapão,-45.0,-22.4\n", encoding="ISO-8859-1")
             d = delimited_text_uri(csv_path)
             self.assertEqual(d["encoding"], "ISO-8859-1")
@@ -78,7 +78,7 @@ class DeteccaoDaPlanilha(unittest.TestCase):
 class PlanilhaNoQgis(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        os.environ.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "offscreen")  # offscreen no Windows não tem fontes
         from qgis.core import QgsApplication
 
         cls.app = QgsApplication.instance() or QgsApplication([], False)
@@ -93,7 +93,7 @@ class PlanilhaNoQgis(unittest.TestCase):
         from sigmai.qgis_actions.load_layers import handle as load_vector_layer
 
         QgsProject.instance().clear()
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             csv_path = _escreve(pasta, "sitios.csv", "Sítio;Longitude;Latitude\nBrejo;-45,059;-22,493\nCapão;-45,035;-22,487\nMirante;-45,065;-22,495\n")
             plano = load_vector_layer({"path": str(csv_path), "name": "Sítios"}, {"dry_run": True})
             self.assertTrue(plano["dry_run"])
@@ -122,7 +122,7 @@ class PlanilhaNoQgis(unittest.TestCase):
         from sigmai.qgis_actions.load_layers import handle as load_vector_layer
 
         QgsProject.instance().clear()
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             csv_path = _escreve(pasta, "ruim.csv", "id,lon,lat\n1,abc,def\n")
             with self.assertRaises(ValidationError) as ctx:
                 load_vector_layer({"path": str(csv_path)}, {"dry_run": False})

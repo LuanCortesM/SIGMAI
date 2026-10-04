@@ -25,6 +25,30 @@ def generate_token() -> str:
     return secrets.token_urlsafe(32)
 
 
+#: ``SO_REUSEADDR`` no Windows não é o do POSIX: ele deixa um SEGUNDO socket se
+#: ligar à mesma porta já em escuta. Com ele, duas instâncias do QGIS subiam a
+#: ponte ambas na 8765, o desvio para a 8766 nunca acontecia, e o cliente de IA
+#: falava com qualquer uma das duas — inclusive com a que estava travada.
+REUSE_ADDRESS = os.name != "nt"
+
+
+def claim_port(sock: object) -> None:
+    """Prepara o socket de escuta para que a porta seja só dele.
+
+    No Windows, ``SO_EXCLUSIVEADDRUSE`` também impede que outro processo local
+    se ligue à mesma porta e receba as requisições — com o token — que o
+    servidor MCP manda à ponte. Fora do Windows, ``SO_REUSEADDR`` só permite
+    religar a porta com conexões em TIME_WAIT, que é o que se quer ao
+    recarregar o plugin.
+    """
+    import socket
+
+    if REUSE_ADDRESS:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # type: ignore[attr-defined]
+    elif hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)  # type: ignore[attr-defined]
+
+
 def find_available_port(host: str = DEFAULT_HOST, start: int = DEFAULT_PORT, attempts: int = PORT_SCAN_ATTEMPTS) -> int:
     """Primeira porta livre a partir de ``start``.
 
@@ -36,7 +60,9 @@ def find_available_port(host: str = DEFAULT_HOST, start: int = DEFAULT_PORT, att
     for offset in range(max(1, attempts)):
         candidate = int(start) + offset
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # A mesma regra do socket de escuta: com SO_REUSEADDR no Windows a
+            # sonda "conseguia" ligar-se a uma porta ocupada e a devolvia.
+            claim_port(probe)
             try:
                 probe.bind((host, candidate))
             except OSError:

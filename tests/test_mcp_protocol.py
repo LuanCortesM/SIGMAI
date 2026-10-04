@@ -11,10 +11,14 @@ Referência: https://modelcontextprotocol.io/specification/2025-06-18/basic/tran
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
+import weakref
 from pathlib import Path
 
 SERVER = Path(__file__).resolve().parents[1] / "sigmai" / "mcp" / "sigmai_mcp.py"
@@ -25,11 +29,22 @@ class MCPClient:
     """Cliente mínimo o bastante para exercitar o protocolo."""
 
     def __init__(self):
+        # O ambiente é o do interpretador que roda a suíte (no Windows, o
+        # python.exe do OSGeo4W precisa do PYTHONHOME dele, e todo processo
+        # precisa de SYSTEMROOT), com as pastas onde o servidor procura sessões
+        # apontadas para uma pasta vazia: nenhuma ponte real da máquina atende.
+        isolada = tempfile.mkdtemp(prefix="sigmai_mcp_")
+        weakref.finalize(self, shutil.rmtree, isolada, True)
+        env = {chave: valor for chave, valor in os.environ.items() if not chave.upper().startswith("SIGMAI_")}
+        env.update({
+            "PYTHONUNBUFFERED": "1", "SIGMAI_SESSION_FILE": os.path.join(isolada, "nao_existe.json"),
+            "HOME": isolada, "USERPROFILE": isolada, "LOCALAPPDATA": isolada,
+            "TEMP": isolada, "TMP": isolada, "TMPDIR": isolada,
+        })
         self.process = subprocess.Popen(
             [sys.executable, str(SERVER)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, encoding="utf-8", bufsize=1,
-            env={"PATH": "/usr/bin:/bin", "PYTHONUNBUFFERED": "1", "SIGMAI_SESSION_FILE": "/nao/existe.json"},
+            text=True, encoding="utf-8", bufsize=1, env=env,
         )
 
     def send(self, message: dict) -> None:

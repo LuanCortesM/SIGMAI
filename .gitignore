@@ -16,6 +16,9 @@ dist/
 current_bridge_session.json
 *bridge_session*.json
 *token*
+# Banco de estilos que o QgsApplication cria na pasta corrente quando a suíte
+# roda com PyQGIS a partir da raiz do repositório.
+symbology-style.db
 
 # Local docs and large data mirrors
 external_docs/

@@ -20,6 +20,7 @@ if str(ROOT) not in sys.path:
 
 from sigmai.qgis_actions.encoding import has_mojibake  # noqa: E402
 from sigmai.permissions import COMMAND_PERMISSIONS  # noqa: E402
+from qgis_temp import pasta_temporaria  # noqa: E402
 
 
 def _pyqgis_disponivel() -> bool:
@@ -42,7 +43,7 @@ class Catalogo(unittest.TestCase):
 class RelacoesNoQgis(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        os.environ.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "offscreen")  # offscreen no Windows não tem fontes
         from qgis.core import QgsApplication
 
         cls.app = QgsApplication.instance() or QgsApplication([], False)
@@ -148,7 +149,7 @@ class RelacoesNoQgis(unittest.TestCase):
         f.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(-42, -7)))
         f.setAttributes(["Piauí"])
         memoria.dataProvider().addFeatures([f])
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             caminho = os.path.join(pasta, "uf.shp")
             options = QgsVectorFileWriter.SaveVectorOptions()
             options.driverName = "ESRI Shapefile"

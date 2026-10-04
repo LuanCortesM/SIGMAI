@@ -13,7 +13,6 @@ from __future__ import annotations
 import importlib.util
 import os
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -26,6 +25,7 @@ from sigmai.cartography.compose import (  # noqa: E402
     _resolve_figure_width, resolve_data_sources,
 )
 from sigmai.cartography.layoutgrid import map_slot_keys, solve_layout  # noqa: E402
+from qgis_temp import pasta_temporaria  # noqa: E402
 
 
 def _pyqgis_disponivel() -> bool:
@@ -165,7 +165,7 @@ class PaineisEmGrade(unittest.TestCase):
 class ContextoDerivadoNoQgis(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        os.environ.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "offscreen")  # offscreen no Windows não tem fontes
         from qgis.core import QgsApplication
 
         cls.app = QgsApplication.instance() or QgsApplication([], False)
@@ -239,7 +239,7 @@ class ContextoDerivadoNoQgis(unittest.TestCase):
         from sigmai.qgis_actions.context_annotations import add_context_annotations
 
         layer = self._estados()
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             gpkg = os.path.join(pasta, "contexto.gpkg")
             resultado = add_context_annotations({"boundary_layer_id": layer.id(), "label_text": "Nordeste", "output_gpkg": gpkg}, {"dry_run": False})
             self.assertTrue(os.path.exists(gpkg))
@@ -273,7 +273,7 @@ class ContextoDerivadoNoQgis(unittest.TestCase):
         layer = self._estados()
         criado = add_context_annotations({"boundary_layer_id": layer.id(), "label_field": "nome", "dissolve": False}, {"dry_run": False})
         ids = [c["id"] for c in criado["created_layers"]]
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             saida = os.path.join(pasta, "m.png")
             r = compose_map({
                 "layer_ids": [layer.id()] + ids, "title": "Estados", "map_author": "T",
@@ -302,7 +302,7 @@ class ContextoDerivadoNoQgis(unittest.TestCase):
         f.setAttributes(["Sede"])
         ponto.dataProvider().addFeatures([f])
         QgsProject.instance().addMapLayer(ponto)
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             tif = os.path.join(pasta, "figura.tif")
             r = compose_map({"layer_ids": [layer.id()], "title": "Fig. 1", "map_author": "T", "data_source": "IBGE",
                              "journal_column": "double", "output_path": tif, "format": "tif", "dpi": 300}, {"dry_run": False})

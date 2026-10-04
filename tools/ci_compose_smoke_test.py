@@ -16,7 +16,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "offscreen")  # offscreen no Windows não tem fontes
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from qgis.core import (  # noqa: E402

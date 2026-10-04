@@ -11,7 +11,6 @@ import importlib.util
 import json
 import os
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -24,6 +23,7 @@ from sigmai.cartography.recipe import (  # noqa: E402
     recipe_from_json, recipe_to_json,
 )
 from sigmai.permissions import COMMAND_PERMISSIONS  # noqa: E402
+from qgis_temp import pasta_temporaria  # noqa: E402
 
 
 def _pyqgis_disponivel() -> bool:
@@ -53,7 +53,7 @@ class ReceitaPura(unittest.TestCase):
             recipe_from_json(json.dumps({"schema": "outra-coisa"}))
 
     def test_fingerprint_e_mudancas(self):
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             caminho = os.path.join(pasta, "dados.geojson")
             Path(caminho).write_text('{"type":"FeatureCollection","features":[]}', encoding="utf-8")
             fp = file_fingerprint(caminho)
@@ -69,7 +69,7 @@ class ReceitaPura(unittest.TestCase):
         self.assertFalse(file_fingerprint("/nao/existe.shp")["exists"])
 
     def test_fonte_local_de_uma_string_de_origem(self):
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             shp = os.path.join(pasta, "a.gpkg")
             Path(shp).write_bytes(b"x")
             self.assertEqual(local_file_of_source(f"{shp}|layername=divisa"), shp)
@@ -127,7 +127,7 @@ class ReceitaPura(unittest.TestCase):
 class ReceitaNoQgis(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        os.environ.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "offscreen")  # offscreen no Windows não tem fontes
         from qgis.core import QgsApplication
 
         cls.app = QgsApplication.instance() or QgsApplication([], False)
@@ -187,7 +187,7 @@ class ReceitaNoQgis(unittest.TestCase):
         )
         from sigmai.validators import ValidationError
 
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             layer = self._camada(pasta)
             saida = os.path.join(pasta, "mapa.png")
             r = compose_map({"layer_ids": [layer.id()], "title": "Quadrado", "map_author": "T", "data_source": "teste",
@@ -243,7 +243,7 @@ class ReceitaNoQgis(unittest.TestCase):
         project = QgsProject.instance()
         project.clear()
         project.setCrs(QgsCoordinateReferenceSystem("EPSG:31984"))
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             caminho = os.path.join(pasta, "r.tif")
             ds = gdal.GetDriverByName("GTiff").Create(caminho, 20, 20, 1, gdal.GDT_Byte)
             ds.SetGeoTransform((0, 50, 0, 1000, 0, -50))
@@ -270,7 +270,7 @@ class ReceitaNoQgis(unittest.TestCase):
         composição decidiu; e CART071 não rodava porque a largura impressa se perdia."""
         from sigmai.qgis_actions.cartography_engine import audit_map_layout, compose_map
 
-        with tempfile.TemporaryDirectory() as pasta:
+        with pasta_temporaria() as pasta:
             layer = self._camada(pasta)
             r = compose_map({"layer_ids": [layer.id()], "title": "Figura", "map_author": "T", "data_source": "teste",
                              "journal_column": "double", "output_path": os.path.join(pasta, "f.png"), "format": "png",

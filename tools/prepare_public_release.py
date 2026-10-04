@@ -132,9 +132,29 @@ def archive_text(zip_path: Path, name: str) -> str:
         return archive.read(name).decode("utf-8", errors="ignore")
 
 
+def repository_paths() -> list[Path]:
+    """O que o repositório publica: arquivos rastreados e os que ``git add``
+    pegaria, sem o que o ``.gitignore`` exclui.
+
+    Varrer a pasta de trabalho inteira acusava o que nunca é publicado — numa
+    cópia de desenvolvimento real há uma instalação portátil do QGIS e dados
+    de teste ao lado do código, ignorados pelo git, e a auditoria bloqueava a
+    versão por textos de terceiros dentro deles. Fora de um repositório git,
+    volta a varrer tudo.
+    """
+    try:
+        listing = subprocess.run(
+            ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+            cwd=ROOT, capture_output=True, check=True,
+        ).stdout.decode("utf-8", errors="replace")
+    except (OSError, subprocess.CalledProcessError):
+        return list(ROOT.rglob("*"))
+    return [ROOT / name for name in listing.split("\0") if name and (ROOT / name).exists()]
+
+
 def scan_public_repository() -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
-    for path in ROOT.rglob("*"):
+    for path in repository_paths():
         rel = path.relative_to(ROOT)
         parts = set(rel.parts)
         if parts & REPOSITORY_EXCLUDE_DIRS:

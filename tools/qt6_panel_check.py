@@ -84,16 +84,59 @@ class FakeController:
     def utc_now(self): return datetime.datetime.now(datetime.timezone.utc).isoformat()
     def run_self_test(self): return [{"ok": True, "label": "Ponte local", "detail": "ok"}]
 
+    # O ciclo do tema fechado como o plugin real o fecha: o painel chama
+    # apply_theme no controlador quando recebe StyleChange/PaletteChange, e o
+    # controlador devolve a folha ao painel. Sem estes métodos o controlador
+    # falso escondia o laço que, da 1.0.1 à 1.1.2, congelava o QGIS 4 e
+    # derrubava o QGIS 3.40 assim que o painel era aberto.
+    panel = None
+    theme_preference = "auto"
+    theme_calls = 0
+
+    def apply_theme(self):
+        if self.panel is None:
+            return
+        from sigmai.ui.theme import THEME_DARK, THEME_LIGHT, get_sigmai_stylesheet
+
+        self.theme_calls += 1
+        if self.theme_calls > 200:  # o laço antigo; o painel engole a exceção, o contador reprova
+            raise RecursionError("apply_theme em ciclo")
+        theme = THEME_DARK if self.theme_preference == THEME_DARK else THEME_LIGHT
+        self.panel.apply_theme(theme, get_sigmai_stylesheet(1.0, dark=(theme == THEME_DARK)))
+
+    def set_theme(self, preference):
+        self.theme_preference = preference
+        self.apply_theme()
+
+
+def _theme_cycle_is_bounded(app, panel, controller) -> None:
+    for preference in ("light", "dark", "auto"):
+        controller.panel = panel
+        controller.theme_calls = 0
+        controller.set_theme(preference)
+        app.processEvents()
+        if not 1 <= controller.theme_calls <= 10:
+            raise AssertionError(f"tema {preference!r}: apply_theme chamado {controller.theme_calls} vezes (ciclo)")
+
 
 def main() -> int:
-    try:
-        install_qgis_pyqt_shim()
-    except ImportError:
-        print("PyQt6 não instalado; verificação ignorada.")
-        return 0
+    # --binding qgis usa o qgis.PyQt real (QGIS 3 com Qt5 ou QGIS 4 com Qt6)
+    # em vez de fabricar um sobre o PyQt6.
+    if "--binding" in sys.argv and sys.argv[sys.argv.index("--binding") + 1:][:1] == ["qgis"]:
+        try:
+            import qgis.PyQt.QtWidgets  # noqa: F401
+        except ImportError:
+            print("qgis.PyQt indisponível; verificação ignorada.")
+            return 0
+    else:
+        try:
+            install_qgis_pyqt_shim()
+        except ImportError:
+            print("PyQt6 não instalado; verificação ignorada.")
+            return 0
 
-    from PyQt6.QtCore import QSize
-    from PyQt6.QtWidgets import QApplication
+    from qgis.PyQt.QtCore import QT_VERSION_STR, QSize
+    from qgis.PyQt.QtWidgets import QApplication
 
     from sigmai.ui.panel import SigmaiPanel
     from sigmai.ui.theme import get_sigmai_stylesheet
@@ -115,6 +158,7 @@ def main() -> int:
 
     step("folha de estilo clara", lambda: panel.apply_theme("light", get_sigmai_stylesheet(1.0, dark=False)))
     step("folha de estilo escura", lambda: panel.apply_theme("dark", get_sigmai_stylesheet(1.0, dark=True)))
+    step("tema pelo controlador, como o plugin abre o painel (sem ciclo)", lambda: _theme_cycle_is_bounded(app, panel, controller))
     step("refresh", panel.refresh)
     step("percorrer os nove idiomas", lambda: [
         (panel.language_combo.setCurrentIndex(index), app.processEvents())
@@ -134,7 +178,7 @@ def main() -> int:
     step("trilha de atividade", panel.refresh_activity)
     step("desenhar", lambda: (panel.resize(QSize(780, 940)), panel.show(), app.processEvents(), panel.grab()))
 
-    print(f"\n{len(failures)} falha(s) sob Qt6")
+    print(f"\n{len(failures)} falha(s) sob Qt {QT_VERSION_STR}")
     return 1 if failures else 0
 
 

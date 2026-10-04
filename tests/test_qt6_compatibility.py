@@ -12,6 +12,8 @@ disponível.
 
 from __future__ import annotations
 
+import functools
+import os
 import subprocess
 import sys
 import unittest
@@ -28,15 +30,29 @@ def _pyqt6_available() -> bool:
     suíte roda o QGIS com PyQt5 — dois Qt num processo é comportamento
     indefinido, e era a origem de falhas intermitentes noutros arquivos
     (EPSG:4326 resolvendo como CRS inválido, segfault em QgsProject.clear).
-    Os testes que usam o Qt6 rodam em subprocesso; aqui basta saber que ele
-    existe.
+    Os testes que usam o Qt6 rodam em subprocesso, e é num subprocesso que se
+    confere se ele importa: ``find_spec`` não basta. O Python do QGIS 4 traz o
+    PyQt6, mas chamado fora do ambiente do OSGeo4W as DLLs do Qt não estão no
+    PATH e o import falha — o verificador pulava a checagem em silêncio e o
+    teste reprovava como se o verificador tivesse deixado passar o defeito.
     """
     import importlib.util
 
     try:
-        return importlib.util.find_spec("PyQt6.QtWidgets") is not None
+        if importlib.util.find_spec("PyQt6.QtWidgets") is None:
+            return False
     except (ImportError, ValueError):
         return False
+    return _imports_in_subprocess("PyQt6.QtWidgets")
+
+
+@functools.lru_cache(maxsize=None)
+def _imports_in_subprocess(module: str) -> bool:
+    try:
+        probe = subprocess.run([sys.executable, "-c", f"import {module}"], capture_output=True, timeout=120)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return probe.returncode == 0
 
 
 def _pyqgis_available() -> bool:
@@ -107,12 +123,34 @@ class PanelUnderQt6Tests(unittest.TestCase):
             raise unittest.SkipTest("tools/qt6_panel_check.py ausente")
 
     def test_panel_builds_and_reacts(self):
+        # O ambiente do interpretador da suíte (o python.exe do OSGeo4W precisa
+        # do PYTHONHOME dele) e um tempo limite: o painel que entrava em ciclo
+        # ao aplicar o tema congelava o processo em vez de reprová-lo.
+        env = {**os.environ, "QT_QPA_PLATFORM": "offscreen", "PYTHONPATH": str(ROOT)}
         result = subprocess.run(
             [sys.executable, str(self.script)],
-            cwd=ROOT, capture_output=True, text=True,
-            env={"PATH": "/usr/bin:/bin", "QT_QPA_PLATFORM": "offscreen", "PYTHONPATH": str(ROOT)},
+            cwd=ROOT, capture_output=True, text=True, env=env, timeout=180,
         )
         self.assertEqual(result.returncode, 0, f"o painel falhou sob Qt6:\n{result.stdout}\n{result.stderr}")
+
+
+@unittest.skipUnless(_pyqgis_available() and _imports_in_subprocess("qgis.PyQt.QtWidgets"),
+                     "PyQGIS ausente: só existe dentro de uma instalação do QGIS")
+class PanelUnderQgisBindingTests(unittest.TestCase):
+    """O mesmo painel com o ``qgis.PyQt`` de verdade — Qt5 no QGIS 3, Qt6 no 4.
+
+    Num processo à parte: se o ciclo do tema voltar, o QGIS 3 cai com falha de
+    segmentação e o 4 congela, e nenhum dos dois pode levar a suíte junto.
+    """
+
+    def test_panel_builds_and_applies_theme_without_cycle(self):
+        script = ROOT / "tools" / "qt6_panel_check.py"
+        env = {**os.environ, "QT_QPA_PLATFORM": "offscreen"}
+        result = subprocess.run(
+            [sys.executable, str(script), "--binding", "qgis"],
+            cwd=ROOT, capture_output=True, text=True, env=env, timeout=180,
+        )
+        self.assertEqual(result.returncode, 0, f"o painel falhou com o binding do QGIS:\n{result.stdout}\n{result.stderr}")
 
 
 if __name__ == "__main__":

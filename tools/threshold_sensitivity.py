@@ -491,7 +491,7 @@ def main() -> int:
         parser.error("informe --data e --out (composição) ou --analyse (análise)")
     from qgis.core import QgsApplication
 
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    os.environ.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "offscreen")  # offscreen no Windows não tem fontes
     QgsApplication.setPrefixPath("/usr", True)
     app = QgsApplication([], False)
     app.initQgis()
