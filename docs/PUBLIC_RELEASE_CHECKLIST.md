@@ -41,7 +41,7 @@
 
 ## Tests
 
-- `python -m compileall -q sigmai codex_plugin tools mcp_server tests`
+- `python -m compileall -q sigmai codex_plugin tools tests`
 - `python -m unittest discover tests`
 - Contextual capability regression.
 - Professional map regression.

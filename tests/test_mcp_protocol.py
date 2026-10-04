@@ -28,7 +28,7 @@ TOOL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")
 class MCPClient:
     """Cliente mínimo o bastante para exercitar o protocolo."""
 
-    def __init__(self):
+    def __init__(self, session: dict | None = None):
         # O ambiente é o do interpretador que roda a suíte (no Windows, o
         # python.exe do OSGeo4W precisa do PYTHONHOME dele, e todo processo
         # precisa de SYSTEMROOT), com as pastas onde o servidor procura sessões
@@ -36,8 +36,12 @@ class MCPClient:
         isolada = tempfile.mkdtemp(prefix="sigmai_mcp_")
         weakref.finalize(self, shutil.rmtree, isolada, True)
         env = {chave: valor for chave, valor in os.environ.items() if not chave.upper().startswith("SIGMAI_")}
+        sessao = os.path.join(isolada, "sessao.json" if session else "nao_existe.json")
+        if session:
+            with open(sessao, "w", encoding="utf-8") as arquivo:
+                json.dump(session, arquivo)
         env.update({
-            "PYTHONUNBUFFERED": "1", "SIGMAI_SESSION_FILE": os.path.join(isolada, "nao_existe.json"),
+            "PYTHONUNBUFFERED": "1", "SIGMAI_SESSION_FILE": sessao,
             "HOME": isolada, "USERPROFILE": isolada, "LOCALAPPDATA": isolada,
             "TEMP": isolada, "TMP": isolada, "TMPDIR": isolada,
         })
@@ -233,6 +237,33 @@ class TransportTests(unittest.TestCase):
         for line in remaining.splitlines():
             if line.strip():
                 json.loads(line)  # levanta se algo não-protocolo vazou para stdout
+
+
+class TokenSecrecyTests(unittest.TestCase):
+    """O token autentica o servidor MCP diante da ponte e nunca pode chegar ao modelo.
+
+    Herdado do executor JSON-lines antigo (``mcp_server/``, removido na 1.1.3):
+    o teste dele era o único que cobria isto.
+    """
+
+    def test_token_never_appears_in_anything_the_model_reads(self):
+        import socket
+
+        with socket.socket() as livre:  # porta sem ninguém escutando: a ponte "caiu"
+            livre.bind(("127.0.0.1", 0))
+            porta = livre.getsockname()[1]
+        token = "segredo-da-sessao-" + "q" * 32
+        client = MCPClient(session={"host": "127.0.0.1", "port": porta, "token": token, "running": True, "active": True})
+        try:
+            respostas = [client.initialize(), client.request("tools/list", message_id=2),
+                         client.request("tools/call", {"name": "sigmai_status", "arguments": {}}, message_id=3)]
+        finally:
+            client.process.stdin.close()
+            stderr = client.process.stderr.read()
+            client.process.wait(timeout=10)
+        self.assertTrue(respostas[2]["result"]["isError"])
+        for texto in [json.dumps(r, ensure_ascii=False) for r in respostas] + [stderr]:
+            self.assertNotIn(token, texto)
 
 
 if __name__ == "__main__":

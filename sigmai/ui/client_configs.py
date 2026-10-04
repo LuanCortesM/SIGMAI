@@ -231,11 +231,7 @@ def probe_mcp_server(
 def mcp_server_path(package_root: Path | None = None) -> str:
     """Caminho absoluto do servidor MCP dentro do plugin instalado."""
     root = package_root or Path(__file__).resolve().parents[1]
-    bundled = root / "mcp" / "sigmai_mcp.py"
-    if bundled.exists():
-        return str(bundled)
-    sibling = root.parent / "mcp_server" / "sigmai_mcp.py"
-    return str(sibling)
+    return str(root / "mcp" / "sigmai_mcp.py")
 
 
 def config_file_hint(client: str, language: str = "pt-BR") -> str:

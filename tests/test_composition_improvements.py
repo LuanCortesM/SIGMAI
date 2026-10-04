@@ -162,6 +162,82 @@ class PaineisEmGrade(unittest.TestCase):
 
 
 @unittest.skipUnless(_pyqgis_disponivel(), "PyQGIS ausente: só existe dentro de uma instalação do QGIS")
+class AssuntoEContextoNoQgis(unittest.TestCase):
+    """O que a figura do artigo da JOSS mostrou: com o contexto listado antes do
+    assunto, o parque saía com o preenchimento mais apagado do mapa; e a malha
+    vizinha sem nenhuma feição no quadro ficava na legenda com uma amostra de
+    cor que o leitor não achava no mapa — e o laudo dava A (100)."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "offscreen")  # offscreen no Windows não tem fontes
+        from qgis.core import QgsApplication
+
+        cls.app = QgsApplication.instance() or QgsApplication([], False)
+        if not getattr(cls.app, "_sigmai_iniciado", False):
+            cls.app.initQgis()
+            cls.app._sigmai_iniciado = True
+
+    def _poligono(self, nome, x0, x1):
+        from qgis.core import QgsFeature, QgsGeometry, QgsProject, QgsRectangle, QgsVectorLayer
+
+        layer = QgsVectorLayer("Polygon?crs=EPSG:31984&field=nome:string", nome, "memory")
+        f = QgsFeature(layer.fields())
+        f.setGeometry(QgsGeometry.fromRect(QgsRectangle(x0, 9000000, x1, 9001000)))
+        f.setAttribute("nome", nome)
+        layer.dataProvider().addFeatures([f])
+        layer.updateExtents()
+        QgsProject.instance().addMapLayer(layer)
+        return layer
+
+    def _compor(self, pasta, layer_ids, assunto):
+        from sigmai.cartography.compose import compose_map
+
+        return compose_map({
+            "layer_ids": layer_ids, "subject_layer_id": assunto, "title": "Parque", "map_author": "T",
+            "data_source": "teste", "output_path": os.path.join(pasta, "m.png"), "format": "png", "dpi": 72,
+        }, {"dry_run": False})
+
+    def test_assunto_recebe_o_preenchimento_do_assunto_mesmo_listado_depois(self):
+        from qgis.core import QgsCoordinateReferenceSystem, QgsProject
+
+        from sigmai.cartography.symbology import POLYGON_FILLS, _tint
+
+        QgsProject.instance().clear()
+        QgsProject.instance().setCrs(QgsCoordinateReferenceSystem("EPSG:31984"))
+        vizinho = self._poligono("Vizinho", 500900, 501900)
+        parque = self._poligono("Parque", 500000, 501000)
+        matiz, quanto = POLYGON_FILLS[0]
+        with pasta_temporaria() as pasta:
+            self._compor(pasta, [vizinho.id(), parque.id()], parque.id())
+            self.assertEqual(parque.renderer().symbol().color().name().lower(), _tint(matiz, quanto).lower())
+            self.assertNotEqual(vizinho.renderer().symbol().color().name().lower(), _tint(matiz, quanto).lower())
+
+    def test_contexto_sem_feicao_no_quadro_sai_do_quadro_e_da_legenda(self):
+        from qgis.core import QgsCoordinateReferenceSystem, QgsProject
+
+        QgsProject.instance().clear()
+        QgsProject.instance().setCrs(QgsCoordinateReferenceSystem("EPSG:31984"))
+        parque = self._poligono("Parque", 500000, 501000)
+        longe = self._poligono("Longe", 700000, 701000)  # 200 km: fora de qualquer margem
+        perto = self._poligono("Perto", 500900, 501900)
+        with pasta_temporaria() as pasta:
+            r = self._compor(pasta, [longe.id(), perto.id(), parque.id()], parque.id())
+            layout = QgsProject.instance().layoutManager().layoutByName(r["layout_name"])
+            no_quadro = [layer.name() for layer in layout.itemById("main_map").layers()]
+        legenda = r["audit"]["observation"]["legend"]["layer_names"]
+        self.assertNotIn("Longe", legenda)
+        self.assertIn("Perto", legenda)
+        self.assertIn("Parque", legenda)
+        self.assertNotIn("Longe", no_quadro)
+        self.assertIn("Perto", no_quadro)
+        self.assertTrue(any("'Longe'" in n and "omitida" in n for n in r["notes"]), r["notes"])
+        for regra in ("CART020", "CART021"):
+            resultado = next((c for c in r["audit"]["results"] if c["id"] == regra), None)
+            if resultado is not None:
+                self.assertNotEqual(resultado["status"], "fail", resultado.get("detail_pt"))
+
+@unittest.skipUnless(_pyqgis_disponivel(), "PyQGIS ausente: só existe dentro de uma instalação do QGIS")
 class ContextoDerivadoNoQgis(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

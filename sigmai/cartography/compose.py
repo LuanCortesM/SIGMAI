@@ -974,7 +974,13 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # As camadas dos painéis extras entram na mesma passada de estilo: estilizar
     # só as do primeiro deixava o painel b) com a cor aleatória que o QGIS
     # sorteou, ao lado de um painel a) com a paleta segura.
-    styling_targets = list(layers)
+    # O assunto primeiro: a sequência de preenchimentos reserva a primeira
+    # posição (laranja firme) ao assunto e a segunda (azul quase branco) ao
+    # contexto, mas era distribuída na ordem de layer_ids — pedido com o
+    # contexto antes, o assunto saía com a cor mais apagada do mapa.
+    wanted_subject = params.get("subject_layer_id")
+    wanted_subject = {str(v).strip() for v in (wanted_subject if isinstance(wanted_subject, list) else [wanted_subject]) if v}
+    styling_targets = sorted(layers, key=lambda layer: not (layer.id() in wanted_subject or layer.name() in wanted_subject))
     for index, spec in enumerate(extra_specs):
         for layer in _resolve_layer_ids(spec, imports, _panel_label(index)):
             if all(layer.id() != existing.id() for existing in styling_targets):
@@ -1362,7 +1368,14 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
 
     notes.extend(fit_notes)
 
-    notes.extend(_empty_in_frame_advice(layers, extent_layers, fitted, map_crs, imports))
+    absent_from_frame = _layers_absent_from_frame(layers, extent_layers, fitted, map_crs, imports)
+    notes.extend(_empty_in_frame_advice(absent_from_frame))
+    # Camada de contexto sem nenhuma feição dentro do quadro sai do quadro e da
+    # legenda. Antes ela ficava na legenda com uma amostra de cor que o leitor
+    # procurava no mapa e não achava — e o laudo dava A, porque a regra de
+    # "legenda sem fantasmas" conta como visível toda camada ligada ao quadro.
+    drawn_layers = [layer for layer in layers if all(layer.id() != gone.id() for gone in absent_from_frame
+                                                     if not _is_label_only(gone))]
     notes.extend(_basemap_zoom_advice(layers, fitted, map_crs, imports))
 
     if not include_inset:
@@ -1537,7 +1550,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     layout.addLayoutItem(map_item)
     _place(map_item, frame, imports, mm)
     map_item.setCrs(map_crs)
-    map_item.setLayers(layers)
+    map_item.setLayers(drawn_layers)
     # zoomToExtent e NÃO setExtent. A documentação do QGIS é explícita:
     # "setExtent ... may change the width or height of the map item to ensure
     # that the extent exactly matches". Ou seja, ele redimensiona o item e
@@ -1608,7 +1621,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # comparação. Uma feição no segundo quadro sem entrada na legenda deixa o
     # leitor sem saber o que está vendo.
     if include_legend and "legend" in plan.slots:
-        legend_layers = list(layers)
+        legend_layers = list(drawn_layers)
         for pp in panel_plans:
             for layer in pp.get("layers", []):
                 if all(layer.id() != existing.id() for existing in legend_layers):
@@ -2697,18 +2710,27 @@ def _add_north_arrow(
     return "picture"
 
 
-def _empty_in_frame_advice(
+def _layers_absent_from_frame(
     layers: list[Any], extent_layers: list[Any], fitted: Any, map_crs: Any, imports: dict[str, Any]
-) -> list[str]:
-    """Avisa sobre camadas que entram na legenda mas não aparecem no mapa.
+) -> list[Any]:
+    """Camadas de contexto sem nenhuma feição dentro do quadro.
 
     Pedir "o parque mostrando os municípios em volta" com um recorte apertado no
-    parque pode deixar o município inteiro fora do quadro: a camada continua na
-    legenda, e o leitor procura no mapa uma feição que não existe ali.
+    parque pode deixar todos os municípios fora do quadro. A interseção é a
+    exata: o retângulo envolvente de um município vizinho cobre o canto do
+    quadro sem que o polígono entre nele. Camadas de assunto, rasters e
+    camadas que não puderam ser consultadas nunca entram na lista.
     """
-    notes: list[str] = []
+    absent: list[Any] = []
     subject_ids = {layer.id() for layer in extent_layers}
     frame = imports["QgsRectangle"](fitted.xmin, fitted.ymin, fitted.xmax, fitted.ymax)
+    exact = None
+    for owner, scope in ((imports["Qgis"], "FeatureRequestFlag"), (imports["QgsFeatureRequest"], "Flag")):
+        try:
+            exact = qt_enum(owner, scope, "ExactIntersect")
+            break
+        except Exception:
+            continue
     for layer in layers:
         if layer.id() in subject_ids or not hasattr(layer, "getFeatures"):
             continue
@@ -2719,21 +2741,30 @@ def _empty_in_frame_advice(
             local_frame = transform.transformBoundingBox(frame)
             request = imports["QgsFeatureRequest"]().setFilterRect(local_frame).setLimit(1)
             request.setNoAttributes()
+            if exact is not None:
+                request.setFlags(request.flags() | exact)
             if next(layer.getFeatures(request), None) is None:
-                if _is_label_only(layer):
-                    notes.append(
-                        f"A camada de rótulos {layer.name()!r} não tem nenhum ponto dentro do recorte: "
-                        "nenhum nome dela vai aparecer no mapa. Aumente margin_percent, passe extra_labels "
-                        "com coordenadas dentro do recorte ou tire-a de layer_ids."
-                    )
-                else:
-                    notes.append(
-                        f"A camada {layer.name()!r} não tem nenhuma feição dentro do recorte: "
-                        "ela vai aparecer na legenda e não no mapa. Tire-a de layer_ids, "
-                        "aumente margin_percent ou escolha outra camada de contexto."
-                    )
+                absent.append(layer)
         except Exception:
             continue
+    return absent
+
+
+def _empty_in_frame_advice(absent: list[Any]) -> list[str]:
+    """O que dizer de cada camada sem feição no quadro (ver ``_layers_absent_from_frame``)."""
+    notes: list[str] = []
+    for layer in absent:
+        if _is_label_only(layer):
+            notes.append(
+                f"A camada de rótulos {layer.name()!r} não tem nenhum ponto dentro do recorte: "
+                "nenhum nome dela vai aparecer no mapa. Aumente margin_percent, passe extra_labels "
+                "com coordenadas dentro do recorte ou tire-a de layer_ids."
+            )
+        else:
+            notes.append(
+                f"A camada {layer.name()!r} não tem nenhuma feição dentro do recorte e foi omitida do "
+                "quadro e da legenda. Para mostrá-la, aumente margin_percent ou escolha outra camada de contexto."
+            )
     return notes
 
 

@@ -41,6 +41,12 @@ Rules are the contribution most likely to come from users, and they are cheap to
 
 Severity is `error` when the map is wrong, `warning` when it is defective but usable, `advice` when it could be better.
 
+## Governance and releases
+
+SIGMAI has a single maintainer, who reviews and merges every change and decides what goes into a release. Decisions are made in the open: a change starts as an issue or a Discussion, lands through a pull request with its test, and is recorded in [CHANGELOG.md](CHANGELOG.md). Contributors who send sustained, reviewed work can be invited as co-maintainers.
+
+A release is cut only when the test suite passes, `tools/release_battery.py` reports `LIBERADO` and `tools/prepare_public_release.py` reports `PUBLIC_RELEASE_READY`. Each release is tagged (`vX.Y.Z`), published on the [QGIS plugin repository](https://plugins.qgis.org/plugins/sigmai/), and archived on Zenodo. Security problems should be reported privately by e-mail to the maintainer (herpetomantiqueira@gmail.com) rather than in a public issue.
+
 ## Code of conduct
 
 Participation is governed by [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
