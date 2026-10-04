@@ -188,7 +188,7 @@ def probe_mcp_server(
         # Sem isto cada autoteste piscaria uma janela de console.
         extra["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
-        completed = subprocess.run(
+        completed = subprocess.run(  # nosec B603 - no shell; QGIS's Python running the bundled sigmai_mcp.py, as the AI client will.
             [executable, server], input=payload, capture_output=True, timeout=timeout,
             env=client_environment(server_environment(session_file)), cwd=str(Path.home()), **extra,
         )

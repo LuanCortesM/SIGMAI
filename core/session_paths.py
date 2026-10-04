@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-import random
+import secrets
 import string
 from pathlib import Path
 
@@ -47,6 +47,6 @@ def is_safe_session_path(path: Path) -> bool:
 
 def generate_pairing_code() -> str:
     alphabet = string.ascii_uppercase + string.digits
-    part1 = "".join(random.choice(string.digits) for _ in range(4))
-    part2 = "".join(random.choice(alphabet) for _ in range(4))
+    part1 = "".join(secrets.choice(string.digits) for _ in range(4))
+    part2 = "".join(secrets.choice(alphabet) for _ in range(4))
     return f"SG-{part1}-{part2}"

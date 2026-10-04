@@ -410,7 +410,7 @@ class SIGMAIPlugin:
 
     def _probe_health(self, base: str) -> dict[str, Any]:
         try:
-            with urllib.request.urlopen(f"{base}/health", timeout=4) as response:
+            with urllib.request.urlopen(f"{base}/health", timeout=4) as response:  # nosec B310 - base is http://<bridge host>:<port> of this plugin.
                 payload = json.loads(response.read().decode("utf-8"))
             return {"ok": True, "label": self._tr("selftest_bridge"), "detail": self._tr("selftest_bridge_ok", host=self.server.host, port=self.server.port, version=payload.get("plugin_version"))}
         except Exception as exc:
@@ -420,7 +420,7 @@ class SIGMAIPlugin:
         body = json.dumps({"action": "status"}).encode("utf-8")
         request = urllib.request.Request(base + "/command", data=body, headers={"Content-Type": "application/json"}, method="POST")
         try:
-            urllib.request.urlopen(request, timeout=4)
+            urllib.request.urlopen(request, timeout=4)  # nosec B310 - base is http://<bridge host>:<port> of this plugin.
             return {"ok": False, "label": self._tr("selftest_auth"), "detail": self._tr("selftest_auth_leak")}
         except urllib.error.HTTPError as exc:
             if exc.code == 401:
@@ -437,7 +437,7 @@ class SIGMAIPlugin:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=15) as response:
+            with urllib.request.urlopen(request, timeout=15) as response:  # nosec B310 - base is http://<bridge host>:<port> of this plugin.
                 payload = json.loads(response.read().decode("utf-8"))
             if not payload.get("ok"):
                 return {"ok": False, "label": self._tr("selftest_project"), "detail": str((payload.get("errors") or [{}])[0].get("message", ""))[:120]}

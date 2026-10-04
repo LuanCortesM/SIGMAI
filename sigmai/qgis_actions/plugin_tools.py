@@ -10,7 +10,7 @@ import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # nosec B405 - input is size-limited and DTD/entity declarations are rejected before parsing (see B314 notes).
 import zipfile
 from datetime import datetime
 from pathlib import Path

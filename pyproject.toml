@@ -1,6 +1,6 @@
 [project]
 name = "sigmai"
-version = "1.1.5"
+version = "1.1.6"
 description = "Secure GIS-AI Interface for local, auditable AI-QGIS interaction."
 readme = "README.md"
 requires-python = ">=3.9"
