@@ -111,7 +111,7 @@ STRINGS: dict[str, str] = {
     # sobre
     "about_title": "Informazioni su SIGMAI",
     "about_plugin": "Autore del plugin: MACIEL, L. S. C. · herpetomantiqueira@gmail.com",
-    "about_license": "SIGMAI {version} · GNU GPL v3.0 o successiva · github.com/LuanCortesM/SIGMAI",
+    "about_license": "SIGMAI {version} · Licenza MIT · github.com/LuanCortesM/SIGMAI",
     "about_map_authorship": "L'autore del plugin non è l'autore delle mappe: indica map_author e data_source in ogni mappa generata.",
     # diálogo de consentimento e mensagens do QGIS
     "consent_dialog_title": "L'assistente IA vuole eseguire un'azione",

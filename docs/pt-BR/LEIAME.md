@@ -102,4 +102,4 @@ Desenvolvido por Luan da Silva Cortes Maciel como produto de pesquisa associado 
 
 ## Licença
 
-GNU General Public License v3.0 ou posterior. Veja [LICENSE](../../LICENSE).
+Licença MIT. Veja [LICENSE](../../LICENSE).

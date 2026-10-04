@@ -111,7 +111,7 @@ STRINGS: dict[str, str] = {
     # sobre
     "about_title": "SIGMAI について",
     "about_plugin": "プラグイン作者: MACIEL, L. S. C. · herpetomantiqueira@gmail.com",
-    "about_license": "SIGMAI {version} · GNU GPL v3.0 以降 · github.com/LuanCortesM/SIGMAI",
+    "about_license": "SIGMAI {version} · MIT ライセンス · github.com/LuanCortesM/SIGMAI",
     "about_map_authorship": "プラグインの著作者は地図の著作者ではありません。生成する地図ごとに map_author と data_source を指定してください。",
     # diálogo de consentimento e mensagens do QGIS
     "consent_dialog_title": "AI アシスタントが操作の実行を求めています",

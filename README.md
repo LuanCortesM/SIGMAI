@@ -6,7 +6,7 @@
 
 [![QGIS plugin](https://img.shields.io/badge/QGIS-3.28%20→%204.x-589632)](https://plugins.qgis.org/plugins/sigmai/)
 [![MCP](https://img.shields.io/badge/MCP-JSON--RPC%202.0%20stdio-6E56CF)](https://modelcontextprotocol.io)
-[![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Tests](https://github.com/LuanCortesM/SIGMAI/actions/workflows/tests.yml/badge.svg)](https://github.com/LuanCortesM/SIGMAI/actions/workflows/tests.yml)
 
 [Português](docs/pt-BR/LEIAME.md) · [Install](#install) · [Connect an AI client](#connect-an-ai-client) · [Cartographic rulebook](#the-cartographic-rulebook) · [Security](#security-model)
@@ -190,12 +190,16 @@ Developed by Luan da Silva Cortes Maciel as a research product associated with H
   title   = {{SIGMAI}: Secure {GIS}-{AI} Interface},
   version = {1.1.2},
   url     = {https://github.com/LuanCortesM/SIGMAI},
-  license = {GPL-3.0-or-later}
+  license = {MIT}
 }
 ```
+
+The first public version is archived on Zenodo:
+
+MACIEL, L. S. C. (2026). SIGMAI: Local AI-QGIS interface with auditable commands. (V0.1.0). Zenodo. https://doi.org/10.5281/zenodo.20389287
 
 Machine-readable metadata: [CITATION.cff](CITATION.cff).
 
 ## License
 
-GNU General Public License v3.0 or later. See [LICENSE](LICENSE).
+MIT License. See [LICENSE](LICENSE).
