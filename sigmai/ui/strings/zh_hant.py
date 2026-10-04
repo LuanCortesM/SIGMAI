@@ -111,7 +111,7 @@ STRINGS: dict[str, str] = {
     # sobre
     "about_title": "關於 SIGMAI",
     "about_plugin": "外掛作者：MACIEL, L. S. C. · herpetomantiqueira@gmail.com",
-    "about_license": "SIGMAI {version} · GNU GPL v3.0 或更新版本 · github.com/LuanCortesM/SIGMAI",
+    "about_license": "SIGMAI {version} · MIT 授權條款 · github.com/LuanCortesM/SIGMAI",
     "about_map_authorship": "外掛作者不是地圖作者：請為每張產生的地圖填寫 map_author 與 data_source。",
     # diálogo de consentimento e mensagens do QGIS
     "consent_dialog_title": "AI 助理要求執行一項操作",

@@ -47,4 +47,4 @@ Participation is governed by [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## Licence
 
-Contributions are accepted under the GNU GPL v3.0 or later, matching the project.
+Contributions are accepted under the MIT License, matching the project.

@@ -15,8 +15,9 @@ tags=AI,MCP,cartography,map layout,automation,workflow,spatial analysis,research
 homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
-license=GPL-3.0-or-later
+license=MIT
 changelog=1.1.2
+    - Licença: MIT em todo o projeto (o GitHub já declarava MIT; o plugin ainda dizia GPL-3.0-or-later). Texto integral na raiz e no pacote.
     - Fundamentos das regras corrigidos: duas regras citavam normas ABNT que não dizem o que lhes era atribuído (NBR 6027 é sumário; NBR 13133 é levantamento topográfico) e oito citavam "convenção" ou "boas práticas" sem fonte. Agora cada regra cita o Decreto 89.817/1984 (Normas Técnicas da Cartografia Nacional, arts. 12 a 21), a Resolução IBGE PR 1/2015, IBGE (1999), Brewer (2016), Slocum et al. (2009), Snyder (1987), Machado et al. (2009), Robertson (1977), Okabe & Ito (2008), PLOS ONE ou Rodriguésia — ou declara que o número é decisão de projeto do SIGMAI; a API do QGIS aparece como verificação, não como fundamento. Teste garante.
     - Análise de sensibilidade dos limiares (tools/threshold_sensitivity.py): 138 mapas re-pontuados variando cada limiar do regulamento e as decisões do compositor recalculadas; registro em docs/experiments/2026-09-19_sensibilidade_limiares/. Os limiares do compositor viraram constantes nomeadas (LAYOUT_SWITCH_GAIN, MAX_EFFECTIVE_MARGIN_PERCENT, FONT_SCALE_EXPONENT).
     - sigmai_cartographic_rulebook expõe o limiar de ΔE real (lia 15,0 fixo), a cobertura mínima do inserto e a procedência dos limiares.

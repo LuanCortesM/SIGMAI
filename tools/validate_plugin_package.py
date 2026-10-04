@@ -215,11 +215,21 @@ def main() -> int:
         if not (PACKAGE / name).exists():
             problems.append(f"pacote: arquivo obrigatório ausente: sigmai/{name}")
 
-    # O aviso de licença não basta: a GPL exige a cópia integral junto do
-    # programa, e o próprio aviso promete que ela está lá.
+    # O pacote tem de levar o texto integral da licença que o metadata.txt
+    # declara — um aviso de uma linha não basta, nem para a MIT (que exige
+    # a nota de permissão em toda cópia) nem para a GPL.
     licenca = PACKAGE / "LICENSE"
-    if licenca.exists() and "TERMS AND CONDITIONS" not in licenca.read_text(encoding="utf-8", errors="ignore"):
-        problems.append("pacote: sigmai/LICENSE tem só o aviso; a GPL exige o texto integral da licença.")
+    declarada = metadata.get("license", "")
+    if licenca.exists():
+        texto = licenca.read_text(encoding="utf-8", errors="ignore")
+        if declarada.upper().startswith("MIT"):
+            if "Permission is hereby granted" not in texto or 'THE SOFTWARE IS PROVIDED "AS IS"' not in texto:
+                problems.append("pacote: metadata.txt declara MIT, mas sigmai/LICENSE não traz o texto integral da MIT.")
+        elif declarada.upper().startswith("GPL") and "TERMS AND CONDITIONS" not in texto:
+            problems.append("pacote: sigmai/LICENSE tem só o aviso; a GPL exige o texto integral da licença.")
+    raiz = ROOT / "LICENSE"
+    if raiz.exists() and licenca.exists() and raiz.read_text(encoding="utf-8", errors="ignore") != licenca.read_text(encoding="utf-8", errors="ignore"):
+        problems.append("LICENSE da raiz e sigmai/LICENSE divergem: o repositório e o pacote declarariam licenças diferentes.")
 
     problems.extend(checar_icone(PACKAGE, metadata))
     problems.extend(checar_versao_nos_documentos(ROOT, version))
