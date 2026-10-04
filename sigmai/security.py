@@ -11,6 +11,11 @@ from typing import Iterable
 
 
 DEFAULT_HOST = "127.0.0.1"
+
+#: Toda requisição a ``/command`` exige o token de portador; não há modo sem
+#: autenticação. Constante nomeada, e não um ``True`` literal ao lado da chave
+#: ``token_required``: o Bandit (B105) lê esse par como senha embutida.
+AUTHENTICATION_REQUIRED = True
 DEFAULT_PORT = 8765
 
 #: Quantas portas tentar a partir da padrão antes de desistir. Sem isso, uma

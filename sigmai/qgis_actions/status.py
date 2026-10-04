@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..security import AUTHENTICATION_REQUIRED
 from .common import project, qgis_imports
 
 
@@ -23,7 +24,7 @@ def bridge_config(params, context):
     return {
         "host": context.get("host"),
         "port": context.get("port"),
-        "token_required": True,
+        "token_required": AUTHENTICATION_REQUIRED,
         "transport": "http_localhost",
         "endpoints": {
             "command": "/command",

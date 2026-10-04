@@ -134,7 +134,7 @@ _CREDENTIAL_KEYS = (
 )
 
 #: Valor de uma credencial: entre aspas simples/duplas (formato QGIS
-#: ``QgsDataSourceUri``, ex. ``password='S3cr3t!'``) ou sem aspas até o
+#: ``QgsDataSourceUri``, ex. ``password='...'``) ou sem aspas até o
 #: próximo separador (``&``, ``;``, espaço — formato ODBC/URL).
 _VALUE_PATTERN = r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"|[^&;\s'\"]*"
 
