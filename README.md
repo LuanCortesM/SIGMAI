@@ -83,6 +83,7 @@ Twenty MCP tools, each with a validated input schema. `sigmai_briefing` is where
 | `sigmai_undo` | | ✓ | Undo the last write in the project: styles, names, labels, layouts, created layers (files on disk stay) |
 | `sigmai_list_layouts` | ✓ | | Print layouts in the project |
 | `sigmai_capabilities` | ✓ | | Command catalogue, filterable, with the parameters each command reads |
+| `sigmai_brief_plugin` | ✓ | | Everything needed to drive another QGIS plugin in one call: state, Processing algorithms with their full contracts, and what is not scriptable |
 | `sigmai_run_command` | ✓ | ✓ | Any catalogued command: vector, raster, Processing, symbology, workflows |
 
 Behind them sit 232 catalogued commands, 219 of them enabled. `sigmai_run_command` reaches all of the enabled ones; the dedicated tools exist because a typed schema produces fewer wrong calls than a free-form escape hatch. The 13 disabled commands (the atlas family, the PostGIS family and `create_map_hierarchy`) are refused by the bridge as if they did not exist and listed in `get_capabilities` with the reason — the catalogue describes what the plugin does, not what it might do one day.
@@ -135,7 +136,7 @@ flowchart LR
     B["MCP server<br/>JSON-RPC 2.0 over stdio<br/>sigmai/mcp/"]
     C["Local bridge<br/>127.0.0.1 · bearer token<br/>sigmai/bridge_server.py"]
     D["Consent<br/>mode · folders · limits · audit<br/>sigmai/consent.py"]
-    E["Command registry<br/>218 validated actions<br/>sigmai/qgis_actions/"]
+    E["Command registry<br/>219 validated actions<br/>sigmai/qgis_actions/"]
     F["Cartographic engine<br/>page · scale · rulebook<br/>sigmai/cartography/"]
     G[("QGIS<br/>project, layers, layouts")]
 

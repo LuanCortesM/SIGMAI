@@ -10,6 +10,7 @@ sem que a suíte acuse.
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from sigmai.cartography.inspector import _existing_grid, _observe_map
 from sigmai.cartography.maptext import MAP_TEXT, resolve_language
@@ -262,7 +263,8 @@ class CaminhoDeSaidaDeOutroSistemaOuRelativo(unittest.TestCase):
         with self.assertRaises(OutputPathError) as ctx:
             normalize_output_path("mapa.png")
         self.assertIn("absolute", str(ctx.exception))
-        self.assertEqual(str(normalize_output_path("/tmp/x/../mapa.png")), "/tmp/mapa.png")
+        # No macOS /tmp é link para /private/tmp, e o caminho sai resolvido.
+        self.assertEqual(normalize_output_path("/tmp/x/../mapa.png"), Path("/tmp/mapa.png").resolve())
 
     @unittest.skipIf(__import__("os").name == "nt", "a regra do caminho estrangeiro só vale em POSIX")
     def test_compose_recusa_em_portugues_sem_tocar_no_disco(self) -> None:

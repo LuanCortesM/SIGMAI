@@ -257,7 +257,9 @@ class SelfRollbackExtraiComProtecao(unittest.TestCase):
             with patch.object(plugin_tools, "_current_plugin_path", return_value=plugin_path):
                 resultado = plugin_tools.self_rollback({"backup_path": str(backup_bom)}, {})
 
-            self.assertEqual(resultado["restored_from"], str(backup_bom))
+            # resolve() nos dois lados: no macOS /var é link para /private/var e no
+            # Windows o TEMP do CI vem em nome curto 8.3 (RUNNER~1).
+            self.assertEqual(Path(resultado["restored_from"]).resolve(), backup_bom.resolve())
             self.assertIn("0.9.9-restaurado", (plugin_path / "metadata.txt").read_text(encoding="utf-8"))
             self.assertTrue((plugin_path / "__init__.py").exists())
 
