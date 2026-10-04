@@ -33,12 +33,17 @@ NAME_FIELD_HINTS = ("nome", "name", "nm_", "_nm", "titulo", "título", "label", 
 
 def _imports() -> dict[str, Any]:
     from qgis.core import (  # type: ignore
-        QgsCoordinateTransform, QgsDistanceArea, QgsFeatureRequest, QgsGeometry, QgsProject, QgsRectangle,
+        Qgis, QgsCoordinateTransform, QgsDistanceArea, QgsFeatureRequest, QgsGeometry, QgsProject, QgsRectangle,
     )
 
+    from ..cartography.qtcompat import qt_enum
+
+    # QgsCoordinateTransform.ReverseTransform é apelido depreciado desde o QGIS
+    # 3.22; a forma com escopo existe do 3.28 (mínimo do SIGMAI) ao 4.x.
     return dict(
         QgsCoordinateTransform=QgsCoordinateTransform, QgsDistanceArea=QgsDistanceArea,
         QgsFeatureRequest=QgsFeatureRequest, QgsGeometry=QgsGeometry, QgsProject=QgsProject, QgsRectangle=QgsRectangle,
+        reverse_transform=qt_enum(Qgis, "TransformDirection", "Reverse"),
     )
 
 
@@ -178,7 +183,7 @@ def spatial_relationship(params: dict[str, Any], context: dict[str, Any]) -> dic
 
     def other_features_in(rect: Any) -> list[tuple[Any, Any]]:
         req = imports["QgsFeatureRequest"]().setFilterRect(
-            rect if transform is None else transform.transformBoundingBox(rect, imports["QgsCoordinateTransform"].ReverseTransform)
+            rect if transform is None else transform.transformBoundingBox(rect, imports["reverse_transform"])
         )
         found = []
         for feature in other.getFeatures(req):
