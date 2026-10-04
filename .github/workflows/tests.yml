@@ -63,6 +63,10 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq libegl1 libgl1 libxkbcommon0 libdbus-1-3
           python tools/qt6_panel_check.py
+      - name: plugins.qgis.org Qt6 Check (QGIS pyqt5_to_pyqt6.py)
+        run: |
+          python -m pip install --quiet PyQt6-QScintilla tokenize-rt
+          python tools/qgis_qt6_check.py
 
   metadata:
     name: Plugin metadata
