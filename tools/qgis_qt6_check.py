@@ -20,7 +20,6 @@ PyQt6-QScintilla tokenize-rt``); o Python do QGIS 4 já traz os dois primeiros.
 
 from __future__ import annotations
 
-import re
 import subprocess
 import sys
 import tempfile
@@ -38,7 +37,20 @@ CHECKER_URL = (
     f"https://raw.githubusercontent.com/qgis/QGIS/{CHECKER_COMMIT}"
     "/scripts/pyqt5_to_pyqt6/pyqt5_to_pyqt6.py"
 )
-FINDING = re.compile(r":\d+:\d+ - ")
+
+#: Configura o log *antes* de carregar o script: fora do QGIS ele avisa no
+#: import que não há classes do QGIS para inspecionar, esse aviso configura o
+#: logging do Python, e o ``--logfile`` dele passa a ser ignorado.
+RUNNER = """
+import logging, runpy, sys
+script, target, log = sys.argv[1:4]
+logging.basicConfig(level=logging.DEBUG, format="%(message)s", filename=log, filemode="w", encoding="utf-8")
+sys.argv = [script, "--dry_run", target]
+try:
+    runpy.run_path(script, run_name="__main__")
+except SystemExit:
+    pass
+"""
 
 
 def run_checker(target: Path, workdir: Path) -> list[str]:
@@ -47,17 +59,19 @@ def run_checker(target: Path, workdir: Path) -> list[str]:
         script.write_bytes(response.read())
     log = workdir / "qt6_check.log"
     result = subprocess.run(
-        [sys.executable, str(script), "--dry_run", "--logfile", str(log), str(target)],
+        [sys.executable, "-c", RUNNER, str(script), str(target), str(log)],
         capture_output=True, text=True, encoding="utf-8",
     )
-    if not log.exists():
+    if result.returncode != 0 or not log.exists():
         raise SystemExit(f"o verificador não rodou:\n{result.stderr[-2000:]}")
-    findings = []
-    for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
-        if FINDING.search(line):
-            path, _, message = line.partition(" - ")
-            findings.append(f"{Path(path.rsplit(':', 2)[0]).relative_to(target)}:{':'.join(path.rsplit(':', 2)[1:])} {message}")
-    return findings
+    # Todo apontamento começa pelo caminho do arquivo: "arq.py:linha:col - msg"
+    # ou, nos avisos de import, "arq.py: msg".
+    prefix = str(target)
+    return [
+        line[len(prefix):].lstrip("\\/")
+        for line in log.read_text(encoding="utf-8", errors="replace").splitlines()
+        if line.startswith(prefix)
+    ]
 
 
 def main(argv: list[str]) -> int:
