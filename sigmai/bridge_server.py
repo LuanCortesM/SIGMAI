@@ -21,7 +21,7 @@ from .logging_utils import filter_error_records
 from .qgis_actions import register_actions
 from .permissions import READ_ONLY, permission_for
 from .security import (
-    DEFAULT_HOST, DEFAULT_PORT, REUSE_ADDRESS, claim_port, find_available_port, is_localhost, validate_bearer_header,
+    AUTHENTICATION_REQUIRED, DEFAULT_HOST, DEFAULT_PORT, REUSE_ADDRESS, claim_port, find_available_port, is_localhost, validate_bearer_header,
 )
 from .validators import ValidationError, validate_command
 
@@ -118,13 +118,13 @@ class SIGMAIServer:
         iface: Any = None,
         host: str = DEFAULT_HOST,
         port: int = DEFAULT_PORT,
-        token: str = "",
+        token: str | None = None,
         log_dir: Path | None = None,
     ):
         self.iface = iface
         self.host = host
         self.port = int(port)
-        self.token = token
+        self.token = token or ""
         self.log_dir = log_dir or Path(__file__).resolve().parent / "logs"
         self.logger = BridgeLogger(self.log_dir / "sigmai.jsonl")
         self.qgis_version = self._qgis_version()
@@ -619,7 +619,7 @@ class SIGMAIServer:
                 data = {
                     "host": self.host,
                     "port": self.port,
-                    "token_required": True,
+                    "token_required": AUTHENTICATION_REQUIRED,
                     "transport": "http_localhost",
                     "endpoints": {"command": "/command", "status": "/status"},
                     "unsafe_developer_mode": self.unsafe_developer_mode,

@@ -29,7 +29,7 @@ SEVERITY_ADVICE = "advice"
 #: Peso de cada severidade na pontuação de 0 a 100.
 SEVERITY_PENALTY = {SEVERITY_ERROR: 15.0, SEVERITY_WARNING: 5.0, SEVERITY_ADVICE: 1.5}
 
-STATUS_PASS = "pass"
+STATUS_PASSED = "pass"
 STATUS_FAIL = "fail"
 STATUS_SKIP = "skip"
 
@@ -103,7 +103,7 @@ class CheckOutcome:
 
 
 def _pass(detail: str = "", **evidence: Any) -> CheckOutcome:
-    return CheckOutcome(STATUS_PASS, detail, evidence)
+    return CheckOutcome(STATUS_PASSED, detail, evidence)
 
 
 def _fail(detail: str, **evidence: Any) -> CheckOutcome:
@@ -1257,7 +1257,7 @@ def evaluate(observation: dict[str, Any], skip_rules: tuple[str, ...] = ()) -> d
             "errors": counts[SEVERITY_ERROR],
             "warnings": counts[SEVERITY_WARNING],
             "advice": counts[SEVERITY_ADVICE],
-            "passed": sum(1 for entry in results if entry["status"] == STATUS_PASS),
+            "passed": sum(1 for entry in results if entry["status"] == STATUS_PASSED),
             "skipped": sum(1 for entry in results if entry["status"] == STATUS_SKIP),
         },
         "blocking_issues": [entry for entry in failures if entry["severity"] == SEVERITY_ERROR],

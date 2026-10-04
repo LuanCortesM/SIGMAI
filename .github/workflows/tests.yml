@@ -74,3 +74,7 @@ jobs:
           python-version: "3.12"
       - name: Validate metadata.txt and package layout
         run: python tools/validate_plugin_package.py
+      - name: Security scan of plugins.qgis.org (Bandit, detect-secrets, Flake8)
+        run: |
+          python -m pip install --quiet bandit detect-secrets flake8
+          python tools/qgis_repository_scan.py

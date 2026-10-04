@@ -2,6 +2,21 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.1.4] — 2026-10-04
+
+Nenhuma mudança de comportamento. A 1.1.3 não chegou ao repositório oficial de plugins do QGIS: desde 2026 o plugins.qgis.org varre cada versão enviada com Bandit e detect-secrets, achado *crítico* bloqueia a versão para download e aprovação, e uma versão bloqueada não se desbloqueia — é preciso enviar outra. Rodadas as mesmas ferramentas no pacote da 1.1.3, o Bandit deu 41 achados críticos, todos falsos positivos.
+
+### Repositório de plugins do QGIS
+
+- **40 achados B105 ("senha embutida") e 1 B107.** O Bandit toma por senha qualquer string literal atribuída a um nome que contenha `token`, `password` ou `pass` como palavra: as chaves de texto da interface `advanced_token`, `advanced_copy_token`, `advanced_persist_token` e `advanced_token_warning` nas nove línguas; a opção `persist_token`; o par `"token_required": True` em `get_bridge_config`; a constante `STATUS_PASS = "pass"` do regulamento; e o argumento padrão `token=""` da ponte. As chaves passam a `advanced_access_key`, `advanced_copy_access_key`, `advanced_persist_access_key` e `advanced_access_key_warning` (o texto exibido não muda); a opção passa a `persist_access_key`; `token_required` vem da constante `AUTHENTICATION_REQUIRED` de `security.py`; a constante do regulamento passa a `STATUS_PASSED`; o argumento padrão passa a `None`. A resposta de `get_bridge_config` e `bridge_config` não muda.
+- **A opção "manter o mesmo token" é migrada.** Quem a tinha ligado na 1.1.3 ou antes continua com ela ligada: na abertura, `persist_token` é copiada para `persist_access_key` e apagada (`migrate_legacy_settings`).
+- **Por precaução:** um comentário em `project_overview.py` exemplificava o formato de URI do QGIS com uma senha de mentira, que o detect-secrets apontou na árvore de trabalho; o exemplo agora usa reticências.
+- **`tools/qgis_repository_scan.py`** roda no pacote, ou no ZIP, as varreduras do repositório (Bandit com a lista de testes críticos publicada pelo site, detect-secrets, erros fatais do Flake8 e arquivos suspeitos) e sai com erro se houver achado bloqueante; o job "Plugin metadata" do CI passa a rodá-lo. Contra o código da 1.1.3 ele reprova.
+
+### Testes
+
+- `tests/test_settings_migration.py`: a migração preserva a opção ligada, a desligada, dá precedência ao nome novo já gravado e não toca em quem nunca a gravou; também contra o `QgsSettings` real, num prefixo de teste.
+
 ## [1.1.3] — 2026-10-04
 
 A 1.1.2 passou em 663 testes e na bateria de liberação — todos rodados num ambiente Linux com QGIS 3 e Qt5. No computador onde o plugin é usado de fato, Windows com o QGIS 4.0.2 (Qt6) e o QGIS 3.40 LTR (Qt5) do instalador oficial, o painel nem abria: o Visualizador de Eventos do Windows registrou o QGIS 4 "parado de responder" duas vezes nos três minutos seguintes à instalação da 1.1.2. Esta versão foi verificada nesse ambiente, com o QGIS aberto e com interface, nas duas versões; nenhuma regra do regulamento e nenhum limiar mudou.

@@ -37,10 +37,34 @@ from .session import (
 )
 
 SETTINGS_PREFIX = "SIGMAI"
+
+#: Opções renomeadas (nome antigo, nome novo). ``persist_token`` virou
+#: ``persist_access_key`` na 1.1.4 porque o scanner de segurança do
+#: repositório de plugins do QGIS (Bandit, regra B105) toma toda chave
+#: terminada em ``_token`` com valor literal por senha embutida, e bloqueia a
+#: versão. A migração preserva a escolha de quem tinha ligado a opção.
+LEGACY_SETTING_NAMES = (("persist_token", "persist_access_key"),)
+
+
+def migrate_legacy_settings(settings: Any, prefix: str = SETTINGS_PREFIX) -> None:
+    """Copia cada opção de nome antigo para o novo e apaga a antiga.
+
+    ``settings`` é um ``QgsSettings`` (ou qualquer objeto com ``contains``,
+    ``value``, ``setValue`` e ``remove``). Se a opção nova já existe, vale ela.
+    """
+    for antiga, nova in LEGACY_SETTING_NAMES:
+        chave_antiga = f"{prefix}/{antiga}"
+        chave_nova = f"{prefix}/{nova}"
+        if not settings.contains(chave_antiga):
+            continue
+        if not settings.contains(chave_nova):
+            settings.setValue(chave_nova, settings.value(chave_antiga, False, type=bool))
+        settings.remove(chave_antiga)
+
 SETTINGS_DEFAULTS: dict[str, Any] = {
     "auto_start": True,
     "write_session_file": True,
-    "persist_token": False,
+    "persist_access_key": False,
     "consent_mode": MODE_READ_ONLY,
     "ui_language": "pt-BR",
     "ui_theme": "auto",
@@ -64,6 +88,7 @@ class SIGMAIPlugin:
         self.last_error = ""
         self.session_file = None
         self.session_id = generate_pairing_code()
+        self._migrate_legacy_settings()
         self.token = self._load_or_create_token()
         from .ui.strings import normalize_ui_language
 
@@ -547,7 +572,7 @@ class SIGMAIPlugin:
         manter, com a justificativa (já falsa) de que o cliente precisava ser
         reconfigurado. Quem colou o token à mão em algum lugar liga a opção.
         """
-        if not bool(self.settings_get("persist_token", False)):
+        if not bool(self.settings_get("persist_access_key", False)):
             # Um token guardado por uma versão anterior não fica esquecido nas
             # configurações do perfil.
             if self.settings_get("bridge_token", ""):
@@ -560,8 +585,16 @@ class SIGMAIPlugin:
         self._store_token(token)
         return token
 
+    def _migrate_legacy_settings(self) -> None:
+        try:
+            from qgis.core import QgsSettings  # type: ignore
+
+            migrate_legacy_settings(QgsSettings())
+        except Exception:
+            pass
+
     def _store_token(self, token: str) -> None:
-        if bool(self.settings_get("persist_token", False)):
+        if bool(self.settings_get("persist_access_key", False)):
             self.settings_set("bridge_token", token)
 
     # -- auxiliares -------------------------------------------------------

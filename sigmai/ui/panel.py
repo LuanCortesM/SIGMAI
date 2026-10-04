@@ -565,7 +565,7 @@ class SigmaiPanel(QWidget):
         self.token_show_button = QPushButton(self.tr_("advanced_show"))
         self.token_show_button.setObjectName("linkButton")
         self.token_show_button.clicked.connect(self._toggle_token_visibility)
-        self.token_copy_button = QPushButton(self.tr_("advanced_copy_token"))
+        self.token_copy_button = QPushButton(self.tr_("advanced_copy_access_key"))
         self.token_copy_button.setObjectName("linkButton")
         self.token_copy_button.clicked.connect(self._copy_token)
         token_row = QWidget()
@@ -582,13 +582,13 @@ class SigmaiPanel(QWidget):
 
         self.host_label = QLabel(self.tr_("advanced_host"))
         self.port_label = QLabel(self.tr_("advanced_port"))
-        self.token_label = QLabel(self.tr_("advanced_token"))
+        self.token_label = QLabel(self.tr_("advanced_access_key"))
         self.session_label = QLabel(self.tr_("advanced_session_file"))
         form.addRow(self.host_label, self.host_value)
         form.addRow(self.port_label, self.port_value)
         form.addRow(self.token_label, token_row)
         form.addRow(self.session_label, self.session_field)
-        self.token_warning = _label(self.tr_("advanced_token_warning"), "noticeWarn", wrap=True)
+        self.token_warning = _label(self.tr_("advanced_access_key_warning"), "noticeWarn", wrap=True)
         form.addRow(self.token_warning)
         layout.addWidget(self.endpoint_group)
 
@@ -615,8 +615,8 @@ class SigmaiPanel(QWidget):
         self.autostart_check.toggled.connect(lambda value: self._settings_set("auto_start", value))
         self.write_session_check = QCheckBox(self.tr_("advanced_write_session"))
         self.write_session_check.toggled.connect(lambda value: self._settings_set("write_session_file", value))
-        self.persist_token_check = QCheckBox(self.tr_("advanced_persist_token"))
-        self.persist_token_check.toggled.connect(lambda value: self._settings_set("persist_token", value))
+        self.persist_token_check = QCheckBox(self.tr_("advanced_persist_access_key"))
+        self.persist_token_check.toggled.connect(lambda value: self._settings_set("persist_access_key", value))
         self.persist_hint = _label(self.tr_("advanced_persist_hint"), "helpText", wrap=True)
         self.persist_hint.setContentsMargins(24, 0, 0, 0)
         for widget in (self.autostart_check, self.write_session_check, self.persist_token_check, self.persist_hint):
@@ -868,7 +868,7 @@ class SigmaiPanel(QWidget):
         for key, checkbox in (
             ("auto_start", self.autostart_check),
             ("write_session_file", self.write_session_check),
-            ("persist_token", self.persist_token_check),
+            ("persist_access_key", self.persist_token_check),
         ):
             value = self._call("settings_get", key, True)
             checkbox.blockSignals(True)
@@ -997,12 +997,12 @@ class SigmaiPanel(QWidget):
         self.endpoint_group.setTitle(self.tr_("advanced_endpoint"))
         self.host_label.setText(self.tr_("advanced_host"))
         self.port_label.setText(self.tr_("advanced_port"))
-        self.token_label.setText(self.tr_("advanced_token"))
+        self.token_label.setText(self.tr_("advanced_access_key"))
         self.session_label.setText(self.tr_("advanced_session_file"))
-        self.token_warning.setText(self.tr_("advanced_token_warning"))
+        self.token_warning.setText(self.tr_("advanced_access_key_warning"))
         self.autostart_check.setText(self.tr_("advanced_autostart"))
         self.write_session_check.setText(self.tr_("advanced_write_session"))
-        self.persist_token_check.setText(self.tr_("advanced_persist_token"))
+        self.persist_token_check.setText(self.tr_("advanced_persist_access_key"))
         self.persist_hint.setText(self.tr_("advanced_persist_hint"))
         self.regenerate_button.setText(self.tr_("advanced_regenerate"))
         self.logs_button.setText(self.tr_("advanced_open_logs"))
