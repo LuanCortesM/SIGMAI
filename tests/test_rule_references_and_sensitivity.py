@@ -28,6 +28,7 @@ FONTES_ACEITAS = (
     "Robertson (1977)",
     "PLOS ONE, Figure requirements",
     "Rodriguésia, Normas para autores",
+    "Transactions in GIS, Author Guidelines",
     "Decisão de projeto do SIGMAI",
     "decisão de projeto do SIGMAI",
 )
@@ -66,6 +67,8 @@ class ReferenciasDasRegras(unittest.TestCase):
         self.assertIn(f"{rulebook.MIN_PRINT_FONT_PT:g} pt", por_id["CART044"])
         self.assertIn(f"{int(rulebook.FRAME_BAND_EMPTY_MAX * 100)} % de cobertura", por_id["CART069"])
         self.assertIn(f"{rulebook.LEGEND_OVERFLOW_TOLERANCE_MM:g}".replace(".", ","), por_id["CART072"])
+        self.assertIn(f"croma ≥ {rulebook.GREYSCALE_CHROMA_MIN}", por_id["CART073"])
+        self.assertIn(f"{rulebook.GREYSCALE_MAX_CHROMATIC_FRACTION * 100:g} %".replace(".", ","), por_id["CART073"])
         self.assertEqual(SEVERITY_PENALTY, {"error": 15.0, "warning": 5.0, "advice": 1.5})
 
     def test_manifesto_expoe_as_referencias(self):

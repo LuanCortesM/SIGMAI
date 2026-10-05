@@ -66,6 +66,54 @@ GEOMETRY_DEFAULTS: dict[str, dict[str, Any]] = {
 }
 
 
+#: Modos de cor da composição. ``"greyscale"`` existe porque periódicos
+#: imprimem em tons de cinza e cobram a cor impressa: a *Transactions in GIS*
+#: pede gráficos de linha em preto e branco e cobra £150 pela primeira figura
+#: colorida no papel. Um mapa colorido convertido depois perde a distinção
+#: entre preenchimentos de mesma luminosidade; composto em cinza, não.
+COLOUR_MODES: tuple[str, ...] = ("colour", "greyscale")
+_COLOUR_MODE_ALIASES = {
+    "colour": "colour", "color": "colour", "cor": "colour", "colorido": "colour",
+    "greyscale": "greyscale", "grayscale": "greyscale", "grey": "greyscale", "gray": "greyscale",
+    "cinza": "greyscale", "tons_de_cinza": "greyscale", "monochrome": "greyscale",
+    "black_and_white": "greyscale", "preto_e_branco": "greyscale", "bw": "greyscale",
+}
+
+#: Preenchimentos em cinza, na mesma ordem de POLYGON_FILLS: (cinza, padrão).
+#: Quatro claridades a ΔL* ≥ 18 entre si (91, 73, 48 e 21) — o que sobra numa
+#: figura sem matiz; da quinta camada em diante o tom se repete e a distinção
+#: passa ao padrão de hachura. O assunto recebe o cinza médio e o contexto o
+#: quase branco, como na paleta colorida.
+GREY_POLYGON_FILLS: tuple[tuple[str, str], ...] = (
+    ("#737373", "solid"),       # assunto: cinza médio (L* 48)
+    ("#E6E6E6", "solid"),       # contexto: quase branco (L* 91)
+    ("#B2B2B2", "solid"),       # cinza claro (L* 73)
+    ("#333333", "solid"),       # cinza escuro (L* 21)
+    ("#000000", "b_diagonal"),  # hachura diagonal
+    ("#000000", "cross"),       # hachura cruzada
+)
+GREY_GEOMETRY_DEFAULTS: dict[str, dict[str, Any]] = {
+    "Polygon": {"fill": "#E6E6E6", "stroke": "#1A1A1A", "stroke_width": 0.35, "opacity": 1.0},
+    "Line": {"stroke": "#000000", "stroke_width": 0.5, "opacity": 1.0},
+    "Point": {"fill": "#000000", "stroke": "#FFFFFF", "stroke_width": 0.3, "size": 2.4, "opacity": 1.0},
+}
+#: Traços e pontos em cinza: preto, cinza escuro e cinza médio.
+GREY_ACCENTS: tuple[str, ...] = ("#000000", "#4D4D4D", "#808080")
+
+
+def normalize_colour_mode(value: Any) -> str:
+    """``"colour"`` ou ``"greyscale"``; recusa qualquer outro valor com a lista."""
+    key = str(value if value is not None else "colour").strip().lower().replace("-", "_").replace(" ", "_")
+    if not key:
+        return "colour"
+    if key in _COLOUR_MODE_ALIASES:
+        return _COLOUR_MODE_ALIASES[key]
+    raise ParameterError(
+        f"colour_mode desconhecido: {value!r}. Valores aceitos: {', '.join(COLOUR_MODES)} "
+        "(também grayscale, grey, cinza, black_and_white)."
+    )
+
+
 def _imports() -> dict[str, Any]:
     from qgis.PyQt.QtGui import QColor  # type: ignore
     from qgis.core import (  # type: ignore
@@ -139,7 +187,9 @@ def has_default_symbology(layer: Any) -> bool:
 APPLY_STYLE_MODES: tuple[str, ...] = ("missing", "all", "none")
 
 
-def apply_default_symbology(layers: list[Any], mode: str = "missing", dry_run: bool = False) -> list[dict[str, Any]]:
+def apply_default_symbology(
+    layers: list[Any], mode: str = "missing", dry_run: bool = False, colour_mode: str = "colour",
+) -> list[dict[str, Any]]:
     """Aplica a paleta padrão às camadas elegíveis.
 
     ``mode`` aceita ``"missing"`` (só camadas com símbolo único), ``"all"``
@@ -167,6 +217,7 @@ def apply_default_symbology(layers: list[Any], mode: str = "missing", dry_run: b
         )
     if mode == "none":
         return []
+    greyscale = normalize_colour_mode(colour_mode) == "greyscale"
     from .qtcompat import geometry_type
 
     imports = _imports()
@@ -213,10 +264,19 @@ def apply_default_symbology(layers: list[Any], mode: str = "missing", dry_run: b
         if kind is None:
             continue
 
-        style = dict(GEOMETRY_DEFAULTS[kind])
+        style = dict((GREY_GEOMETRY_DEFAULTS if greyscale else GEOMETRY_DEFAULTS)[kind])
         # Camadas de mesmo tipo recebem matizes distintos da paleta segura.
         accent = OKABE_ITO[index % len(OKABE_ITO)]
-        if kind == "Polygon":
+        if greyscale:
+            accent = GREY_ACCENTS[index % len(GREY_ACCENTS)]
+            if kind == "Polygon":
+                fill, pattern = GREY_POLYGON_FILLS[polygon_slot % len(GREY_POLYGON_FILLS)]
+                polygon_slot += 1
+                style["fill"] = fill
+                style["pattern"] = pattern
+                accent = style["stroke"]
+                fills_in_use.append(fill)
+        elif kind == "Polygon":
             # Preenchimento derivado do próprio matiz: com um azul-claro fixo
             # para todos, duas camadas de polígono ficavam da mesma cor e só o
             # traço as distinguia — no papel, nada as distinguia. A sequência
@@ -325,7 +385,7 @@ def _build_symbol(kind: str, style: dict[str, Any], accent: str, imports: dict[s
             "color": style["fill"],
             "outline_color": accent,
             "outline_width": str(style["stroke_width"]),
-            "style": "solid",
+            "style": style.get("pattern", "solid"),
         })
     elif kind == "Line":
         symbol = imports["QgsLineSymbol"].createSimple({

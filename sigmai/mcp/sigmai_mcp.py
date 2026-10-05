@@ -374,6 +374,11 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
     "notes_text": {**_S, "description": "Observação livre acrescentada à linha de crédito."},
     "legend_title": _S,
     "grid_style": {"type": "string", "enum": ["solid", "cross", "markers", "frame"]},
+    "colour_mode": {"type": "string", "enum": ["colour", "greyscale"], "description": (
+        "'colour' (padrão) ou 'greyscale': figura em tons de cinza para impressão — paleta de quatro cinzas "
+        "a ΔL* ≥ 18 e hachuras da quinta camada em diante, contorno do inserto em preto. A auditoria mede a "
+        "cor no PNG exportado (CART073). Camadas com cor de uma composição anterior só mudam com apply_style='all'."
+    )},
     "apply_style": {"type": "string", "enum": ["missing", "all", "none"], "description": (
         "'missing' (padrão): reestiliza com a paleta segura só as camadas que ainda têm o símbolo único "
         "padrão do QGIS (sorteado ao carregar) ou um estilo embutido de KML sem amostra de legenda; uma "
@@ -573,6 +578,10 @@ TOOLS: list[dict[str, Any]] = [
         "inputSchema": _obj({
             "layout_name": {**_S, "description": "Nome do layout no gerenciador de layouts do QGIS."},
             "output_path": {**_S, "description": "PNG exportado, se houver, para checar se o quadro do mapa não saiu em branco."},
+            "colour_mode": {"type": "string", "enum": ["colour", "greyscale"], "description": (
+                "'greyscale' se a figura tem de sair em tons de cinza: a cor medida no PNG de output_path vai para "
+                "CART073. Num layout composto pelo SIGMAI, o padrão vem da receita."
+            )},
         }, ["layout_name"]),
         "annotations": {"title": "Auditar layout", **READ_ONLY},
         "handler": lambda args: bridge_call("audit_map_layout", dict(args)),
@@ -668,7 +677,7 @@ TOOLS: list[dict[str, Any]] = [
             "table_delimiter": {"type": "string", "enum": [",", ";"]},
             "output_path": _S, "format": _S, "dpi": _N, "page": _S, "orientation": _S, "map_language": _S,
             "margin_percent": _N, "include_grid": _B, "confirm_overwrite": _B, "layout_name": _S, "recipe_path": _S,
-            "journal_column": _S, "figure_width_mm": _N,
+            "journal_column": _S, "figure_width_mm": _N, "colour_mode": {"type": "string", "enum": ["colour", "greyscale"]},
         }, ["points_layer_id"]),
         "annotations": {"title": "Mapa de campanha", **WRITES},
         "handler": lambda args: bridge_call("compose_campaign_map", dict(args)),

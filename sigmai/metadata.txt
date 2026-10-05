@@ -1,7 +1,7 @@
 [general]
 name=SIGMAI
 description=Secure local bridge between AI assistants and QGIS, with cartographic quality control.
-version=1.1.7
+version=1.2.0
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=MACIEL, L. S. C.
@@ -16,7 +16,11 @@ homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=MIT
-changelog=1.1.7
+changelog=1.2.0
+    - Novo: figura em tons de cinza para impressão (colour_mode='greyscale' em compose_map, plan_map e compose_campaign_map). Periódicos imprimem em cinza e cobram a cor impressa; um mapa colorido convertido depois perde a distinção entre cores de mesma luminosidade. O modo usa quatro cinzas a pelo menos 18 de diferença de L* entre si, hachuras da quinta camada de polígono em diante, traços e pontos em preto e cinza, e contorno do inserto em preto.
+    - Nova regra CART073 (35 regras): a figura pedida em tons de cinza é conferida no raster exportado; reprova se mais de meio por cento da tinta tem cor (croma de 20 ou mais). sigmai_audit_layout aceita colour_mode para auditar qualquer layout contra esse pedido, e lê o modo da receita de um layout composto pelo SIGMAI.
+    - O texto das coordenadas da grade passa de um cinza-azulado a cinza neutro.
+    1.1.7
     - Repositório de plugins do QGIS: a 1.1.6 passou na varredura de segurança (Bandit e detect-secrets sem achados) com 80 por cento de aprovação, por seis variáveis chamadas "l" (Flake8 E741, informativo). Renomeadas; tools/qgis_repository_scan.py passa a rodar as 26 regras do Flake8 ativas no site e reprova qualquer achado.
     1.1.6
     - Repositório de plugins do QGIS: a 1.1.4 foi bloqueada pela varredura do Bandit com 159 achados de regras que o site chama de aviso — no código do site, qualquer achado de regra ativa bloqueia. O código de pareamento passa a usar o gerador criptográfico (secrets) e o servidor MCP, a pasta temporária do sistema (tempfile) em vez de "/tmp"; as chamadas de rede e de processo já restritas (ponte local, URLs só http/https, XML sem DTD, subprocesso sem shell) ganham "# nosec" com o motivo. Restam try/except/pass e continue de compatibilidade entre versões do QGIS (B110, B112), regras que o formulário de envio deixa desligar.

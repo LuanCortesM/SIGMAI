@@ -64,6 +64,14 @@ FRAME_BAND_EMPTY_MAX = 0.05
 FRAME_BAND_EMPTY_INK = 0.02
 #: Folga, em mm, entre o que a legenda precisa e a caixa que tem (CART072).
 LEGEND_OVERFLOW_TOLERANCE_MM = 0.5
+#: CART073: croma mínimo (maior canal menos o menor, 0–255) para um pixel
+#: contar como colorido, e fração máxima da tinta que pode tê-lo numa figura
+#: pedida em tons de cinza. 20 deixa passar o ruído de compressão JPEG e pega
+#: o azul quase branco (#D9EAF4, croma 27) que a paleta colorida dá ao
+#: contexto; 0,5 % tolera um logotipo ou um pixel perdido, não um inserto
+#: contornado de vermelho.
+GREYSCALE_CHROMA_MIN = 20
+GREYSCALE_MAX_CHROMATIC_FRACTION = 0.005
 
 
 @dataclass(frozen=True)
@@ -932,6 +940,28 @@ def _check_fonts_at_print_width(observation: dict[str, Any]) -> CheckOutcome:
     )
 
 
+def _check_greyscale(observation: dict[str, Any]) -> CheckOutcome:
+    """CART073 — figura pedida em tons de cinza sai sem cor."""
+    if observation.get("colour_mode") != "greyscale":
+        return _skip("A figura não foi pedida em tons de cinza (colour_mode).")
+    fraction = (observation.get("output") or {}).get("chromatic_fraction")
+    if fraction is None:
+        return _skip("Sem raster exportado (PNG, TIFF ou JPEG) em que medir a cor.")
+    fraction = float(fraction)
+    if fraction <= GREYSCALE_MAX_CHROMATIC_FRACTION:
+        return _pass(
+            f"{fraction:.2%} da tinta tem cor (limite {GREYSCALE_MAX_CHROMATIC_FRACTION:.1%}): a figura sai em tons de cinza.",
+            chromatic_fraction=fraction,
+        )
+    return _fail(
+        f"A figura foi pedida em tons de cinza, mas {fraction:.1%} da tinta tem cor: impressa em cinza, "
+        "duas cores de mesma luminosidade viram o mesmo tom. Componha com colour_mode='greyscale' (troca a "
+        "paleta, o contorno do inserto e a grade) e apply_style='all' se houver camadas com cor de uma "
+        "composição anterior; raster em pseudocor precisa de simbologia de banda única em cinza.",
+        chromatic_fraction=fraction,
+    )
+
+
 def _check_map_not_blank(observation: dict[str, Any]) -> CheckOutcome:
     map_info = _map(observation)
     ink = map_info.get("rendered_ink_fraction")
@@ -1138,6 +1168,15 @@ RULES: tuple[Rule, ...] = (
          "por outra de luminosidade bem diferente; padrões de preenchimento também resolvem.",
          "Machado, Oliveira & Fernandes (2009), IEEE TVCG 15(6), severidade 1,0; Robertson (1977), CIE 1976 L*a*b* e ΔE*ab; Okabe & Ito (2008), Color Universal Design; limiar ΔE*ab < 15: decisão de projeto do SIGMAI calibrada nos pares clássicos",
          _check_colour_vision),
+    Rule("CART073", "simbologia", SEVERITY_ERROR,
+         "Figura em tons de cinza sem cor", "Greyscale figure has no colour",
+         "Periódicos imprimem em tons de cinza e cobram a cor impressa; uma figura pedida em cinza que "
+         "sai com cor perde, no papel, a distinção entre cores de mesma luminosidade — e quem pediu "
+         "cinza não vê o problema na tela.",
+         "Componha com colour_mode='greyscale' (e apply_style='all' para camadas com cor de composição "
+         "anterior); restilize raster em pseudocor como banda única em cinza.",
+         "Transactions in GIS, Author Guidelines (gráficos de linha preferencialmente em preto e branco; cor impressa cobrada por figura); croma ≥ 20 em mais de 0,5 % da tinta: decisão de projeto do SIGMAI",
+         _check_greyscale),
     Rule("CART071", "tipografia", SEVERITY_WARNING,
          "Fontes legíveis na largura final impressa", "Fonts legible at the final print width",
          "Uma página A4 reduzida a uma coluna de revista (85 mm) encolhe as fontes a 40% do corpo: os 7 pt "
@@ -1306,6 +1345,8 @@ def rulebook_manifest() -> dict[str, Any]:
             "colour_vision_delta_e_min": _colour_vision_threshold(),
             "legend_overflow_tolerance_mm": LEGEND_OVERFLOW_TOLERANCE_MM,
             "inset_min_coverage": INSET_MIN_COVERAGE,
+            "greyscale_chroma_min": GREYSCALE_CHROMA_MIN,
+            "greyscale_max_chromatic_fraction": GREYSCALE_MAX_CHROMATIC_FRACTION,
         },
         # Os limiares são parâmetros declarados, não medidos com leitores;
         # docs/experiments/2026-09-19_sensibilidade_limiares/ mostra em que

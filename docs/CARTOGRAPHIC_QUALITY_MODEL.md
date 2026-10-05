@@ -18,7 +18,7 @@ That mattered more than it would in a manual tool, because the grade was the **o
 
 ## What replaces it
 
-An explicit rulebook of 34 rules across ten categories. Each rule carries:
+An explicit rulebook of 35 rules across ten categories. Each rule carries:
 
 | Field | Purpose |
 |---|---|
@@ -73,6 +73,7 @@ Five more rules read the rendered image, the labelling engine or the legend rend
 - **`CART071` — fonts readable at the printed width.** When the composition was asked for as a journal figure (`journal_column`, `figure_width_mm`) or the audit is told `print_width_mm`, every font size is scaled by printed width ÷ page width and compared with the minimum readable size. A 7 pt caption on an A4 page becomes 3 pt in a single-column figure.
 
 - **`CART072` — the legend fits its box.** `QgsLegendRenderer.minimumSize()` gives the size the legend content needs; when the item is not set to resize to contents and the content exceeds the box by more than 0.5 mm, QGIS clips the names at the edge and draws over whatever sits below, without any warning. `compose_map` measures the same thing and, before the audit, shrinks the legend font down to 6 pt and then drops the per-layer sources from the entries (they stay in the credit line and the recipe).
+- **`CART073` — a greyscale figure has no colour.** When the composition (`colour_mode: "greyscale"`) or the audit asks for greyscale, the exported raster is sampled on a 300 × 300 grid and the share of inked pixels whose chroma (largest minus smallest RGB channel) is 20 or more is measured; above 0.5 % the rule fails. Journals print in greyscale and charge for colour in print; a colour map converted afterwards loses the distinction between colours of equal lightness, so the greyscale mode composes with four greys at least 18 L* apart, hatching from the fifth polygon layer on, and a black inset outline.
 
 `CART042` (no overlapping items) also changed: an item that sits over a map frame is no longer a defect when the 3 mm ring around it holds less than 3 % ink — a legend or a locator inset over the open sea is a legitimate overlay, and the two states' hand-made maps in the experiment were being failed for it.
 

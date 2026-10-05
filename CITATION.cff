@@ -27,7 +27,7 @@ keywords:
   - reproducible research
   - map quality
 license: MIT
-version: 1.1.7
+version: 1.2.0
 doi: 10.5281/zenodo.20389286
 identifiers:
   - type: doi

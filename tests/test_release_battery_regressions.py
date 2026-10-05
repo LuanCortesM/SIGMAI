@@ -157,8 +157,8 @@ class SimbologiaSoDepoisDaValidacao(unittest.TestCase):
         from sigmai.cartography import compose
 
         fonte = inspect.getsource(compose._compose_map)
-        previa = fonte.index("apply_default_symbology(styling_targets, apply_style_value, dry_run=True)")
-        aplicacao = fonte.index("apply_default_symbology(styling_targets, apply_style_value, dry_run=False)")
+        previa = fonte.index("apply_default_symbology(styling_targets, apply_style_value, dry_run=True")
+        aplicacao = fonte.index("apply_default_symbology(styling_targets, apply_style_value, dry_run=False")
         ultima_recusa = max(
             fonte.index("O arquivo já existe"),
             fonte.index("A pasta de saída não existe"),

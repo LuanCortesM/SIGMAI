@@ -2,6 +2,21 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.2.0] — 2026-10-05
+
+### Figura em tons de cinza
+
+Periódicos imprimem em cinza e cobram a cor impressa — a *Transactions in GIS* pede gráficos de linha em preto e branco e cobra £150 pela primeira figura colorida no papel. Até aqui o SIGMAI só compunha em cor: convertido depois para cinza, o mapa perdia a distinção entre preenchimentos de mesma luminosidade, e o contorno vermelho do recorte no inserto virava um cinza médio indistinto.
+
+- **`colour_mode: "greyscale"`** em `compose_map`, `sigmai_plan_map`, `sigmai_compose_map` e `sigmai_campaign_map` (padrão `"colour"`; aceita também `grayscale`, `grey`, `cinza`, `black_and_white`). A paleta de polígonos passa a quatro cinzas sólidos a ΔL* ≥ 18 entre si (91, 73, 48 e 21) — o que cabe numa figura sem matiz, conferido pela própria CART070 — e, da quinta camada em diante, a hachuras; traços e pontos saem em preto e cinza, pontos com contorno branco; o contorno do recorte no inserto, em preto. O assunto continua recebendo o tom do assunto (cinza médio) e o contexto o quase branco.
+- **Nova regra `CART073` — figura em tons de cinza sem cor** (35 regras). Quando a figura foi pedida em cinza, o raster exportado é amostrado numa grade de 300 × 300 pixels e mede-se a fração da tinta com croma (maior canal menos o menor) de 20 ou mais; acima de 0,5 % a regra reprova, com severidade de erro, porque viola um pedido explícito. Os dois limiares são constantes nomeadas (`GREYSCALE_CHROMA_MIN`, `GREYSCALE_MAX_CHROMATIC_FRACTION`), expostas em `sigmai_cartographic_rulebook`. A referência é a instrução aos autores da *Transactions in GIS*; os limiares, decisão de projeto.
+- **`sigmai_audit_layout` aceita `colour_mode`**, para auditar qualquer layout — inclusive um feito à mão ou por script — contra o pedido de cinza; num layout composto pelo SIGMAI, o modo vem da receita.
+- O texto das coordenadas da grade passa de `#1E2A32` (cinza levemente azulado, que a medição de cor acusaria) a `#1F1F1F`.
+
+### Testes
+
+- `tests/test_greyscale_figures.py`: sinônimos e recusa de `colour_mode`; os quatro cinzas sem matiz e não confundíveis; a medição de cor (cinzas e branco não contam, transparente não é tinta, ruído de compressão abaixo do limiar); a regra nos três desfechos; e a composição de verdade no QGIS — em cinza a figura sai sem cor e o laudo confirma, em cor a regra não se aplica.
+
 ## [1.1.7] — 2026-10-04
 
 Nenhuma mudança de comportamento. A 1.1.6 passou na varredura do plugins.qgis.org: Bandit e detect-secrets sem achados (B110 e B112 desligadas no envio, como previsto), nada crítico, versão liberada para aprovação. A página da versão, porém, mostrava 80% de aprovação: das cinco verificações, a do Flake8, informativa, achou seis variáveis chamadas `l` (E741, nome ambíguo com o algarismo 1).

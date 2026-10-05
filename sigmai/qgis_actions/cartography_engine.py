@@ -96,12 +96,27 @@ def audit_map_layout(params: dict[str, Any], context: dict[str, Any]) -> dict[st
             notes.append(f"Largura impressa de {print_width_mm:g} mm tomada da receita (figura para periódico).")
         except (TypeError, ValueError):
             pass
+    # Figura pedida em tons de cinza: pelo parâmetro (qualquer layout) ou pela
+    # receita (layout composto pelo SIGMAI com colour_mode='greyscale').
+    from ..cartography.params import ParameterError
+    from ..cartography.symbology import normalize_colour_mode
+
+    requested_mode = params.get("colour_mode")
+    if requested_mode in (None, "") and recipe:
+        requested_mode = (recipe.get("params") or {}).get("colour_mode")
+        if requested_mode:
+            notes.append(f"colour_mode={requested_mode!r} tomado da receita da composição.")
+    try:
+        colour_mode = normalize_colour_mode(requested_mode)
+    except ParameterError as exc:
+        raise ValidationError("BAD_REQUEST", str(exc), {"colour_mode": requested_mode})
     report = audit_layout(
         layout,
         page=page,
         output_path=str(params.get("output_path") or "") or None,
         map_frame=map_frame,
         print_width_mm=print_width_mm,
+        colour_mode=colour_mode,
     )
     report["layout_name"] = layout_name
     if notes:
