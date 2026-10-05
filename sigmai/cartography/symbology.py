@@ -97,6 +97,9 @@ GREY_GEOMETRY_DEFAULTS: dict[str, dict[str, Any]] = {
     "Line": {"stroke": "#000000", "stroke_width": 0.5, "opacity": 1.0},
     "Point": {"fill": "#000000", "stroke": "#FFFFFF", "stroke_width": 0.3, "size": 2.4, "opacity": 1.0},
 }
+#: Espessura do contorno destacado de um polígono que contém outros (mm).
+OUTLINE_STROKE_MM = 0.7
+
 #: Traços e pontos em cinza: preto, cinza escuro e cinza médio.
 GREY_ACCENTS: tuple[str, ...] = ("#000000", "#4D4D4D", "#808080")
 
@@ -189,6 +192,7 @@ APPLY_STYLE_MODES: tuple[str, ...] = ("missing", "all", "none")
 
 def apply_default_symbology(
     layers: list[Any], mode: str = "missing", dry_run: bool = False, colour_mode: str = "colour",
+    outline_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Aplica a paleta padrão às camadas elegíveis.
 
@@ -267,7 +271,14 @@ def apply_default_symbology(
         style = dict((GREY_GEOMETRY_DEFAULTS if greyscale else GEOMETRY_DEFAULTS)[kind])
         # Camadas de mesmo tipo recebem matizes distintos da paleta segura.
         accent = OKABE_ITO[index % len(OKABE_ITO)]
-        if greyscale:
+        outline = kind == "Polygon" and bool(outline_ids) and layer.id() in outline_ids
+        if outline:
+            # Polígono que contém outros do mapa (o estado sobre os municípios):
+            # preenchido, ele cobre o que contém — os municípios sumiam sob o
+            # estado e continuavam na legenda. Vira contorno destacado, por cima.
+            style.update({"fill": "#FFFFFF", "pattern": "no", "stroke_width": OUTLINE_STROKE_MM})
+            accent = "#000000" if greyscale else "#1A1A1A"
+        elif greyscale:
             accent = GREY_ACCENTS[index % len(GREY_ACCENTS)]
             if kind == "Polygon":
                 fill, pattern = GREY_POLYGON_FILLS[polygon_slot % len(GREY_POLYGON_FILLS)]
@@ -288,7 +299,7 @@ def apply_default_symbology(
         # Cor que de fato aparece no mapa: o preenchimento para polígono, o
         # próprio matiz para linha e ponto. Reportada em ambos os modos —
         # é o que permite a uma simulação dizer "com que cor" sem aplicá-la.
-        display_color = style.get("fill", accent)
+        display_color = accent if outline else style.get("fill", accent)
         origem = type(layer.renderer()).__name__ if hasattr(layer, "renderer") else ""
 
         if dry_run:
@@ -297,6 +308,8 @@ def apply_default_symbology(
             # simulação não deixa a camada do usuário com uma cor diferente
             # da que tinha.
             registro = {"layer": layer.name(), "action": "seria_estilizada", "geometry": kind, "accent": accent, "color": display_color}
+            if outline:
+                registro["outline"] = True
             if origem == "QgsEmbeddedSymbolRenderer":
                 registro["note"] = (
                     "o estilo vem embutido no arquivo (KML/KMZ) e não gera amostra na legenda; "
@@ -313,6 +326,8 @@ def apply_default_symbology(
             mark_style_origin(layer, STYLE_ORIGIN_PALETTE)
             layer.triggerRepaint()
             registro = {"layer": layer.name(), "action": "estilizada", "geometry": kind, "accent": accent, "color": display_color}
+            if outline:
+                registro["outline"] = True
             if origem == "QgsEmbeddedSymbolRenderer":
                 registro["note"] = (
                     "o estilo vinha embutido no arquivo (KML/KMZ) e não gerava amostra na legenda; "
