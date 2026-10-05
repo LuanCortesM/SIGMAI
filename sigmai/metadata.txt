@@ -17,110 +17,25 @@ repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=MIT
 changelog=1.2.0
-    - Novo: figura em tons de cinza para impressão (colour_mode='greyscale' em compose_map, plan_map e compose_campaign_map). Periódicos imprimem em cinza e cobram a cor impressa; um mapa colorido convertido depois perde a distinção entre cores de mesma luminosidade. O modo usa quatro cinzas a pelo menos 18 de diferença de L* entre si, hachuras da quinta camada de polígono em diante, traços e pontos em preto e cinza, e contorno do inserto em preto.
-    - Nova regra CART073 (35 regras): a figura pedida em tons de cinza é conferida no raster exportado; reprova se mais de meio por cento da tinta tem cor (croma de 20 ou mais). sigmai_audit_layout aceita colour_mode para auditar qualquer layout contra esse pedido, e lê o modo da receita de um layout composto pelo SIGMAI.
-    - O texto das coordenadas da grade passa de um cinza-azulado a cinza neutro.
-    - Composição: ordem de desenho cartográfica (raster no fundo, depois polígonos, linhas e pontos, o assunto acima do contexto); um polígono que contém outro do mapa, como o estado sobre os municípios, vira contorno destacado por cima em vez de cobri-los. A descrição de layer_ids no servidor MCP dizia que a última camada fica por cima; no QGIS é a primeira. Corrigida.
-    - Auditoria: camada da legenda inteiramente coberta pelas de cima conta como fantasma (CART021, medido renderizando o quadro com e sem cada camada); nova regra CART074, números da barra de escala que se sobrepõem (36 regras), e o compositor escolhe os segmentos para os números caberem.
-    - Auditoria, três falhas achadas por injeção de defeitos (25 tipos de defeito em 6 mapas; o QGIS não acusou nenhum dos 142 mapas estragados): CART003 não reprovava mapa sem escala nenhuma (a regra quebrava); CART062 não via o quadro em branco porque moldura e grade contavam como tinta, e agora renderiza só as camadas do quadro; CART061 passa a ser avaliada na auditoria de layout, com o assunto tirado da receita ou de subject_layer_id.
+    - Modo em tons de cinza para figuras de periódico (colour_mode='greyscale') e regra CART073.
+    - Ordem de desenho cartográfica; polígono que contém outra camada é desenhado como contorno por cima.
+    - CART021 acusa camada da legenda coberta; nova regra CART074 (números da barra de escala legíveis).
+    - Corrigidas as regras CART003, CART061 e CART062.
     1.1.7
-    - Repositório de plugins do QGIS: a 1.1.6 passou na varredura de segurança (Bandit e detect-secrets sem achados) com 80 por cento de aprovação, por seis variáveis chamadas "l" (Flake8 E741, informativo). Renomeadas; tools/qgis_repository_scan.py passa a rodar as 26 regras do Flake8 ativas no site e reprova qualquer achado.
+    - Nomes de variáveis ajustados (Flake8 E741). Sem mudança de comportamento.
     1.1.6
-    - Repositório de plugins do QGIS: a 1.1.4 foi bloqueada pela varredura do Bandit com 159 achados de regras que o site chama de aviso — no código do site, qualquer achado de regra ativa bloqueia. O código de pareamento passa a usar o gerador criptográfico (secrets) e o servidor MCP, a pasta temporária do sistema (tempfile) em vez de "/tmp"; as chamadas de rede e de processo já restritas (ponte local, URLs só http/https, XML sem DTD, subprocesso sem shell) ganham "# nosec" com o motivo. Restam try/except/pass e continue de compatibilidade entre versões do QGIS (B110, B112), regras que o formulário de envio deixa desligar.
-    - tools/qgis_repository_scan.py segue o critério real do site e diz quais regras desligar no envio.
+    - Código de pareamento com gerador criptográfico; ajustes para a varredura de segurança do repositório de plugins.
     1.1.5
-    - QGIS 4 Ready: a verificação de Qt6 do repositório de plugins (o pyqt5_to_pyqt6.py do QGIS) apontava dois trechos de compatibilidade — box.exec_() num ramo para Qt antigo e um "from PyQt5" de reserva fora do QGIS. Os dois saíram; nenhum era necessário no QGIS 3.28 ou mais novo.
-    - tools/qgis_qt6_check.py roda essa mesma verificação no pacote ou no ZIP, e o CI reprova qualquer apontamento.
+    - Ajustes para a verificação Qt6 do repositório de plugins. Sem mudança de comportamento.
     1.1.4
-    - Repositório de plugins do QGIS: a varredura de segurança do plugins.qgis.org (Bandit) acusava 41 falsos positivos críticos — nomes de chave com "token" tomados por senha embutida — e bloquearia a versão. Os nomes mudaram; o comportamento, não. A opção "manter o mesmo token" passa a ser gravada como persist_access_key, e quem a tinha ligado continua com ela ligada.
-    - tools/qgis_repository_scan.py roda no pacote as mesmas varreduras do repositório (Bandit, detect-secrets, Flake8), e o CI reprova qualquer achado bloqueante.
+    - Opção persist_token renomeada para persist_access_key, com migração automática.
     1.1.3
-    - Corrigido: abrir o painel congelava o QGIS 4 e derrubava o QGIS 3.40 (desde a 1.0.1). Aplicar o tema disparava StyleChange, que reaplicava o tema, num ciclo sem fim.
-    - Corrigido: o bloco de configuração do passo 2 apontava, no Windows, para bin\python.exe do QGIS, um lançador que só funciona com o PYTHONHOME do próprio QGIS; lançado pelo Claude, Cursor ou Codex, o servidor MCP morria antes de começar. Agora aponta para apps\PythonXXX\python.exe.
-    - Corrigido: o autoteste (passo 3) congelava o QGIS por 15 s e reprovava o projeto à toa, e aprovava um servidor MCP que não subia. Agora roda fora da thread da interface e lança o servidor como o cliente de IA lançará, até a ponte.
-    - Corrigido: no Windows duas instâncias do QGIS ligavam a ponte na mesma porta, e a IA podia falar com a instância errada. A porta passa a ser exclusiva e a segunda instância desvia para a seguinte.
-    - Corrigido: planilha CSV de pontos (load_vector_layer, mapa de campanha) não carregava no Windows.
-    - Corrigido: compor mapa quebrava no Python 3.9 (QGIS 3.28 e 3.30 no Windows).
-    - Corrigido: o assunto do mapa recebia a cor do contexto quando listado depois dele; camada de contexto sem nenhuma feição no quadro ficava na legenda (agora sai do quadro e da legenda, com nota).
-    - Corrigido: com dois QGIS abertos, fechar um desconectava a IA do outro (a ponte encerrava a sessão gravada pela outra instância).
-    - Segurança: o token da ponte passa a ser regenerado a cada abertura do QGIS (os clientes configurados no passo 2 continuam funcionando, porque leem o token do arquivo de sessão).
-    - add_context_annotations nomeia as camadas criadas na língua do mapa (map_language).
-    - Testes: a suíte com PyQGIS passa no Windows com QGIS 4.0.2 (Qt6) e 3.40 LTR (Qt5); verificação de ponta a ponta com o QGIS aberto, do cliente MCP ao mapa, nas duas versões.
+    - Corrigidos: painel que travava o QGIS 4 e o 3.40, interpretador Python errado no Windows, porta compartilhada entre duas instâncias, CSV de pontos no Windows e Python 3.9.
+    - Token da ponte regenerado a cada abertura do QGIS.
     1.1.2
-    - Licença: MIT em todo o projeto (o GitHub já declarava MIT; o plugin ainda dizia GPL-3.0-or-later). Texto integral na raiz e no pacote.
-    - Fundamentos das regras corrigidos: duas regras citavam normas ABNT que não dizem o que lhes era atribuído (NBR 6027 é sumário; NBR 13133 é levantamento topográfico) e oito citavam "convenção" ou "boas práticas" sem fonte. Agora cada regra cita o Decreto 89.817/1984 (Normas Técnicas da Cartografia Nacional, arts. 12 a 21), a Resolução IBGE PR 1/2015, IBGE (1999), Brewer (2016), Slocum et al. (2009), Snyder (1987), Machado et al. (2009), Robertson (1977), Okabe & Ito (2008), PLOS ONE ou Rodriguésia — ou declara que o número é decisão de projeto do SIGMAI; a API do QGIS aparece como verificação, não como fundamento. Teste garante.
-    - Análise de sensibilidade dos limiares (tools/threshold_sensitivity.py): 138 mapas re-pontuados variando cada limiar do regulamento e as decisões do compositor recalculadas; registro em docs/experiments/2026-09-19_sensibilidade_limiares/. Os limiares do compositor viraram constantes nomeadas (LAYOUT_SWITCH_GAIN, MAX_EFFECTIVE_MARGIN_PERCENT, FONT_SCALE_EXPONENT).
-    - sigmai_cartographic_rulebook expõe o limiar de ΔE real (lia 15,0 fixo), a cobertura mínima do inserto e a procedência dos limiares.
-    - QGIS 4: dois usos do apelido depreciado QgsCoordinateTransform.ReverseTransform (cobertura do quadro e spatial_relationship) passam a Qgis.TransformDirection.Reverse; a verificação de API do QGIS entra na suíte.
+    - Licença MIT; fonte declarada para cada regra; análise de sensibilidade dos limiares.
     1.1.1
-    - Compositor: o arranjo dos itens de apoio (coluna lateral ou faixa inferior) passa a ser escolhido pela forma dos dados, como a orientação — só troca quando a escala ganha 12 por cento; parâmetro arrangement (auto, coluna_lateral, faixa_inferior) para forçar.
-    - Compositor: painéis (a)(b)(c) em grade escolhida pela célula mais próxima do quadrado (3 painéis em A3 paisagem ficam 3x1, em A4 retrato 2x2); a barra de escala escreve os números com o separador de milhar da língua do mapa ("2.000 m" em pt-BR).
-    - Simbologia: um preenchimento novo desvia dos que as camadas preservadas já usam (CART070 reprovava o mapa quando uma camada trazia a cor da composição anterior).
-    - Corrigido: a ponte lia o projeto fora da thread principal ao responder status; o estado do projeto passa a ser um instantâneo tirado na thread do Qt.
+    - Arranjo do layout pela forma dos dados, grade de painéis e separadores da barra de escala na língua do mapa.
     1.1.0
-    - Novo: sigmai_briefing devolve numa chamada versões, projeto, camadas (com campo de nome provável, exemplos, rótulos, problema de codificação), layouts, modo de acesso, regulamento resumido, templates e caminhos recomendados.
-    - Novo: spatial_relationship (fração dentro, interseção, mais próximo com distância geodésica) — pergunte onde fica antes de assumir; set_layer_encoding e detecção de nomes com "�"; load_vector_layer aceita planilha CSV de pontos (lon/lat, separador e decimal detectados; x_field/y_field/crs para E/N).
-    - Novo: receita reproduzível do mapa guardada no layout e no PNG (parâmetros, camadas com SHA-256, versões); get_map_recipe, recompose_from_recipe (com overrides e aviso de dados alterados) e describe_map_for_methods (parágrafo de Métodos em pt-BR/en/es com a referência do software).
-    - Novo: figura para revista (journal_column single/one_and_half/double ou figure_width_mm; formatos tif e jpg), painéis (a)(b)(c) com panels=[...], orientation "auto" pela forma dos dados, data_source por camada impresso na legenda, add_context_annotations (divisa + nomes do contexto como camadas só-de-rótulo).
-    - Novo: compose_campaign_map (pontos + trilha + área + contexto + inserto + tabela de coordenadas) e export_coordinate_table (CSV com E/N no CRS pedido e lon/lat).
-    - Novo: undo_last_action e list_undo_history — snapshot de estilo, nome, rótulos, codificação e layouts antes de cada escrita no projeto; desfaz restaurando e removendo o que foi criado (arquivos em disco ficam).
-    - Regulamento: 34 regras em dez categorias. CART068 rótulos não colocados (motor de rotulagem), CART069 faixa vazia do quadro (cobertura geométrica 3x3), CART070 cores confundíveis por daltônicos (matrizes de Machado, Oliveira & Fernandes 2009; paleta Okabe & Ito), CART071 fontes na largura final impressa, CART072 legenda cabe na caixa (QgsLegendRenderer.minimumSize); CART042 aceita sobreposição sobre área vazia do mapa.
-    - Paleta de polígonos alterna claridade e matiz (a antiga, clareada 82 por cento, reprovava na própria CART070); a legenda quebra nomes compridos na largura da coluna, reduz a fonte e tira as fontes por camada quando não cabe; a auditoria de um layout composto usa as margens e a largura impressa da receita.
-    - Corrigido: receita quebrava com camada raster (featureCount); acesso a enum incompatível com Qt6 nas anotações de contexto.
-    1.0.3
-    - Corrigido: sigmai_audit_layout e list_layouts prometiam funcionar em layouts feitos à mão e descartavam todo item sem id (o padrão da interface do QGIS): um mapa completo recebia nota D por "não ter título". Os itens ganham id sintético e papel inferido (título, subtítulo, fonte, quadro principal, inserto, rosa dos ventos).
-    - Corrigido: página 210x297 era auditada como paisagem (tudo abaixo de 210 mm "fora da página", quadro "em branco"); dimensões explícitas passam a dizer a orientação, e a tinta é medida no quadro principal.
-    - Corrigido: cabeçalho "FONTES DOS DADOS" (sem dois-pontos) não contava como fonte; camadas só-de-rótulo (QgsNullSymbolRenderer) eram cobradas na legenda.
-    - Experimento registrado em docs/MCP_SERVER.md: o mesmo mapa pelo SIGMAI (sem acesso ao PC, 5,5 min, nota A) e em PyQGIS puro (acesso total, 19 min, 12 armadilhas da API, nota B).
-    1.0.2
-    - Teste com um assistente de IA emulado sem acesso ao computador, falando com o SIGMAI só pelo MCP: mapa nota A nas duas rodadas; o que o obrigou a adivinhar virou correção.
-    - Novo: sigmai_capabilities aceita group, search e names_only, e cada comando lista os parâmetros que lê (parameters, parameters_complete). Parâmetro que um comando não lê volta em warnings em vez de ser ignorado em silêncio.
-    - Novo: sigmai_layer_details devolve de fato amostra de feições, estilo e validade das geometrias; inspect_layer_style mostra o símbolo (cores, contorno, preenchimento) e a origem do estilo; list_layouts descreve páginas, itens e quadros.
-    - Corrigido: nome de comando inexistente recebia ACTION_NOT_ALLOWED; agora UNKNOWN_ACTION com sugestões pelo nome. sigmai_plan_map e sigmai_compose_map publicam o esquema completo do compositor (production_date, auto_projected_crs, margin_mm, round_scale, include_logo…).
-    - Corrigido: um estilo aplicado por apply_single_symbol (ou pela paleta da composição anterior) é preservado por apply_style=missing; a nota do inserto dizia "12x" quando o inserto tinha sido ajustado ao estado inteiro; layout_name existente é substituído em vez de acumular "(2)".
-    - Nova regra CART067: o inserto tem de mostrar a camada de contexto inteira e conter o recorte principal. O nome do CRS na linha de crédito sai na língua do mapa ("UTM zona 24S").
-    - Novo: tools/remote_ai_lab.py e tools/mcp_call.py reproduzem o cenário "IA remota + QGIS local" para qualquer um repetir o teste.
-    1.0.1
-    - Corrigido: no tema escuro do QGIS (Night Mapping, Blend of Gray) o painel ficava ilegível — rádios com fundo preto, rótulos cinza sobre cartão branco, faixas escuras dentro dos cartões. O painel passa a seguir o tema do QGIS com uma paleta escura própria (contraste WCAG AA conferido em teste) e a reaplicar o tema quando ele muda; Avançado > Aparência força claro ou escuro.
-    - Novo: a interface do painel em nove línguas — português (Brasil), inglês, espanhol, francês, alemão, italiano, japonês, chinês simplificado e chinês tradicional — escolhidas numa lista no cabeçalho, com o nome de cada língua escrito nela mesma. O autoteste, o diálogo de consentimento, a trilha de atividade e as instruções de cada cliente de IA também são traduzidos; antes ficavam em português mesmo em inglês.
-    - Corrigido: o negrito das abas era pintado pela folha de estilo mas medido em regular, e o rótulo saía cortado ("Verbindung"); num dock estreito as abas passam a rolar em vez de sumir. O cabeçalho quebra a linha em vez de impor 600 px de largura mínima ao painel.
-    1.0.0
-    - Primeira versão estável. O catálogo é igual à realidade: 208 ações habilitadas de 221 catalogadas; as 13 desabilitadas (atlas, PostGIS, create_map_hierarchy) são recusadas pela ponte como inexistentes e listadas em capabilities com o motivo.
-    - 24 esqueletos resolvidos: execute_workflow executa passo a passo pelo mesmo caminho validado da ponte; export_report_pdf gera PDF; repair_data_source_path, test_service_connection, list_ogc_connections, list_database_connections, gpx_track_length e map_gpx_track fazem o que o nome diz; apply_scientific_* recusam camada de outra geometria; apply_boundary_highlight tem perfil próprio; run_workflow_job e run_map_export_job honram dry_run.
-    - Bateria de liberação (tools/release_battery.py): 7 portões, 672 verificações — 384 combinações de template, página, orientação, formato e elementos omitidos; 15 tipos de dado; 15 línguas; 16 recusas nomeadas; folhas de comparação em 10 escritas; catálogo contra a ponte; idempotência.
-    - Corrigido: a auditoria criava uma grade-fantasma ao inspecionar um mapa pedido sem grade (QgsLayoutItemMap.grid cria a grade) e reprovava CART026/CART027.
-    - Corrigido: a barra de escala ignorava a altura da faixa reservada e invadia o rodapé em A5 paisagem (CART042).
-    - Corrigido: CART007 acusava falta de fonte em mapas em japonês, chinês e francês (dois-pontos de largura inteira e espaço antes do dois-pontos).
-    - Corrigido: CART043 contava só o quadro principal numa folha de dois painéis.
-    - Corrigido: output_path do Windows num QGIS em Linux/macOS gravava um arquivo chamado D:\mapas\... na pasta corrente; caminho relativo ia para a pasta corrente do QGIS. Os dois são recusados em toda a ponte, com o caminho absoluto pedido de volta.
-    - Corrigido: format inválido sem output_path era aceito calado; map_language desconhecido caía em português; a simbologia era aplicada antes da última validação de parâmetro.
-    - Denominador da escala com o separador de milhar da língua do mapa (1:250,000 em inglês, 1:250 000 em francês), conforme o CLDR. Painéis sem panel_title recebem rótulos simétricos.
-    0.2.2
-    - Mapas duplos: second_map compõe dois quadros na mesma folha, igualados por padrão na escala mais aberta; em escalas diferentes cada painel anuncia a sua e a barra única é substituída (regra CART066).
-    - subject_layer_id enquadra a camada de assunto e desenha as demais como contexto; include_inset acrescenta o inserto de localização; label_field rotula as feições com halo.
-    - compose_map passa a recusar em vez de improvisar: parâmetro desconhecido, formato de página ou template inexistente, campo de rótulo ausente, output_path que é pasta ou sem extensão reconhecida, e exportação que não gerou arquivo. Toda recusa lista o que é aceito.
-    - Corrigido: a barra de escala era medida sem o segmento à esquerda do zero, subestimando o comprimento em 25 por cento e estourando a faixa reservada.
-    - Corrigido: a projeção automática era escolhida pelo recorte dos dados e não pelo recorte impresso; um recorte alto e estreito virava quase 1.000 km de largura em UTM, fora da faixa da zona.
-    - Corrigido: quando a coluna lateral é estreita demais para uma barra legível, a barra passa para uma faixa sob o mapa.
-    - Corrigido: o CRS escolhido sem código EPSG (Lambert Azimutal) era relatado como vazio.
-    - CART022 passa a considerar o comprimento absoluto da barra, não só a proporção: numa A2 uma barra de 50 mm é legível mesmo ocupando 14 por cento do quadro.
-    - Encerramento seguro do QGIS em scripts autônomos: camada não adicionada ao projeto era destruída depois de exitQgis e derrubava o processo.
-    0.2.1
-    - Corrigido: o plugin não abria no QGIS 4 (Qt6). QSizePolicy.Fixed, QgsLayoutExporter.Success, QgsVectorFileWriter.NoError, QgsProcessingParameterDefinition.FlagOptional e os enums de geometria e unidade só existem no escopo qualificado no Qt6.
-    - Novo verificador tools/check_qt6_compat.py, com teste que constrói o painel contra PyQt6 de verdade, para que a classe inteira de defeito não volte.
-    - Corrigido: um algoritmo do Processing executado pela API de núcleo transferia as camadas na direção errada e esvaziava o projeto do usuário.
-    - Corrigido: a checagem de quadro em branco ignorava a transparência, então uma exportação que não desenhou nada recebia nota A.
-    - A ponte agora recusa renderizar fora da thread principal do Qt, onde o QGIS grava um arquivo vazio e reporta sucesso.
-    - Processing passa a funcionar sem o plugin Processing, com erro que diz o que fazer quando nenhum algoritmo está registrado.
-    - Nova regra CART064: recusa UTM esticado além da faixa útil da zona; recortes estaduais passam a usar a Policônica do Brasil.
-    0.2.0
-    - Real MCP server (JSON-RPC 2.0 over stdio). The previous transport was a custom JSON-lines loop that no MCP client could speak, so Claude Desktop, Cursor and Codex never connected.
-    - AI actions can now execute. Write commands were previously forced to dry-run, so no map could ever be produced. A consent layer replaces that: read-only by default, ask-every-time, or allow-for-this-session, with output-folder sandboxing, per-session limits and an audit trail.
-    - New cartographic engine: page-aware layouts from A5 to A0 in either orientation, extent fitted to the map frame, scale rounded to the cartographic series, scale bar sized to the frame, coordinate grid with a computed interval, legend covering every visible layer, and a real north arrow symbol linked to grid north.
-    - New cartographic rulebook and audit: 26 explicit rules, each with its rationale, reference and the command that fixes it. The old evaluator only checked whether items existed and graded a defective map as "A - Professional map".
-    - Redesigned panel: dockable, three-step connection flow, ready-to-paste client configuration, connection self-test, access control and activity log. Token hidden by default and stable across QGIS sessions.
-    - Fixed: fixed port 8765 with no fallback; token regenerated on every QGIS start; blocked-token scan rejecting legitimate payloads (a field named "code", the PythonConsole plugin, expressions); plugin version hardcoded in four places; raw instead of normalised command executed; coordinate grid enabled with interval zero and reported as created.
-    0.1.1
-    - Qt6 compatibility fixes and a responsive dialog.
-    0.1.0
-    - Initial public release.
+    - Figuras para periódicos, painéis, receita reproduzível do mapa, desfazer, mapa de campanha e regras CART068 a CART072.
+    Histórico completo: CHANGELOG.md no repositório.
