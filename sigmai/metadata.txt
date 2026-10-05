@@ -1,7 +1,7 @@
 [general]
 name=SIGMAI
 description=Secure local bridge between AI assistants and QGIS, with cartographic quality control.
-version=1.1.6
+version=1.1.7
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=MACIEL, L. S. C.
@@ -16,7 +16,9 @@ homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=MIT
-changelog=1.1.6
+changelog=1.1.7
+    - Repositório de plugins do QGIS: a 1.1.6 passou na varredura de segurança (Bandit e detect-secrets sem achados) com 80 por cento de aprovação, por seis variáveis chamadas "l" (Flake8 E741, informativo). Renomeadas; tools/qgis_repository_scan.py passa a rodar as 26 regras do Flake8 ativas no site e reprova qualquer achado.
+    1.1.6
     - Repositório de plugins do QGIS: a 1.1.4 foi bloqueada pela varredura do Bandit com 159 achados de regras que o site chama de aviso — no código do site, qualquer achado de regra ativa bloqueia. O código de pareamento passa a usar o gerador criptográfico (secrets) e o servidor MCP, a pasta temporária do sistema (tempfile) em vez de "/tmp"; as chamadas de rede e de processo já restritas (ponte local, URLs só http/https, XML sem DTD, subprocesso sem shell) ganham "# nosec" com o motivo. Restam try/except/pass e continue de compatibilidade entre versões do QGIS (B110, B112), regras que o formulário de envio deixa desligar.
     - tools/qgis_repository_scan.py segue o critério real do site e diz quais regras desligar no envio.
     1.1.5

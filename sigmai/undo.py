@@ -174,7 +174,7 @@ class UndoStack:
         entry = UndoEntry(action=action, request_id=request_id, started_at=time.time(), output_paths=_collect_paths(params))
         try:
             entry.layer_ids_before = set(project.mapLayers().keys())
-            entry.layout_names_before = {l.name() for l in project.layoutManager().layouts()}
+            entry.layout_names_before = {layout.name() for layout in project.layoutManager().layouts()}
         except Exception:
             pass
         for layer_id in _collect_ids(params, LAYER_KEYS):
@@ -206,7 +206,7 @@ class UndoStack:
                 project = q["QgsProject"].instance()
                 entry.created_layer_ids = sorted(set(project.mapLayers().keys()) - entry.layer_ids_before)
                 entry.created_layout_names = sorted(
-                    {l.name() for l in project.layoutManager().layouts()} - entry.layout_names_before
+                    {layout.name() for layout in project.layoutManager().layouts()} - entry.layout_names_before
                 )
             except Exception:
                 pass
