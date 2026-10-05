@@ -2,6 +2,13 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.1.7] — 2026-10-04
+
+Nenhuma mudança de comportamento. A 1.1.6 passou na varredura do plugins.qgis.org: Bandit e detect-secrets sem achados (B110 e B112 desligadas no envio, como previsto), nada crítico, versão liberada para aprovação. A página da versão, porém, mostrava 80% de aprovação: das cinco verificações, a do Flake8, informativa, achou seis variáveis chamadas `l` (E741, nome ambíguo com o algarismo 1).
+
+- **E741**: `l` vira `layer` nas compreensões de `cartography/compose.py` (duas) e `qgis_actions/briefing.py` (duas) e `layout` nas de `undo.py` (duas).
+- **`tools/qgis_repository_scan.py` roda as 26 regras do Flake8 ativas no site** (antes, só os erros fatais) e reprova qualquer achado: no site o Flake8 não bloqueia, mas cada verificação com achado tira 20 pontos da nota da versão. No ZIP da 1.1.6 ele reproduz os seis E741 do site; na 1.1.7, zero.
+
 ## [1.1.6] — 2026-10-04
 
 A 1.1.4 terminou a varredura do plugins.qgis.org **bloqueada**, com 159 achados do Bandit, nenhum de regra "crítica" da tabela do site; a 1.1.5, com o mesmo código, seguiria o mesmo caminho. O motivo está no código do site (`security_scanner.py` e `tasks/run_security_scan.py` do QGIS-Plugins-Website): a verificação do Bandit e a do detect-secrets têm gravidade crítica *inteiras* e só passam com zero achados entre as regras ativas; a gravidade de cada regra só muda a exibição. As regras de aviso podem ser desligadas no formulário de envio, uma a uma, e ficam registradas para os administradores. O `tools/qgis_repository_scan.py` da 1.1.4 seguia a tabela e por isso aprovou o pacote.

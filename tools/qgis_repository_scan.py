@@ -11,7 +11,9 @@ código dele (``qgis-app/plugins/security_scanner.py`` e
 ``tasks/run_security_scan.py`` do QGIS-Plugins-Website): a verificação do
 Bandit e a do detect-secrets têm gravidade crítica *inteiras* e só passam com
 zero achados entre as regras ativas. A gravidade de cada regra só muda a
-exibição. Flake8, permissões e arquivos suspeitos apenas informam.
+exibição. Flake8, permissões e arquivos suspeitos apenas informam e baixam a
+"Pass Rate" mostrada na página da versão; este script reprova também esses,
+para que a versão saia com 100%.
 
 Por isso a 1.1.4 foi bloqueada com 159 achados de regras que a tabela chama de
 "aviso" (try/except/pass, urlopen, random...), depois de este script — que
@@ -66,9 +68,15 @@ UPLOAD_SKIPPED_RULES = {
     "B112": "try/except/continue: o mesmo, dentro de laços sobre camadas e itens de layout",
 }
 
-#: Erros do Flake8 que indicam código que nem roda. No site o Flake8 só
-#: informa; aqui reprova, porque são erros reais.
-FLAKE8_FATAL = "E9,F63,F7,F821,F822,F823,F831"
+#: As 26 regras do Flake8 ativas no site em 2026-10-04 (6 "críticas" e 20 de
+#: aviso), mais F63/F7, erros reais. No site o Flake8 só informa — não bloqueia
+#: —, mas cada achado tira 20 pontos da "Pass Rate" da versão: a 1.1.6 saiu com
+#: 80% por seis variáveis chamadas ``l`` (E741). Aqui reprova.
+FLAKE8_RULES = (
+    "E901,E902,E999,F821,F823,F831,"
+    "C901,E101,E711,E712,E713,E714,E721,E722,E731,E741,E742,E743,"
+    "F402,F403,F404,F405,F811,F822,F901,W605,F63,F7"
+)
 
 #: Extensões que a análise de arquivos do site aponta como suspeitas. No site
 #: é aviso; aqui reprova, porque o pacote não deve levar nenhuma.
@@ -124,7 +132,7 @@ def secret_findings(target: Path) -> list[str]:
 
 def flake8_findings(target: Path) -> list[str]:
     _require("flake8", "flake8")
-    result = _run("flake8", f"--select={FLAKE8_FATAL}", str(target))
+    result = _run("flake8", f"--select={FLAKE8_RULES}", str(target))
     return [line for line in result.stdout.splitlines() if line.strip()]
 
 
@@ -144,7 +152,7 @@ def scan(target: Path) -> int:
     blocking = {
         "Bandit (regras ativas, menos as desligadas no envio)": bandit_findings(target),
         "detect-secrets": secret_findings(target),
-        "Flake8 (erro fatal)": flake8_findings(target),
+        "Flake8 (regras ativas no site)": flake8_findings(target),
         "Arquivos suspeitos": suspicious_files(target),
     }
     failed = False

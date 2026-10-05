@@ -144,8 +144,8 @@ def project_briefing(params: dict[str, Any], context: dict[str, Any]) -> dict[st
     rules = [{"id": r.id, "severity": r.severity, "category": r.category, "title": r.title_pt} for r in RULES]
     enabled_actions = sorted(a for a, m in COMMAND_PERMISSIONS.items() if m.enabled)
 
-    encoding_issues = [l["name"] for l in layers if l.get("encoding_problem")]
-    invalid = [l["name"] for l in layers if not l.get("valid", True)]
+    encoding_issues = [layer["name"] for layer in layers if layer.get("encoding_problem")]
+    invalid = [layer["name"] for layer in layers if not layer.get("valid", True)]
     warnings = []
     if encoding_issues:
         warnings.append("Camadas com codificação errada (nomes com �): " + ", ".join(encoding_issues) + " — use set_layer_encoding.")

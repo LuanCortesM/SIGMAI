@@ -1,7 +1,7 @@
 {
   "id": "sigmai",
   "name": "SIGMAI",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "description": "Secure GIS-AI Interface skills and client helpers for controlling QGIS through local structured commands.",
   "author": "MACIEL, L. S. C.",
   "mcp": {

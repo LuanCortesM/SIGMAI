@@ -2552,7 +2552,7 @@ def _add_legend(
     try:
         legend.setResizeToContents(False)
         # Colunas: uma coluna estreita com muitas entradas transborda a caixa.
-        legend.setColumnCount(_legend_columns(plan, max(1, len([l for l in layers if not _is_label_only(l)]))))
+        legend.setColumnCount(_legend_columns(plan, max(1, len([layer for layer in layers if not _is_label_only(layer)]))))
         legend.setSplitLayer(True)
         legend.setEqualColumnWidth(True)
     except Exception:
@@ -2563,7 +2563,7 @@ def _add_legend(
         pass
     _place(legend, slot, imports, mm)
     try:
-        columns = _legend_columns(plan, max(1, len([l for l in layers if not _is_label_only(l)])))
+        columns = _legend_columns(plan, max(1, len([layer for layer in layers if not _is_label_only(layer)])))
         _fit_legend_in_box(legend, slot, plan, layout, imports, layer_sources or {}, columns, notes)
     except Exception:
         pass
