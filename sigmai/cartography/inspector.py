@@ -889,7 +889,7 @@ def _sample_ink(image: Any, box: tuple[int, int, int, int], steps: int = 140, un
     return inked / total
 
 
-def _render_layers(map_item: Any, layers: list[Any], width_px: int) -> Any:
+def _render_layers(map_item: Any, layers: list[Any], width_px: int, labels: bool = True) -> Any:
     """As camadas renderizadas sozinhas, na extensão e no CRS do quadro, sobre fundo transparente."""
     from qgis.core import QgsMapRendererCustomPainterJob, QgsMapSettings  # type: ignore
     from qgis.PyQt.QtCore import QSize  # type: ignore
@@ -907,6 +907,14 @@ def _render_layers(map_item: Any, layers: list[Any], width_px: int) -> Any:
     settings.setExtent(extent)
     settings.setOutputSize(QSize(width_px, height_px))
     settings.setBackgroundColor(QColor(255, 255, 255, 0))
+    if not labels:
+        try:
+            from qgis.core import Qgis, QgsMapSettings as _Settings  # type: ignore
+
+            flag = getattr(getattr(Qgis, "MapSettingsFlag", None), "DrawLabeling", None) or getattr(_Settings, "DrawLabeling")
+            settings.setFlag(flag, False)
+        except Exception:
+            pass
     image = QImage(width_px, height_px, qt_enum(QImage, "Format", "Format_ARGB32"))
     image.fill(0)
     painter = QPainter(image)
@@ -960,23 +968,27 @@ def measure_layer_visibility(map_item: Any, layers: list[Any] | None = None, wid
     QGIS desenha a primeira da lista por cima) ou sem nada na extensão. Achado
     no experimento E1: um estado opaco listado antes dos municípios os cobria
     inteiros, e eles seguiam na legenda; só uma lasca do contorno escapava na
-    borda, por isso a medida é uma fração e não "nenhum pixel mudou".
+    borda, por isso a medida é uma fração e não "nenhum pixel mudou". Sem os
+    rótulos: o motor de rótulos os desenha por cima de tudo, e os nomes dos
+    municípios cobertos faziam a camada contar como visível — mas a legenda
+    mostra a amostra do símbolo, não os nomes.
     """
     try:
         frame = _frame_layers(map_item, layers)
         drawn = [layer for layer in frame if not _is_label_only_layer(layer)]
         if not drawn or len(drawn) > 12:
             return None
-        everything = _render_layers(map_item, frame, width_px)
+        everything = _render_layers(map_item, frame, width_px, labels=False)
         if everything is None:
             return None
         fractions: dict[str, float] = {}
         for layer in drawn:
-            alone = _opaque_count(_render_layers(map_item, [layer], width_px))
+            alone = _opaque_count(_render_layers(map_item, [layer], width_px, labels=False))
             if alone == 0:
                 fractions[str(layer.name())] = 0.0
                 continue
-            without = _render_layers(map_item, [other for other in frame if other.id() != layer.id()], width_px)
+            without = _render_layers(map_item, [other for other in frame if other.id() != layer.id()], width_px,
+                                     labels=False)
             fractions[str(layer.name())] = round(min(1.0, _changed_count(everything, without) / float(alone)), 4)
         return fractions
     except Exception:
