@@ -18,7 +18,7 @@ That mattered more than it would in a manual tool, because the grade was the **o
 
 ## What replaces it
 
-An explicit rulebook of 35 rules across ten categories. Each rule carries:
+An explicit rulebook of 36 rules across ten categories. Each rule carries:
 
 | Field | Purpose |
 |---|---|
@@ -74,6 +74,8 @@ Five more rules read the rendered image, the labelling engine or the legend rend
 
 - **`CART072` — the legend fits its box.** `QgsLegendRenderer.minimumSize()` gives the size the legend content needs; when the item is not set to resize to contents and the content exceeds the box by more than 0.5 mm, QGIS clips the names at the edge and draws over whatever sits below, without any warning. `compose_map` measures the same thing and, before the audit, shrinks the legend font down to 6 pt and then drops the per-layer sources from the entries (they stay in the credit line and the recipe).
 - **`CART073` — a greyscale figure has no colour.** When the composition (`colour_mode: "greyscale"`) or the audit asks for greyscale, the exported raster is sampled on a 300 × 300 grid and the share of inked pixels whose chroma (largest minus smallest RGB channel) is 20 or more is measured; above 0.5 % the rule fails. Journals print in greyscale and charge for colour in print; a colour map converted afterwards loses the distinction between colours of equal lightness, so the greyscale mode composes with four greys at least 18 L* apart, hatching from the fifth polygon layer on, and a black inset outline.
+- **`CART074` — scale bar labels do not overlap.** The widest number the bar writes (the one at its right end), at the bar's font size and an average digit width of 0.6 em, must fit its segment with 20 % to spare. A single-column figure with 4 + 1 segments of 2.5 mm each wrote "25 0 255075100 km". `compose_map` now chooses the number of segments under the same constraint.
+- **Covered layers count as phantoms (`CART021`).** The inspector renders the frame's layers with and without each layer; a layer whose removal changes no pixel is not visible — usually covered by an opaque layer drawn above it — and listing it in the legend fails the rule. QGIS draws the first layer of a map item's list on top. The composer draws rasters at the bottom, then polygons, lines and points, the subject above its context, and draws a polygon layer that contains another one of the map (a state over its municipalities) as a heavy outline on top instead of a fill that would hide it.
 
 `CART042` (no overlapping items) also changed: an item that sits over a map frame is no longer a defect when the 3 mm ring around it holds less than 3 % ink — a legend or a locator inset over the open sea is a legitimate overlay, and the two states' hand-made maps in the experiment were being failed for it.
 

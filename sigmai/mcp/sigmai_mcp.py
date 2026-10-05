@@ -311,7 +311,11 @@ _SA = {"type": "array", "items": {"type": "string"}}
 #: regulamento manda usar e o esquema não deixava passar. Um teste confere esta
 #: tabela contra compose.KNOWN_PARAMETERS.
 COMPOSE_PROPERTIES: dict[str, Any] = {
-    "layer_ids": {**_SA, "description": "Camadas a exibir, na ordem de desenho (a última fica por cima)."},
+    "layer_ids": {**_SA, "description": (
+        "Camadas a exibir. O compositor as desenha em ordem cartográfica: raster no fundo, depois polígonos, "
+        "linhas e pontos, o assunto acima do contexto; um polígono que contém outro do mapa (estado sobre os "
+        "municípios) vira contorno destacado por cima. Dentro de cada classe vale a ordem da lista, a primeira por cima."
+    )},
     "title": {**_S, "description": "Título do mapa."},
     "subtitle": _S,
     "map_language": {**_S, "description": (

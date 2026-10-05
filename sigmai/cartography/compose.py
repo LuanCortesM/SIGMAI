@@ -438,12 +438,18 @@ def _scalebar_needs_full_width(
         return False
     overhang = max(10.0, plan.fonts["legend"] * 1.6)
     probe = scalebar_spec(
-        fitted.scale_denominator, frame.width, max_width_mm=max(12.0, slot.width - overhang)
+        fitted.scale_denominator, frame.width, max_width_mm=max(12.0, slot.width - overhang),
+        label_font_pt=_scalebar_font_pt(plan),
     )
     return (
         probe.bar_width_mm < SCALEBAR_MIN_LENGTH_MM
         and probe.frame_fraction < SCALEBAR_MIN_FRACTION
     )
+
+
+def _scalebar_font_pt(plan: LayoutPlan) -> float:
+    """Corpo dos números da barra: um ponto abaixo da escala numérica, mínimo 6."""
+    return max(6.0, float(plan.fonts["scale_text"]) - 1.0)
 
 
 def _aspect_expanded(extent: Any, frame_width: float, frame_height: float, imports: dict[str, Any]) -> Any:
@@ -999,7 +1005,11 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # Figura em tons de cinza: paleta, inserto e grade sem matiz, e a
     # auditoria confere no raster exportado (CART073) que saiu sem cor.
     colour_mode = normalize_colour_mode(params.get("colour_mode"))
-    styling = apply_default_symbology(styling_targets, apply_style_value, dry_run=True, colour_mode=colour_mode)
+    # Polígono que contém outros do mapa (o estado sobre os municípios) vira
+    # contorno destacado desenhado por cima; preenchido, ele os escondia.
+    container_ids = _container_polygon_ids(layers, imports)
+    styling = apply_default_symbology(styling_targets, apply_style_value, dry_run=True, colour_mode=colour_mode,
+                                      outline_ids=container_ids)
     styling_verb = "seria reestilizada" if composing_dry_run else "foi reestilizada"
     styling_notes = [
         f"A camada {entry['layer']!r} {styling_verb}: {entry['note']}."
@@ -1524,7 +1534,10 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # --- simbologia -------------------------------------------------------
     # Primeira e única mutação do projeto: todos os parâmetros já foram
     # aceitos, o que sai daqui para a frente é um mapa ou uma falha de QGIS.
-    styling = apply_default_symbology(styling_targets, apply_style_value, dry_run=False, colour_mode=colour_mode)
+    styling = apply_default_symbology(styling_targets, apply_style_value, dry_run=False, colour_mode=colour_mode,
+                                      outline_ids=container_ids)
+    outlined = {layer.id() for layer in layers if layer.name() in
+                {entry.get("layer") for entry in styling if entry.get("outline") and entry.get("action") == "estilizada"}}
 
     # --- layout -----------------------------------------------------------
     if replace_layout:
@@ -1553,6 +1566,11 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     layout.addLayoutItem(map_item)
     _place(map_item, frame, imports, mm)
     map_item.setCrs(map_crs)
+    # O QGIS desenha a PRIMEIRA camada da lista por cima. Ordem cartográfica:
+    # pontos, linhas, contornos destacados, polígonos e raster no fundo; em
+    # cada classe o assunto acima do contexto. Antes valia a ordem do pedido,
+    # e um estado listado antes dos seus municípios os cobria inteiros.
+    drawn_layers = _cartographic_draw_order(drawn_layers, wanted_subject, outlined, imports)
     map_item.setLayers(drawn_layers)
     # zoomToExtent e NÃO setExtent. A documentação do QGIS é explícita:
     # "setExtent ... may change the width or height of the map item to ensure
@@ -1644,6 +1662,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         fitted.scale_denominator,
         frame.width,
         max_width_mm=max(12.0, bar_slot_width - label_overhang_mm),
+        label_font_pt=_scalebar_font_pt(plan),
     )
     if include_scale_bar and "scale_bar" in plan.slots and not (comparison_plan or {}).get("per_panel_scale"):
         _add_scalebar(layout, map_item, bar_spec, plan, imports, mm, page, map_language)
@@ -2338,6 +2357,74 @@ def _add_label(
     return label
 
 
+def _container_polygon_ids(layers: list[Any], imports: dict[str, Any]) -> set[str]:
+    """Camadas de polígono que contêm outra camada de polígono do mapa.
+
+    "Contém": a extensão de uma abrange a da outra (1 % de folga) e ela tem
+    menos feições — o estado (1) e os seus municípios (224). Um parque (1)
+    dentro do estado (1) não conta: ali o assunto é desenhado por cima.
+    """
+    from .qtcompat import geometry_type
+
+    try:
+        from qgis.core import QgsWkbTypes  # type: ignore
+
+        wgs = imports["QgsCoordinateReferenceSystem"]("EPSG:4326")
+        project = imports["QgsProject"].instance()
+        polygon = geometry_type(imports["Qgis"], QgsWkbTypes, "Polygon")
+    except Exception:
+        return set()
+    polygons = []
+    for layer in layers:
+        try:
+            if _is_label_only(layer) or not hasattr(layer, "geometryType") or layer.geometryType() != polygon:
+                continue
+            extent = imports["QgsCoordinateTransform"](layer.crs(), wgs, project).transformBoundingBox(layer.extent())
+            polygons.append((layer, extent, int(layer.featureCount())))
+        except Exception:
+            continue
+    containers: set[str] = set()
+    for outer, outer_extent, outer_count in polygons:
+        tol_x, tol_y = 0.01 * outer_extent.width(), 0.01 * outer_extent.height()
+        for inner, inner_extent, inner_count in polygons:
+            if inner is outer or not (0 < outer_count < inner_count):
+                continue
+            if (outer_extent.xMinimum() - tol_x <= inner_extent.xMinimum()
+                    and outer_extent.yMinimum() - tol_y <= inner_extent.yMinimum()
+                    and outer_extent.xMaximum() + tol_x >= inner_extent.xMaximum()
+                    and outer_extent.yMaximum() + tol_y >= inner_extent.yMaximum()):
+                containers.add(outer.id())
+                break
+    return containers
+
+
+def _cartographic_draw_order(layers: list[Any], subject: set[str], outlined: set[str], imports: dict[str, Any]) -> list[Any]:
+    """Ordem de desenho, de cima para baixo (a primeira da lista fica por cima no QGIS)."""
+    from qgis.core import QgsWkbTypes  # type: ignore
+
+    from .qtcompat import geometry_type
+
+    def kind(layer: Any) -> int:
+        if _is_label_only(layer):
+            return 0
+        if not hasattr(layer, "geometryType"):
+            return 5  # raster: fundo
+        try:
+            geometry = layer.geometryType()
+            for rank, name in ((1, "Point"), (2, "Line")):
+                if geometry == geometry_type(imports["Qgis"], QgsWkbTypes, name):
+                    return rank
+        except Exception:
+            return 4
+        return 3 if layer.id() in outlined else 4
+
+    def is_subject(layer: Any) -> bool:
+        return layer.id() in subject or layer.name() in subject
+
+    position = {layer.id(): index for index, layer in enumerate(layers)}
+    return sorted(layers, key=lambda layer: (kind(layer), not is_subject(layer), position[layer.id()]))
+
+
 def _is_label_only(layer: Any) -> bool:
     try:
         renderer = layer.renderer()
@@ -2629,10 +2716,10 @@ def _add_scalebar(
         _try(lambda: bar.setNumericFormat(number_format))
     try:
         font = imports["QFont"]()
-        font.setPointSizeF(max(6.0, float(plan.fonts["scale_text"]) - 1.0))
+        font.setPointSizeF(_scalebar_font_pt(plan))
         text_format = bar.textFormat()
         text_format.setFont(font)
-        text_format.setSize(max(6.0, float(plan.fonts["scale_text"]) - 1.0))
+        text_format.setSize(_scalebar_font_pt(plan))
         text_format.setSizeUnit(qt_enum(imports["Qgis"], "RenderUnit", "Points"))
         bar.setTextFormat(text_format)
     except Exception:

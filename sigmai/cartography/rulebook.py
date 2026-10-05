@@ -231,12 +231,24 @@ def _check_legend_has_no_phantoms(observation: dict[str, Any]) -> CheckOutcome:
     if not visible:
         return _skip("Não foi possível determinar as camadas visíveis do mapa.")
     extra = [name for name in listed if name not in visible]
-    if not extra:
+    # Ligada ao quadro mas sem nenhum pixel no mapa: coberta pelas de cima.
+    # Só num quadro único — numa folha de painéis ela pode aparecer no outro.
+    covered = []
+    if len(observation.get("map_frames") or []) <= 1:
+        hidden = {str(name) for name in (_map(observation).get("hidden_layer_names") or [])}
+        covered = [name for name in listed if name in hidden and name not in extra]
+    if not extra and not covered:
         return _pass("A legenda não lista camadas ausentes do mapa.")
-    return _fail(
-        "A legenda lista " + ", ".join(repr(name) for name in extra) + ", que não aparece(m) no mapa.",
-        phantom_layers=extra,
-    )
+    partes = []
+    if extra:
+        partes.append("A legenda lista " + ", ".join(repr(name) for name in extra) + ", que não aparece(m) no mapa.")
+    if covered:
+        partes.append(
+            "A legenda lista " + ", ".join(repr(name) for name in covered) + ", ligada(s) ao quadro mas inteiramente "
+            "coberta(s) pelas camadas desenhadas por cima: o QGIS desenha a primeira camada da lista por cima. "
+            "Reordene as camadas ou desenhe a que cobre como contorno, sem preenchimento."
+        )
+    return _fail(" ".join(partes), phantom_layers=extra, covered_layers=covered)
 
 
 def _check_scale_indication(observation: dict[str, Any]) -> CheckOutcome:
@@ -291,6 +303,30 @@ def _check_scalebar_proportion(observation: dict[str, Any]) -> CheckOutcome:
     return _fail(
         f"A barra ocupa {float(fraction):.0%} da largura do quadro e compete com o mapa.",
         frame_fraction=fraction,
+    )
+
+
+def _check_scalebar_labels(observation: dict[str, Any]) -> CheckOutcome:
+    """CART074 — os números da barra de escala não encostam uns nos outros."""
+    from .scaling import SCALEBAR_DIGIT_EM, SCALEBAR_LABEL_CLEARANCE, scalebar_label_text, scalebar_labels_fit
+
+    bar = observation.get("scalebar") or {}
+    if not bar.get("item_id"):
+        return _skip("Sem barra de escala.")
+    font_pt, bar_mm = bar.get("label_font_pt"), bar.get("bar_width_mm")
+    per_segment = float(bar.get("units_per_segment") or 0.0)
+    right, left = int(bar.get("segments") or 0), int(bar.get("segments_left") or 0)
+    if not font_pt or not bar_mm or per_segment <= 0 or right <= 0:
+        return _skip("Não foi possível medir os rótulos da barra.")
+    if scalebar_labels_fit(per_segment, right, left, float(bar_mm), float(font_pt)):
+        return _pass(f"Os {right + left + 1} rótulos da barra cabem nos segmentos.")
+    segment_mm = float(bar_mm) / (right + left)
+    widest = scalebar_label_text(per_segment * right)
+    return _fail(
+        f"Os números da barra se sobrepõem: cada segmento tem {segment_mm:.1f} mm e o rótulo {widest!r} "
+        f"em {float(font_pt):g} pt precisa de cerca de {len(widest) * float(font_pt) * 0.3528 * SCALEBAR_DIGIT_EM * SCALEBAR_LABEL_CLEARANCE:.1f} mm. "
+        "Use menos segmentos (2 ou 3, sem o segmento à esquerda do zero) ou segmentos mais longos.",
+        segment_mm=round(segment_mm, 2), widest_label=widest,
     )
 
 
@@ -1064,6 +1100,15 @@ RULES: tuple[Rule, ...] = (
          "Deixe o SIGMAI dimensionar a barra (scalebar_spec) em vez de fixar units_per_segment.",
          "Brewer (2016), Designing Better Maps — scale bar; faixa de 15 % a 45 % da largura do quadro (ou 45 mm): decisão de projeto do SIGMAI",
          _check_scalebar_proportion),
+    Rule("CART074", "escala", SEVERITY_WARNING,
+         "Números da barra de escala legíveis", "Scale bar labels do not overlap",
+         "Numa barra com muitos segmentos curtos os números encostam uns nos outros e viram uma sequência "
+         "ilegível ('25 0 255075100 km'), sobretudo em figuras de coluna de revista; o QGIS desenha assim "
+         "mesmo, sem aviso.",
+         "Reduza para 2 ou 3 segmentos sem o segmento à esquerda do zero, ou alongue cada segmento; "
+         "compose_map já escolhe segmentos em que os números cabem.",
+         "Brewer (2016), Designing Better Maps — scale bar; algarismo de 0,6 em e folga de 20 % entre rótulos: decisão de projeto do SIGMAI",
+         _check_scalebar_labels),
     Rule("CART024", "escala", SEVERITY_ERROR,
          "Barra de escala válida para o CRS", "Scale bar valid for the map CRS",
          "Barra de escala sobre mapa em coordenadas geográficas mede uma distância que muda "

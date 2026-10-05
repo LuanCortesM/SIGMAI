@@ -311,6 +311,40 @@ def fit_extent_to_frame(
 # Barra de escala
 # ---------------------------------------------------------------------------
 
+#: Largura média de um algarismo, em fração do corpo da fonte (em). Os
+#: algarismos tabulares das fontes sem serifa usadas pelo QGIS ficam entre
+#: 0,55 e 0,6 em; 0,6 é o lado seguro.
+SCALEBAR_DIGIT_EM = 0.6
+#: Folga entre rótulos vizinhos: o maior rótulo precisa caber no segmento com
+#: 20 % de sobra. Abaixo disso "25 0 25 50 75 100" vira "25 0 255075100".
+SCALEBAR_LABEL_CLEARANCE = 1.2
+_MM_PER_POINT = 25.4 / 72.0
+
+
+def scalebar_label_text(value: float) -> str:
+    """O número como a barra o escreve, com separador de milhar (para medir)."""
+    if float(value).is_integer():
+        return f"{int(round(value)):,}"
+    return f"{value:,.2f}".rstrip("0").rstrip(".")
+
+
+def scalebar_labels_fit(
+    units_per_segment: float, segments_right: int, segments_left: int, bar_width_mm: float, font_pt: float,
+) -> bool:
+    """Os rótulos da barra cabem nos segmentos sem encostar uns nos outros?
+
+    Os rótulos ficam centrados nas divisões; dois vizinhos colidem quando a
+    largura do maior passa da largura do segmento. Mede-se o maior número
+    escrito (o da extremidade direita) com a largura média de algarismo.
+    """
+    drawn = int(segments_right) + int(segments_left)
+    if drawn <= 0 or bar_width_mm <= 0 or font_pt <= 0 or units_per_segment <= 0:
+        return True
+    segment_mm = float(bar_width_mm) / drawn
+    widest = scalebar_label_text(float(units_per_segment) * int(segments_right))
+    label_mm = len(widest) * float(font_pt) * _MM_PER_POINT * SCALEBAR_DIGIT_EM
+    return segment_mm >= label_mm * SCALEBAR_LABEL_CLEARANCE
+
 @dataclass(frozen=True)
 class ScaleBarSpec:
     """Uma barra de escala dimensionada para o quadro do mapa."""
@@ -342,6 +376,7 @@ def scalebar_spec(
     frame_width_mm: float,
     prefer_unit: str | None = None,
     max_width_mm: float | None = None,
+    label_font_pt: float | None = None,
 ) -> ScaleBarSpec:
     """Escolhe unidade, comprimento do segmento e nº de segmentos.
 
@@ -383,6 +418,11 @@ def scalebar_spec(
         # A barra não pode estourar a faixa reservada no layout: o item do QGIS
         # cresce para caber os rótulos e acabaria sobrepondo a legenda.
         if max_width_mm is not None and bar_mm > float(max_width_mm):
+            continue
+        # Os números da barra precisam caber: numa figura de coluna (85 mm) a
+        # barra de 4 + 1 segmentos tinha 4 mm por segmento e os rótulos se
+        # sobrepunham ("25 0 255075100 km"). Achado no experimento E1.
+        if label_font_pt and not scalebar_labels_fit(per_segment, segments, segments_left, bar_mm, label_font_pt):
             continue
         # Preferência: perto do alvo, depois 4 segmentos, depois 2.
         penalty = abs(fraction - SCALEBAR_TARGET_FRACTION) + {4: 0.0, 2: 0.02, 5: 0.06, 3: 0.06}[segments]
