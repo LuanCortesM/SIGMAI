@@ -68,6 +68,7 @@ class ReferenciasDasRegras(unittest.TestCase):
         self.assertIn(f"{int(rulebook.FRAME_BAND_EMPTY_MAX * 100)} % de cobertura", por_id["CART069"])
         self.assertIn(f"{rulebook.LEGEND_OVERFLOW_TOLERANCE_MM:g}".replace(".", ","), por_id["CART072"])
         self.assertIn(f"croma ≥ {rulebook.GREYSCALE_CHROMA_MIN}", por_id["CART073"])
+        self.assertIn(f"menos de {rulebook.COVERED_VISIBLE_MAX * 100:g} %", por_id["CART021"])
         self.assertIn(f"{rulebook.GREYSCALE_MAX_CHROMATIC_FRACTION * 100:g} %".replace(".", ","), por_id["CART073"])
         self.assertEqual(SEVERITY_PENALTY, {"error": 15.0, "warning": 5.0, "advice": 1.5})
 

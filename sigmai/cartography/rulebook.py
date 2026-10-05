@@ -70,6 +70,11 @@ LEGEND_OVERFLOW_TOLERANCE_MM = 0.5
 #: o azul quase branco (#D9EAF4, croma 27) que a paleta colorida dá ao
 #: contexto; 0,5 % tolera um logotipo ou um pixel perdido, não um inserto
 #: contornado de vermelho.
+#: CART021: uma camada ligada ao quadro conta como escondida quando, do que
+#: ela desenha sozinha, menos de 10 % continua visível no mapa — coberta pelas
+#: de cima, com no máximo uma lasca de contorno escapando na borda (a lasca de
+#: um traço de 1 mm em volta de dois polígonos cobertos deu 7 % no teste).
+COVERED_VISIBLE_MAX = 0.10
 GREYSCALE_CHROMA_MIN = 20
 GREYSCALE_MAX_CHROMATIC_FRACTION = 0.005
 
@@ -1076,9 +1081,11 @@ RULES: tuple[Rule, ...] = (
          _check_legend_fits_box),
     Rule("CART021", "elementos", SEVERITY_WARNING,
          "A legenda não lista camadas ausentes", "Legend lists no phantom layers",
-         "Entrada de legenda sem contrapartida no mapa faz o leitor procurar algo que não existe.",
-         "Ative filter_to_map_layers ou remova as camadas extras de legend_layers.",
-         "Slocum et al. (2009) — legend design; verificação: QGIS Documentation — Legend: filter by map content",
+         "Entrada de legenda sem contrapartida no mapa faz o leitor procurar algo que não existe — seja a "
+         "camada fora do quadro, seja ligada a ele mas inteiramente coberta por uma camada opaca desenhada por cima.",
+         "Ative filter_to_map_layers ou remova as camadas extras de legend_layers; se a camada está coberta, "
+         "reordene as camadas (o QGIS desenha a primeira da lista por cima) ou desenhe a que cobre como contorno.",
+         "Slocum et al. (2009) — legend design; camada coberta quando menos de 10 % do que ela desenha sozinha fica visível: decisão de projeto do SIGMAI; verificação: QGIS Documentation — Legend: filter by map content",
          _check_legend_has_no_phantoms),
     Rule("CART003", "escala", SEVERITY_ERROR,
          "Escala indicada", "Scale indicated",
