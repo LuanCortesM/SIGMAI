@@ -201,9 +201,10 @@ class OrdemDeDesenhoNoQgis(unittest.TestCase):
 
         layer = QgsVectorLayer("Polygon?crs=EPSG:31984&field=nome:string", nome, "memory")
         feicoes = []
-        for x0, y0, x1, y1 in retangulos:
+        for indice, (x0, y0, x1, y1) in enumerate(retangulos):
             feature = QgsFeature(layer.fields())
             feature.setGeometry(QgsGeometry.fromRect(QgsRectangle(x0, y0, x1, y1)))
+            feature.setAttribute("nome", f"{nome} {indice + 1}")
             feicoes.append(feature)
         layer.dataProvider().addFeatures(feicoes)
         layer.updateExtents()
@@ -277,6 +278,19 @@ class OrdemDeDesenhoNoQgis(unittest.TestCase):
             estado.setRenderer(QgsSingleSymbolRenderer(QgsFillSymbol.createSimple({"color": "#9A9A9A", "outline_width": "0.1"})))
             municipios.setRenderer(QgsSingleSymbolRenderer(QgsFillSymbol.createSimple(
                 {"color": "#E8B07A", "outline_color": "#D55E00", "outline_width": "1.0"})))
+            # Rótulos nos municípios cobertos: o motor os desenha por cima de tudo,
+            # mas a legenda mostra o símbolo, não os nomes (B6 do E1).
+            from qgis.core import QgsPalLayerSettings, QgsVectorLayerSimpleLabeling
+
+            from qgis.core import QgsTextFormat
+
+            rotulos = QgsPalLayerSettings()
+            rotulos.fieldName = "nome"
+            formato = QgsTextFormat()
+            formato.setSize(60)  # nomes grandes: no A3 do E1 eram 224, e somavam mais que a lasca
+            rotulos.setFormat(formato)
+            municipios.setLabeling(QgsVectorLayerSimpleLabeling(rotulos))
+            municipios.setLabelsEnabled(True)
             quadro = layout.itemById("main_map")
             quadro.setKeepLayerSet(True)
             quadro.setLayers([estado, municipios])
