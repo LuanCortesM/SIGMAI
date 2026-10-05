@@ -67,7 +67,7 @@ Independentemente do modo: as **pastas de saída** restringem onde arquivos pode
 - insere uma rosa dos ventos de verdade, ligada ao norte da grade;
 - declara datum, projeção, fonte, autoria e data;
 - reprojeta para o UTM adequado quando o projeto está em coordenadas geográficas, porque uma barra métrica sobre graus está errada em quase toda a folha;
-- escolhe a orientação da página pela forma dos dados quando você pede `orientation: "auto"`, e aceita um pedido de figura para revista pela largura da coluna (`journal_column`, `figure_width_mm`) em vez do tamanho do papel;
+- escolhe a orientação da página pela forma dos dados quando você pede `orientation: "auto"`, e aceita um pedido de figura para revista pela largura da coluna (`journal_column`, `figure_width_mm`) em vez do tamanho do papel, e em tons de cinza para impressão (`colour_mode: "greyscale"`, conferido na imagem exportada pela `CART073`);
 - compõe dois, três ou mais painéis — `second_map` ou `panels` — com letras (a), (b), (c) e escala comum quando pedida;
 - aceita `data_source` por camada e imprime a fonte de cada camada na legenda, ao lado da camada a que pertence;
 - conhece o caso do mapa de campanha (`compose_campaign_map`): sítios sobre trilha sobre área sobre contexto, com inserto de localização e tabela de coordenadas.
@@ -78,7 +78,7 @@ Antes de assumir onde algo fica, o assistente pode perguntar (`sigmai_spatial_re
 
 ## O regulamento cartográfico
 
-34 regras em dez categorias — elementos, escala, orientação, procedência, grade, geometria, tipografia, projeção, dados, simbologia. Cada uma carrega a severidade, o motivo de existir, a referência que a sustenta e o comando que a satisfaz. O `sigmai_cartographic_rulebook` devolve tudo como dado, para o assistente ler as regras antes de compor em vez de descobri-las falhando.
+35 regras em dez categorias — elementos, escala, orientação, procedência, grade, geometria, tipografia, projeção, dados, simbologia. Cada uma carrega a severidade, o motivo de existir, a referência que a sustenta e o comando que a satisfaz. O `sigmai_cartographic_rulebook` devolve tudo como dado, para o assistente ler as regras antes de compor em vez de descobri-las falhando.
 
 Cinco regras nasceram do experimento da 1.0.3, em que o mesmo pedido foi dado a um agente escrevendo PyQGIS puro e a um agente operando o SIGMAI, a auditoria rodou sobre os dois mapas e a versão nova foi então operada de ponta a ponta por um assistente emulado: rótulos que o motor de rotulagem não conseguiu colocar (`CART068`), uma faixa vazia do quadro que a forma da página deixou sem uso (`CART069`), pares de cores que um leitor com deficiência de visão de cores não distingue, simulados com as matrizes de Machado, Oliveira & Fernandes (2009) (`CART070`), fontes que ficam abaixo do legível quando a figura é impressa na largura da coluna (`CART071`), e uma legenda cujo conteúdo é maior que a caixa, que o QGIS corta em silêncio (`CART072`). A auditoria também aprendeu a ler layouts feitos à mão — itens sem id, cabeçalhos como "Fontes dos dados", camadas só de rótulo — em vez de reprová-los pelo que não enxergava.
 

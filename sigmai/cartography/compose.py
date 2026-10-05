@@ -41,7 +41,7 @@ from .scaling import (
     graticule_interval,
     scalebar_spec,
 )
-from .symbology import apply_default_symbology
+from .symbology import apply_default_symbology, normalize_colour_mode
 from .textfit import MIN_FONT_PT, TextTooLongError, fit_text
 
 #: SVG de norte preferidos, do mais sóbrio para o mais decorativo. O primeiro
@@ -96,7 +96,7 @@ KNOWN_PARAMETERS = frozenset({
     # rótulos
     "label_field", "label_layer_id", "label_font_size",
     # estilo
-    "apply_style",
+    "apply_style", "colour_mode",
     # saída
     "output_path", "format", "dpi", "confirm_overwrite",
     # receita reproduzível: JSON gravado ao lado (a receita vai sempre para o
@@ -996,7 +996,10 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # ou um dpi absurdo recusados mais abaixo não podem deixar para trás o
     # projeto do usuário com a simbologia trocada por um mapa que não saiu.
     composing_dry_run = bool(context.get("dry_run"))
-    styling = apply_default_symbology(styling_targets, apply_style_value, dry_run=True)
+    # Figura em tons de cinza: paleta, inserto e grade sem matiz, e a
+    # auditoria confere no raster exportado (CART073) que saiu sem cor.
+    colour_mode = normalize_colour_mode(params.get("colour_mode"))
+    styling = apply_default_symbology(styling_targets, apply_style_value, dry_run=True, colour_mode=colour_mode)
     styling_verb = "seria reestilizada" if composing_dry_run else "foi reestilizada"
     styling_notes = [
         f"A camada {entry['layer']!r} {styling_verb}: {entry['note']}."
@@ -1521,7 +1524,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # --- simbologia -------------------------------------------------------
     # Primeira e única mutação do projeto: todos os parâmetros já foram
     # aceitos, o que sai daqui para a frente é um mapa ou uma falha de QGIS.
-    styling = apply_default_symbology(styling_targets, apply_style_value, dry_run=False)
+    styling = apply_default_symbology(styling_targets, apply_style_value, dry_run=False, colour_mode=colour_mode)
 
     # --- layout -----------------------------------------------------------
     if replace_layout:
@@ -1737,6 +1740,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         },
         map_frame=frame,
         print_width_mm=print_width_mm,
+        colour_mode=colour_mode,
     )
 
     _reject_if_audit_found_blank_output(audit)
@@ -2045,6 +2049,7 @@ def audit_layout(
     map_frame: Rect | None = None,
     print_width_mm: float | None = None,
     collect_labels: bool = True,
+    colour_mode: str | None = None,
 ) -> dict[str, Any]:
     """Observa um layout e roda o regulamento cartográfico contra ele.
 
@@ -2054,10 +2059,12 @@ def audit_layout(
     num canto vazio de uma sobre os dados) e os rótulos que o motor do QGIS
     descartou. ``print_width_mm`` diz em que largura a figura vai ser
     impressa, quando se sabe, para que as fontes sejam julgadas nessa
-    largura e não na página.
+    largura e não na página. ``colour_mode="greyscale"`` diz que a figura
+    foi pedida em tons de cinza: a cor medida no raster vai para CART073.
     """
     from .inspector import (
-        collect_label_results, measure_ink_fraction, measure_ink_grid, measure_surroundings_ink, observe_layout,
+        collect_label_results, measure_chromatic_fraction, measure_ink_fraction, measure_ink_grid,
+        measure_surroundings_ink, observe_layout,
     )
 
     raster_path = output_path if output_path and str(output_path).lower().endswith(_RASTER_AUDIT_SUFFIXES) else None
@@ -2097,6 +2104,9 @@ def audit_layout(
         label_results=label_results or None,
         print_width_mm=print_width_mm,
     )
+    observation["colour_mode"] = colour_mode or None
+    if raster_path:
+        observation["output"]["chromatic_fraction"] = measure_chromatic_fraction(raster_path)
 
     # Tinta em volta dos itens desenhados sobre o quadro do mapa — só faz
     # sentido com o raster e com um quadro conhecido.
@@ -3178,7 +3188,10 @@ def _add_inset_map(
         overview.setLinkedMap(main_map)
         overview.setEnabled(True)
         symbol = QgsFillSymbol.createSimple({
-            "color": "255,255,255,0", "outline_color": "#C0392B", "outline_width": "0.5",
+            "color": "255,255,255,0",
+            # Vermelho na figura colorida; preto na figura em tons de cinza.
+            "outline_color": "#000000" if normalize_colour_mode(params.get("colour_mode")) == "greyscale" else "#C0392B",
+            "outline_width": "0.5",
         })
         overview.setFrameSymbol(symbol)
         inset.overviews().addOverview(overview)
@@ -3382,7 +3395,7 @@ def _apply_grid(map_item: Any, fitted: Any, map_crs: Any, plan: LayoutPlan, impo
     grid.setAnnotationEnabled(True)
     font_pt = max(6.0, float(plan.fonts["footer"]) - 0.5)
     _try(lambda: grid.setAnnotationPrecision(3 if geographic else 0))
-    _try(lambda: grid.setAnnotationFontColor(imports["QColor"]("#1E2A32")))
+    _try(lambda: grid.setAnnotationFontColor(imports["QColor"]("#1F1F1F")))
     _try(lambda: grid.setAnnotationFrameDistance(0.8))
 
     font = imports["QFont"]()

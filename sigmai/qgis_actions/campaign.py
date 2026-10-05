@@ -43,6 +43,7 @@ PASSTHROUGH = (
     "legend_title", "map_author_email", "organization", "production_date", "notes_text", "map_language",
     "label_font_size", "apply_style", "output_path", "format", "dpi", "confirm_overwrite", "layout_name", "recipe_path",
     "figure_width_mm", "figure_height_mm", "figure_max_height_mm", "journal_column", "inset_zoom_factor",
+    "colour_mode",
 )
 
 

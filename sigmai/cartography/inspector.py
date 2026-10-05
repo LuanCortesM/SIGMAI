@@ -877,6 +877,50 @@ def _sample_ink(image: Any, box: tuple[int, int, int, int], steps: int = 140, un
     return inked / total
 
 
+def chromatic_fraction(pixels: Any, chroma_min: int) -> float | None:
+    """Fração dos pixels com tinta que têm cor (pura, testável sem QGIS).
+
+    ``pixels`` são inteiros ARGB como os de ``QImage.pixel``. Tinta é o que
+    não é fundo branco nem transparente; cor é croma — o maior canal menos o
+    menor — de pelo menos ``chroma_min`` (0–255). Cinzas, inclusive os tons
+    do antisserrilhado entre preto e branco, têm croma zero.
+    """
+    inked = coloured = 0
+    for pixel in pixels:
+        alpha = (pixel >> 24) & 0xFF
+        if alpha < 8:
+            continue
+        red, green, blue = (pixel >> 16) & 0xFF, (pixel >> 8) & 0xFF, pixel & 0xFF
+        if red >= 246 and green >= 246 and blue >= 246:
+            continue
+        inked += 1
+        if max(red, green, blue) - min(red, green, blue) >= chroma_min:
+            coloured += 1
+    if inked == 0:
+        return None
+    return coloured / inked
+
+
+def measure_chromatic_fraction(png_path: str | Path, steps: int = 300) -> float | None:
+    """Fração da tinta da página inteira que tem cor (CART073).
+
+    Amostrada numa grade de ``steps`` x ``steps`` pixels, como a tinta do
+    quadro: suficiente para achar um contorno vermelho de inserto ou um
+    preenchimento azul-claro numa figura pedida em tons de cinza.
+    """
+    from .rulebook import GREYSCALE_CHROMA_MIN
+
+    image = _load_image(png_path)
+    if image is None:
+        return None
+    width, height = image.width(), image.height()
+    step_x = max(1, width // steps)
+    step_y = max(1, height // steps)
+    pixels = (image.pixel(x, y) for y in range(0, height, step_y) for x in range(0, width, step_x))
+    value = chromatic_fraction(pixels, GREYSCALE_CHROMA_MIN)
+    return round(value, 5) if value is not None else None
+
+
 def measure_ink_fraction(png_path: str | Path, map_rect_mm: dict[str, float], page_mm: tuple[float, float]) -> float | None:
     """Fração de pixels não-fundo dentro do quadro do mapa no PNG exportado.
 

@@ -25,7 +25,7 @@ AI assistant ── MCP client ──stdio──▶ MCP server ──HTTP 127.0.
 | `pagespec.py` | no | Page sizes (ISO A/B, North American, custom millimetres) and orientation names in several languages |
 | `layoutgrid.py` | no | Layout solver: slots for title, map, legend, scale, north arrow, inset, credits; side column or bottom band; panel grids |
 | `scaling.py` | no | Extent fitting, scale on the cartographic series, scale bar, grid interval |
-| `rulebook.py` | no | 34 rules evaluated against an observation dictionary; grade, failing rules, reasons, references and fixes |
+| `rulebook.py` | no | 35 rules evaluated against an observation dictionary; grade, failing rules, reasons, references and fixes |
 | `vision.py` | no | Colour-vision-deficiency simulation (Machado et al., 2009) and CIELAB distance |
 | `recipe.py`, `params.py`, `maptext.py`, `textfit.py` | no | Map recipe and Methods paragraph, parameter validation, map texts in 15 languages, text fitting |
 | `compose.py` | yes | Builds the QGIS print layout from a request, styles layers, exports, stores the recipe and calls the audit |
