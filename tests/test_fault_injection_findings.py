@@ -254,5 +254,42 @@ class OrdemDeDesenhoNoQgis(unittest.TestCase):
             self.assertIn("Parque", relatorio["observation"]["map"]["hidden_layer_names"])
 
 
+    def test_lasca_de_contorno_na_borda_nao_salva_a_camada_coberta(self):
+        """F26 do E1: o estado opaco por cima, e o contorno largo dos municípios escapando na borda."""
+        from qgis.core import (
+            QgsCoordinateReferenceSystem, QgsFillSymbol, QgsLayoutExporter, QgsProject, QgsSingleSymbolRenderer,
+        )
+
+        from sigmai.cartography.compose import compose_map
+        from sigmai.qgis_actions.cartography_engine import audit_map_layout
+
+        QgsProject.instance().clear()
+        QgsProject.instance().setCrs(QgsCoordinateReferenceSystem("EPSG:31984"))
+        estado = self._camada("Estado", [(400000, 9000000, 600000, 9200000)])
+        municipios = self._camada("Municipios", [(400000, 9000000, 500000, 9200000), (500000, 9000000, 600000, 9200000)])
+        with pasta_temporaria() as pasta:
+            resultado = compose_map({
+                "layer_ids": [estado.id(), municipios.id()], "subject_layer_id": estado.id(), "title": "Estado",
+                "map_author": "T", "data_source": "teste", "output_path": os.path.join(pasta, "m.png"),
+                "format": "png", "dpi": 72,
+            }, {"dry_run": False})
+            layout = QgsProject.instance().layoutManager().layoutByName(resultado["layout_name"])
+            estado.setRenderer(QgsSingleSymbolRenderer(QgsFillSymbol.createSimple({"color": "#9A9A9A", "outline_width": "0.1"})))
+            municipios.setRenderer(QgsSingleSymbolRenderer(QgsFillSymbol.createSimple(
+                {"color": "#E8B07A", "outline_color": "#D55E00", "outline_width": "1.0"})))
+            quadro = layout.itemById("main_map")
+            quadro.setKeepLayerSet(True)
+            quadro.setLayers([estado, municipios])
+            png = os.path.join(pasta, "coberto.png")
+            settings = QgsLayoutExporter.ImageExportSettings()
+            settings.dpi = 72
+            QgsLayoutExporter(layout).exportToImage(png, settings)
+            relatorio = audit_map_layout({"layout_name": layout.name(), "output_path": png}, {"dry_run": False})
+            mapa = relatorio["observation"]["map"]
+            self.assertGreater(mapa["layer_visible_fraction"]["Municipios"], 0.0)  # a lasca existe
+            self.assertIn("Municipios", mapa["hidden_layer_names"])
+            self.assertEqual(next(r for r in relatorio["results"] if r["id"] == "CART021")["status"], rulebook.STATUS_FAIL)
+
+
 if __name__ == "__main__":
     unittest.main()

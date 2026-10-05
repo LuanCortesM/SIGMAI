@@ -408,7 +408,7 @@ def _observe_map(map_item: Any, data_extent: dict[str, float] | None, ink_fracti
         "data_extent": data_extent,
         "rendered_ink_fraction": ink_fraction,
         "layer_ink_fraction": measure_layer_ink(map_item, layers),
-        "hidden_layer_names": measure_hidden_layers(map_item, layers),
+        **_visibility_entries(map_item, layers),
         "layer_colours": _layer_colours(layers),
         "polygon_coverage": _polygon_coverage(map_item, layers),
     }
@@ -924,31 +924,73 @@ def _frame_layers(map_item: Any, layers: list[Any] | None) -> list[Any]:
     return [layer for layer in drawn if layer is not None and layer.isValid()]
 
 
-def measure_hidden_layers(map_item: Any, layers: list[Any] | None = None, width_px: int = 240) -> list[str] | None:
-    """Camadas do quadro que não mudam nenhum pixel do mapa (CART021).
-
-    Renderiza o quadro com todas as camadas e, para cada uma, sem ela; se a
-    imagem não muda, a camada não aparece — coberta pelas de cima (o QGIS
-    desenha a primeira da lista por cima) ou sem nada na extensão. Achado no
-    experimento E1: um estado listado antes dos municípios os cobria inteiros,
-    e eles seguiam na legenda.
-    """
+def _pixels(image: Any) -> Any:
+    """Os pixels ARGB32 como matriz numpy (altura × largura × 4), ou None sem numpy."""
     try:
-        drawn = [layer for layer in _frame_layers(map_item, layers) if not _is_label_only_layer(layer)]
-        if not drawn or len(drawn) > 12:
-            return None
-        everything = _render_layers(map_item, _frame_layers(map_item, layers), width_px)
-        if everything is None:
-            return None
-        hidden = []
-        for layer in drawn:
-            others = [other for other in _frame_layers(map_item, layers) if other.id() != layer.id()]
-            without = _render_layers(map_item, others, width_px)
-            if without is not None and without == everything:
-                hidden.append(str(layer.name()))
-        return hidden
+        import numpy  # type: ignore
+
+        pointer = image.constBits()
+        pointer.setsize(image.sizeInBytes() if hasattr(image, "sizeInBytes") else image.byteCount())
+        rows = numpy.frombuffer(pointer, numpy.uint8).reshape(image.height(), image.bytesPerLine())
+        return rows[:, : image.width() * 4].reshape(image.height(), image.width(), 4)
     except Exception:
         return None
+
+
+def _opaque_count(image: Any) -> int:
+    pixels = _pixels(image)
+    if pixels is not None:
+        return int((pixels[:, :, 3] >= 8).sum())  # ARGB32 em little-endian: o alfa é o 4º byte
+    return sum(1 for y in range(image.height()) for x in range(image.width()) if (image.pixel(x, y) >> 24) & 0xFF >= 8)
+
+
+def _changed_count(first: Any, second: Any) -> int:
+    a, b = _pixels(first), _pixels(second)
+    if a is not None and b is not None:
+        return int((a != b).any(axis=2).sum())
+    return sum(1 for y in range(first.height()) for x in range(first.width()) if first.pixel(x, y) != second.pixel(x, y))
+
+
+def measure_layer_visibility(map_item: Any, layers: list[Any] | None = None, width_px: int = 400) -> dict[str, float] | None:
+    """Para cada camada do quadro, que fração do que ela desenha sozinha aparece no mapa (CART021).
+
+    Renderiza a camada sozinha, o quadro com todas as camadas e o quadro sem
+    ela; a fração é a dos pixels que mudam ao tirá-la sobre os que ela pinta
+    sozinha. Zero ou quase zero é camada escondida — coberta pelas de cima (o
+    QGIS desenha a primeira da lista por cima) ou sem nada na extensão. Achado
+    no experimento E1: um estado opaco listado antes dos municípios os cobria
+    inteiros, e eles seguiam na legenda; só uma lasca do contorno escapava na
+    borda, por isso a medida é uma fração e não "nenhum pixel mudou".
+    """
+    try:
+        frame = _frame_layers(map_item, layers)
+        drawn = [layer for layer in frame if not _is_label_only_layer(layer)]
+        if not drawn or len(drawn) > 12:
+            return None
+        everything = _render_layers(map_item, frame, width_px)
+        if everything is None:
+            return None
+        fractions: dict[str, float] = {}
+        for layer in drawn:
+            alone = _opaque_count(_render_layers(map_item, [layer], width_px))
+            if alone == 0:
+                fractions[str(layer.name())] = 0.0
+                continue
+            without = _render_layers(map_item, [other for other in frame if other.id() != layer.id()], width_px)
+            fractions[str(layer.name())] = round(min(1.0, _changed_count(everything, without) / float(alone)), 4)
+        return fractions
+    except Exception:
+        return None
+
+
+def _visibility_entries(map_item: Any, layers: list[Any] | None) -> dict[str, Any]:
+    from .rulebook import COVERED_VISIBLE_MAX
+
+    fractions = measure_layer_visibility(map_item, layers)
+    if fractions is None:
+        return {"layer_visible_fraction": None, "hidden_layer_names": None}
+    hidden = [name for name, fraction in fractions.items() if fraction < COVERED_VISIBLE_MAX]
+    return {"layer_visible_fraction": fractions, "hidden_layer_names": hidden}
 
 
 def _is_label_only_layer(layer: Any) -> bool:
@@ -970,40 +1012,11 @@ def measure_layer_ink(map_item: Any, layers: list[Any] | None = None, width_px: 
     Qualquer feição desenhada deixa pixels opacos; zero é quadro vazio.
     """
     try:
-        from qgis.core import QgsMapRendererCustomPainterJob, QgsMapSettings  # type: ignore
-        from qgis.PyQt.QtCore import QSize  # type: ignore
-        from qgis.PyQt.QtGui import QColor, QImage, QPainter  # type: ignore
-
-        from .qtcompat import qt_enum
-
-        extent = map_item.extent()
-        if extent.isEmpty() or extent.width() <= 0:
+        frame = _frame_layers(map_item, layers)
+        image = _render_layers(map_item, frame, width_px)
+        if image is None:
             return None
-        drawn = list(layers or [])
-        if not drawn:
-            project = map_item.layout().project()
-            drawn = list(project.layerTreeRoot().checkedLayers())
-        drawn = [layer for layer in drawn if layer is not None and layer.isValid()]
-        height_px = max(1, int(round(width_px * extent.height() / extent.width())))
-        settings = QgsMapSettings()
-        settings.setLayers(drawn)
-        settings.setDestinationCrs(map_item.crs())
-        settings.setExtent(extent)
-        settings.setOutputSize(QSize(width_px, height_px))
-        settings.setBackgroundColor(QColor(255, 255, 255, 0))
-        image = QImage(width_px, height_px, qt_enum(QImage, "Format", "Format_ARGB32"))
-        image.fill(0)
-        painter = QPainter(image)
-        job = QgsMapRendererCustomPainterJob(settings, painter)
-        job.start()
-        job.waitForFinished()
-        painter.end()
-        opaque = 0
-        for y in range(height_px):
-            for x in range(width_px):
-                if (image.pixel(x, y) >> 24) & 0xFF >= 8:
-                    opaque += 1
-        return round(opaque / float(width_px * height_px), 6)
+        return round(_opaque_count(image) / float(image.width() * image.height()), 6)
     except Exception:
         return None
 
