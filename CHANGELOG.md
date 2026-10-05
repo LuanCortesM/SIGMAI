@@ -13,8 +13,17 @@ Periódicos imprimem em cinza e cobram a cor impressa — a *Transactions in GIS
 - **`sigmai_audit_layout` aceita `colour_mode`**, para auditar qualquer layout — inclusive um feito à mão ou por script — contra o pedido de cinza; num layout composto pelo SIGMAI, o modo vem da receita.
 - O texto das coordenadas da grade passa de `#1E2A32` (cinza levemente azulado, que a medição de cor acusaria) a `#1F1F1F`.
 
+### Auditoria: três falhas achadas por injeção de defeitos
+
+O experimento E1 do artigo para a *Transactions in GIS* (`paper/tgis/experiments/e1_fault_injection.py`) compõe seis mapas-base, estraga cada um com 25 operadores de defeito pela API de layout do PyQGIS — como um script ou uma edição à mão faria — e audita de novo. Em nenhum dos 142 mapas estragados o QGIS acusou nada: a exportação sempre deu sucesso, sem exceção nem mensagem de aviso. O piloto mostrou também três falhas da própria auditoria:
+
+- **CART003 nunca reprovava um mapa sem escala nenhuma.** Sem barra, `observation["scalebar"]` vale `None`; a regra fazia `.get("scalebar", {}).get(...)`, quebrava, e o motor a marcava "não avaliada". Corrigido; a regra reprova.
+- **CART062 não via o quadro em branco.** A tinta era medida no PNG exportado, onde moldura e linhas de grade contam como conteúdo: apagadas as camadas dos seis mapas, a regra passou nos seis. Agora o inspetor renderiza só as camadas do quadro, na extensão e no CRS dele, sobre fundo transparente (`measure_layer_ink`): nenhum pixel opaco é quadro vazio. A tinta do PNG continua valendo para a exportação que sai em branco com as camadas desenhando.
+- **CART061 nunca era avaliada na auditoria de um layout.** A extensão dos dados não era informada. Agora vem do assunto: da receita, num layout composto pelo SIGMAI, ou de `subject_layer_id`, novo parâmetro de `sigmai_audit_layout`. Sem nenhum dos dois a regra continua sem avaliação — tomar todas as camadas acusaria qualquer mapa ampliado sobre uma camada de contexto maior.
+
 ### Testes
 
+- `tests/test_fault_injection_findings.py`: as três falhas acima, inclusive no QGIS (camadas apagadas reprovam CART062; extensão deslocada reprova CART061 e CART062; `subject_layer_id` explícito avalia CART061). O layout feito à mão de `tests/test_foreign_layout_audit.py` ganha uma feição — com as camadas vazias o quadro estava, de fato, em branco.
 - `tests/test_greyscale_figures.py`: sinônimos e recusa de `colour_mode`; os quatro cinzas sem matiz e não confundíveis; a medição de cor (cinzas e branco não contam, transparente não é tinta, ruído de compressão abaixo do limiar); a regra nos três desfechos; e a composição de verdade no QGIS — em cinza a figura sai sem cor e o laudo confirma, em cor a regra não se aplica.
 
 ## [1.1.7] — 2026-10-04

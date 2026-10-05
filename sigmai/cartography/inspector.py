@@ -407,6 +407,7 @@ def _observe_map(map_item: Any, data_extent: dict[str, float] | None, ink_fracti
         "label_only_layer_names": _label_only_layer_names(layers),
         "data_extent": data_extent,
         "rendered_ink_fraction": ink_fraction,
+        "layer_ink_fraction": measure_layer_ink(map_item, layers),
         "layer_colours": _layer_colours(layers),
         "polygon_coverage": _polygon_coverage(map_item, layers),
     }
@@ -875,6 +876,55 @@ def _sample_ink(image: Any, box: tuple[int, int, int, int], steps: int = 140, un
     if uniform_is_blank and len(seen) <= 1:
         return 0.0
     return inked / total
+
+
+def measure_layer_ink(map_item: Any, layers: list[Any] | None = None, width_px: int = 600) -> float | None:
+    """Fração dos pixels em que as camadas do quadro desenham algo (CART062).
+
+    Renderiza só as camadas do quadro, na extensão e no CRS dele, sobre fundo
+    transparente — sem moldura, grade, rótulos de coordenada nem nada do
+    layout. A tinta medida no PNG exportado não distinguia um quadro vazio de
+    um com moldura e linhas de grade: o experimento E1 (paper/tgis) apagou as
+    camadas de seis mapas e a regra do quadro em branco passou nos seis.
+    Qualquer feição desenhada deixa pixels opacos; zero é quadro vazio.
+    """
+    try:
+        from qgis.core import QgsMapRendererCustomPainterJob, QgsMapSettings  # type: ignore
+        from qgis.PyQt.QtCore import QSize  # type: ignore
+        from qgis.PyQt.QtGui import QColor, QImage, QPainter  # type: ignore
+
+        from .qtcompat import qt_enum
+
+        extent = map_item.extent()
+        if extent.isEmpty() or extent.width() <= 0:
+            return None
+        drawn = list(layers or [])
+        if not drawn:
+            project = map_item.layout().project()
+            drawn = list(project.layerTreeRoot().checkedLayers())
+        drawn = [layer for layer in drawn if layer is not None and layer.isValid()]
+        height_px = max(1, int(round(width_px * extent.height() / extent.width())))
+        settings = QgsMapSettings()
+        settings.setLayers(drawn)
+        settings.setDestinationCrs(map_item.crs())
+        settings.setExtent(extent)
+        settings.setOutputSize(QSize(width_px, height_px))
+        settings.setBackgroundColor(QColor(255, 255, 255, 0))
+        image = QImage(width_px, height_px, qt_enum(QImage, "Format", "Format_ARGB32"))
+        image.fill(0)
+        painter = QPainter(image)
+        job = QgsMapRendererCustomPainterJob(settings, painter)
+        job.start()
+        job.waitForFinished()
+        painter.end()
+        opaque = 0
+        for y in range(height_px):
+            for x in range(width_px):
+                if (image.pixel(x, y) >> 24) & 0xFF >= 8:
+                    opaque += 1
+        return round(opaque / float(width_px * height_px), 6)
+    except Exception:
+        return None
 
 
 def chromatic_fraction(pixels: Any, chroma_min: int) -> float | None:

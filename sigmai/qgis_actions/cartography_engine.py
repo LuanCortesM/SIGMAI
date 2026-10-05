@@ -42,6 +42,7 @@ def audit_map_layout(params: dict[str, Any], context: dict[str, Any]) -> dict[st
 
     page = None
     map_frame = None
+    main_item = None
     notes: list[str] = []
     # Um layout composto pelo SIGMAI carrega a receita: as margens e a largura
     # impressa da composição valem para a auditoria. Sem isso, a figura de
@@ -78,12 +79,25 @@ def audit_map_layout(params: dict[str, Any], context: dict[str, Any]) -> dict[st
                 position = item.positionWithUnits()
                 extent = item.sizeWithUnits()
                 rect = Rect(float(position.x()), float(position.y()), float(extent.width()), float(extent.height()))
-                candidates.append((str(item.id() or ""), rect))
+                candidates.append((str(item.id() or ""), rect, item))
         if candidates:
-            named = [rect for item_id, rect in candidates if item_id == "main_map"]
-            map_frame = named[0] if named else max((rect for _, rect in candidates), key=lambda r: r.width * r.height)
+            named = [(rect, item) for item_id, rect, item in candidates if item_id == "main_map"]
+            map_frame, main_item = named[0] if named else max(
+                ((rect, item) for _, rect, item in candidates), key=lambda pair: pair[0].width * pair[0].height)
     except Exception:
         pass
+
+    # CART061 (a extensão contém os dados) precisa saber o que é "o dado": o
+    # assunto. Num layout composto pelo SIGMAI ele vem da receita; em qualquer
+    # outro, de subject_layer_id. Sem nenhum dos dois a regra fica sem
+    # avaliação — usar todas as camadas acusaria qualquer mapa ampliado sobre
+    # uma camada de contexto maior que ele.
+    data_extent = None
+    subject_ids = params.get("subject_layer_id")
+    if not subject_ids and recipe:
+        subject_ids = (recipe.get("params") or {}).get("subject_layer_id")
+    if subject_ids and main_item is not None:
+        data_extent = _subject_extent(subject_ids, main_item, notes)
 
     print_width = params.get("print_width_mm")
     try:
@@ -114,6 +128,7 @@ def audit_map_layout(params: dict[str, Any], context: dict[str, Any]) -> dict[st
         layout,
         page=page,
         output_path=str(params.get("output_path") or "") or None,
+        data_extent=data_extent,
         map_frame=map_frame,
         print_width_mm=print_width_mm,
         colour_mode=colour_mode,
@@ -122,6 +137,32 @@ def audit_map_layout(params: dict[str, Any], context: dict[str, Any]) -> dict[st
     if notes:
         report["notes"] = list(report.get("notes") or []) + notes
     return report
+
+
+def _subject_extent(subject_ids: Any, map_item: Any, notes: list[str]) -> dict[str, float] | None:
+    """Extensão, no CRS do quadro, das camadas de assunto (uma id ou lista)."""
+    ids = [subject_ids] if isinstance(subject_ids, str) else [str(value) for value in (subject_ids or [])]
+    try:
+        from qgis.core import QgsCoordinateTransform  # type: ignore
+
+        union = None
+        for layer_id in ids:
+            layer = project().mapLayer(layer_id)
+            if layer is None:
+                notes.append(f"subject_layer_id {layer_id!r} não está no projeto; CART061 ignora essa camada.")
+                continue
+            transform = QgsCoordinateTransform(layer.crs(), map_item.crs(), project())
+            extent = transform.transformBoundingBox(layer.extent())
+            if union is None:
+                union = extent
+            else:
+                union.combineExtentWith(extent)
+        if union is None or union.isEmpty():
+            return None
+        return {"xmin": union.xMinimum(), "ymin": union.yMinimum(), "xmax": union.xMaximum(), "ymax": union.yMaximum()}
+    except Exception as exc:
+        notes.append(f"Extensão do assunto não calculada ({type(exc).__name__}); CART061 sem avaliação.")
+        return None
 
 
 def get_cartographic_rulebook(params: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
