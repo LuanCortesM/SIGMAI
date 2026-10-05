@@ -187,6 +187,16 @@ class LayoutFeitoAMaoNoQgis(unittest.TestCase):
         poly = QgsVectorLayer("Polygon?crs=EPSG:31984&field=id:integer", "Municipios", "memory")
         pts = QgsVectorLayer("Point?crs=EPSG:31984&field=id:integer", "rotulos", "memory")
         pts.setRenderer(QgsNullSymbolRenderer())
+        # Uma feição no quadro: com as camadas vazias o quadro sai em branco, e
+        # desde que CART062 renderiza as camadas (E1, paper/tgis) isso é
+        # acusado — com razão, mas não é o que este layout quer testar.
+        from qgis.core import QgsFeature, QgsGeometry
+
+        feicao = QgsFeature(poly.fields())
+        feicao.setGeometry(QgsGeometry.fromRect(QgsRectangle(100, 100, 900, 900)))
+        feicao.setAttribute("id", 1)
+        poly.dataProvider().addFeatures([feicao])
+        poly.updateExtents()
         project.addMapLayers([poly, pts])
         layout = QgsPrintLayout(project)
         layout.initializeDefaults()

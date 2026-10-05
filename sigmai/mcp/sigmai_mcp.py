@@ -582,6 +582,9 @@ TOOLS: list[dict[str, Any]] = [
                 "'greyscale' se a figura tem de sair em tons de cinza: a cor medida no PNG de output_path vai para "
                 "CART073. Num layout composto pelo SIGMAI, o padrão vem da receita."
             )},
+            "subject_layer_id": {"anyOf": [{"type": "string"}, _SA], "description": (
+                "Camada(s) que o mapa tem de mostrar inteiras (CART061). Num layout composto pelo SIGMAI, vem da receita."
+            )},
         }, ["layout_name"]),
         "annotations": {"title": "Auditar layout", **READ_ONLY},
         "handler": lambda args: bridge_call("audit_map_layout", dict(args)),

@@ -240,7 +240,11 @@ def _check_legend_has_no_phantoms(observation: dict[str, Any]) -> CheckOutcome:
 
 
 def _check_scale_indication(observation: dict[str, Any]) -> CheckOutcome:
-    has_bar = bool(observation.get("scalebar", {}).get("item_id"))
+    # ``observation["scalebar"]`` existe e vale None quando não há barra:
+    # ``.get("scalebar", {})`` devolvia None e a regra quebrava — o motor a
+    # marcava "não avaliada" e um mapa sem escala nenhuma passava em silêncio.
+    # Achado pela injeção de defeitos do experimento E1 (paper/tgis).
+    has_bar = bool((observation.get("scalebar") or {}).get("item_id"))
     has_text = _has_text(observation, "1:", "escala", "scale")
     if has_bar or has_text:
         return _pass(f"Escala indicada (barra={has_bar}, texto={has_text}).")
@@ -964,8 +968,19 @@ def _check_greyscale(observation: dict[str, Any]) -> CheckOutcome:
 
 def _check_map_not_blank(observation: dict[str, Any]) -> CheckOutcome:
     map_info = _map(observation)
+    # Primeiro, as camadas do quadro renderizadas sozinhas: zero pixel opaco é
+    # quadro vazio, por mais que moldura e grade deem tinta ao PNG.
+    layer_ink = map_info.get("layer_ink_fraction")
+    if layer_ink is not None and float(layer_ink) <= 0.0:
+        return _fail(
+            "Nenhuma feição das camadas do quadro é desenhada na extensão do mapa: o quadro sai vazio, "
+            "com moldura e grade. Provável extensão errada, camada sem feições ali ou CRS incompatível.",
+            layer_ink_fraction=layer_ink,
+        )
     ink = map_info.get("rendered_ink_fraction")
     if ink is None:
+        if layer_ink is not None:
+            return _pass(f"As camadas do quadro desenham conteúdo ({float(layer_ink):.1%} da área).")
         return _skip("Sem análise do raster exportado.")
     if float(ink) >= 0.005:
         return _pass(f"O quadro do mapa tem conteúdo renderizado ({float(ink):.1%} de pixels não-fundo).")
