@@ -37,6 +37,16 @@ OFFICIAL_PLUGIN_HOSTS = {"plugins.qgis.org"}
 MAX_SAFE_REPOSITORY_XML_BYTES = 25_000_000
 
 
+def _active_profile_plugins() -> Path | None:
+    """Pasta de plugins do perfil do QGIS em uso — o único lugar onde se instala."""
+    try:
+        from qgis.core import QgsApplication  # type: ignore
+
+        return (Path(QgsApplication.qgisSettingsDirPath()) / "python" / "plugins").resolve()
+    except Exception:
+        return None
+
+
 def _plugin_roots() -> list[Path]:
     roots: list[Path] = []
     try:
@@ -45,10 +55,10 @@ def _plugin_roots() -> list[Path]:
         raw_path = QgsApplication.pluginPath()
         roots.extend(Path(path).resolve() for path in raw_path.split(os.pathsep) if path)
         settings_path = Path(QgsApplication.qgisSettingsDirPath()).resolve()
+        # Só o perfil em uso. Um caminho fixo para o perfil "default" do QGIS 3
+        # vinha por último na lista, e a instalação usava o último: no QGIS 4,
+        # ou em qualquer outro perfil, o plugin ia parar no perfil errado.
         roots.append(settings_path / "python" / "plugins")
-        appdata = os.environ.get("APPDATA")
-        if appdata:
-            roots.append(Path(appdata) / "QGIS" / "QGIS3" / "profiles" / "default" / "python" / "plugins")
     except Exception:
         appdata = os.environ.get("APPDATA")
         if appdata:
@@ -161,7 +171,21 @@ def _require_network_confirmation(params: dict[str, Any]) -> None:
         raise ValidationError("NETWORK_CONFIRMATION_REQUIRED", "QGIS plugin repository access requires confirm_network=true.", {})
 
 
+def _running_qgis_version() -> str:
+    """"4.0", "3.40": a versão do QGIS em execução, como o repositório oficial a pede."""
+    try:
+        from qgis.core import Qgis  # type: ignore
+
+        number = int(Qgis.QGIS_VERSION_INT)
+        return f"{number // 10000}.{(number // 100) % 100}"
+    except Exception:
+        return "3.40"
+
+
 def _safe_repository_url(raw_url: str | None = None, qgis_version: str | None = None) -> str:
+    # O repositório oficial passou a responder 404 a plugins.xml sem ?qgis=:
+    # sem a versão, a busca e a instalação falhavam para qualquer plugin.
+    qgis_version = qgis_version or _running_qgis_version()
     url = raw_url or OFFICIAL_PLUGIN_REPOSITORY_URL
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme != "https":
@@ -252,7 +276,12 @@ def _parse_repository_plugins(xml_bytes: bytes, repository_url: str) -> list[dic
         if element.tag.lower().split("}")[-1] != "pyqgis_plugin":
             continue
         name = _text_of(element, "name") or _text_of(element, "plugin_name")
-        package_name = _text_of(element, "module_name", "package_name", "plugin_id") or re.sub(r"[^A-Za-z0-9_]+", "_", name).strip("_")
+        # O pacote (a pasta do plugin) vem no nome do arquivo: "shapetools.3.5.3.zip".
+        # plugin_id é o número do plugin no site, não o nome do pacote.
+        file_name = _text_of(element, "file_name")
+        package_name = (_text_of(element, "module_name", "package_name")
+                        or (file_name.split(".")[0] if file_name else "")
+                        or re.sub(r"[^A-Za-z0-9_]+", "_", name).strip("_"))
         version = _text_of(element, "version")
         download_url = _text_of(element, "download_url", "file_name", "zip_repository")
         if download_url:
@@ -277,12 +306,21 @@ def _parse_repository_plugins(xml_bytes: bytes, repository_url: str) -> list[dic
     return plugins
 
 
+def _plugin_key(text: str) -> str:
+    """"Shape Tools", "shapetools", "shape_tools" → "shapetools"."""
+    return re.sub(r"[^a-z0-9]", "", str(text).lower())
+
+
 def _select_repository_plugin(plugins: list[dict[str, Any]], plugin_name: str) -> dict[str, Any] | None:
-    wanted = plugin_name.strip().lower()
-    exact = [item for item in plugins if item.get("package_name", "").lower() == wanted or item.get("name", "").lower() == wanted]
+    wanted = _plugin_key(plugin_name)
+    if not wanted:
+        return None
+    exact = [item for item in plugins
+             if _plugin_key(item.get("package_name", "")) == wanted or _plugin_key(item.get("name", "")) == wanted]
     if exact:
         return exact[0]
-    contains = [item for item in plugins if wanted in item.get("name", "").lower() or wanted in item.get("package_name", "").lower()]
+    contains = [item for item in plugins
+                if wanted in _plugin_key(item.get("name", "")) or wanted in _plugin_key(item.get("package_name", ""))]
     return contains[0] if contains else None
 
 
@@ -1036,10 +1074,12 @@ def search_qgis_plugin_repository(params: dict[str, Any], context: dict[str, Any
     xml_bytes = _fetch_url_bytes(repository_url)
     plugins = _parse_repository_plugins(xml_bytes, repository_url)
     if query:
+        key = _plugin_key(query)
         plugins = [
             item
             for item in plugins
-            if any(
+            if (key and (key in _plugin_key(item.get("name", "")) or key in _plugin_key(item.get("package_name", ""))))
+            or any(
                 query in text
                 for text in (
                     item.get("name", "").lower(),
@@ -1411,7 +1451,8 @@ def _install_or_update_from_folder(params: dict[str, Any], context: dict[str, An
             "Nenhuma pasta de plugins do QGIS foi encontrada neste perfil.",
             {"plugin_name": plugin_name},
         )
-    destination_root = roots[-1]
+    active = _active_profile_plugins()
+    destination_root = active if active in roots else roots[-1]
     destination = destination_root / plugin_name
     try:
         resolved_destination = destination.resolve()

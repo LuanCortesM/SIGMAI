@@ -112,6 +112,25 @@ CATEGORY_KEYS: dict[str, str] = {
     "GPS": "category_gps",
 }
 
+#: Parâmetros de caminho que a ação LÊ. A regra das pastas autorizadas vale
+#: para o que se grava: carregar um shapefile da pasta de dados do usuário não
+#: grava nada nela, e tratá-lo como saída impedia carregar qualquer dado de
+#: fora da pasta de saída.
+INPUT_PATH_PARAMS: dict[str, frozenset[str]] = {
+    action: frozenset(keys) for action, keys in {
+        "load_vector_layer": {"path"}, "load_raster_layer": {"path"}, "load_gpx": {"path"}, "gpx_to_layer": {"path"},
+        "list_gpx_layers": {"path"}, "summarize_gpx_track": {"path"}, "gpx_track_extent": {"path"},
+        "gpx_track_length": {"path"}, "map_gpx_track": {"path"}, "inspect_data_source": {"path"},
+        "repair_data_source_path": {"new_path"}, "load_qml_style": {"path"}, "add_layout_picture": {"path"},
+        "run_workflow_template": {"path"}, "recompose_from_recipe": {"recipe_path"},
+        "remove_layers_by_source_path": {"source_path"}, "inspect_qgis_plugin_zip": {"zip_path"},
+        "install_plugin_from_zip": {"zip_path"}, "install_plugin_from_folder": {"source_folder"},
+        "update_plugin_from_folder": {"source_folder"},
+    }.items()
+}
+#: Lidos em qualquer ação: o logotipo vem de onde o usuário o guarda.
+ALWAYS_INPUT_PARAMS = frozenset({"logo_path"})
+
 DEFAULT_LIMITS: dict[str, int] = {
     "writes_per_session": 200,
     "exports_per_session": 60,
@@ -145,6 +164,7 @@ class ConsentRequest:
     def output_paths(self) -> list[str]:
         """Caminhos que a ação pretende escrever, para mostrar ao usuário."""
         found: list[str] = []
+        inputs = INPUT_PATH_PARAMS.get(self.action, frozenset()) | ALWAYS_INPUT_PARAMS
 
         def walk(value: Any, key: str = "") -> None:
             if isinstance(value, dict):
@@ -155,6 +175,8 @@ class ConsentRequest:
                     walk(nested, key)
             elif isinstance(value, str) and value:
                 lowered = key.lower()
+                if lowered in inputs:
+                    return
                 if lowered.startswith("output") or lowered.endswith("_path") or lowered in {"path", "destination"}:
                     found.append(value)
 

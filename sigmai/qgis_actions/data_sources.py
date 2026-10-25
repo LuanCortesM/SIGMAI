@@ -12,7 +12,7 @@ from ..security import normalize_output_path
 from ..validators import ValidationError, require_param
 from .cartography_engine import compose_map
 from .common import crs_authid, extent_to_dict, layer_type_name, project
-from .load_layers import handle as load_vector_layer
+from .load_layers import ALLOWED_VECTOR_EXTENSIONS, handle as load_vector_layer
 from .project_overview import redact_layer_source, redact_source
 
 MAX_SAFE_GPX_XML_BYTES = 25_000_000
@@ -47,7 +47,7 @@ def inspect_data_source(params: dict[str, Any], context: dict[str, Any]):
         "is_file": path.is_file(),
         "suffix": path.suffix.lower(),
         "size": path.stat().st_size if path.is_file() else None,
-        "supported_as_vector": path.suffix.lower() in {".shp", ".gpkg", ".geojson", ".json", ".kml", ".gpx"},
+        "supported_as_vector": path.suffix.lower() in ALLOWED_VECTOR_EXTENSIONS,
         "supported_as_raster": path.suffix.lower() in {".tif", ".tiff", ".vrt", ".asc", ".img", ".jp2"},
     }
 
@@ -322,6 +322,22 @@ def _finish_network_layer(layer: Any, name: str, service_type: str, url: str,
     return payload
 
 
+def provider_uri(pairs: list[tuple[str, str]]) -> str:
+    """URI de provedor (wms/xyz/arcgis) montada pelo próprio QGIS, com ``QgsDataSourceUri``.
+
+    Codificar o endereço à mão (``quote(url, safe="")``, ":" e "/" incluídos)
+    funcionava no QGIS 4 e deixava o mapa de base em branco no 3.40: o
+    provedor dele não decodificava o endereço e pedia tiles a um endereço
+    inexistente, sem erro nenhum.
+    """
+    from qgis.core import QgsDataSourceUri  # type: ignore
+
+    uri = QgsDataSourceUri()
+    for key, value in pairs:
+        uri.setParam(key, value)
+    return bytes(uri.encodedUri()).decode()
+
+
 def load_xyz_tile_layer(params: dict[str, Any], context: dict[str, Any]):
     """Mapa de base de tiles XYZ — o elemento que dá contexto visual ao mapa.
 
@@ -357,7 +373,7 @@ def load_xyz_tile_layer(params: dict[str, Any], context: dict[str, Any]):
         return {"dry_run": True, "service_type": "XYZ", "url": redact_source(url), "name": name,
                 "attribution": attribution, "network_request_made": False}
 
-    uri = f"type=xyz&url={quote(url, safe='')}&zmin={zoom_min}&zmax={zoom_max}"
+    uri = provider_uri([("type", "xyz"), ("url", url), ("zmin", str(zoom_min)), ("zmax", str(zoom_max))])
     layer = QgsRasterLayer(uri, name, "wms")
     return _finish_network_layer(layer, name, "XYZ", url, attribution,
                                  {"zoom_min": zoom_min, "zoom_max": zoom_max})
@@ -389,13 +405,8 @@ def load_wms_layer(params: dict[str, Any], context: dict[str, Any]):
         return {"dry_run": True, "service_type": "WMS", "url": redact_source(url), "layers": camadas,
                 "name": name, "attribution": attribution, "network_request_made": False}
 
-    uri = "&".join([
-        f"crs={quote(crs, safe='')}",
-        f"format={quote(image_format, safe='')}",
-        "layers=" + "&layers=".join(quote(item, safe="") for item in camadas),
-        "styles=",
-        f"url={quote(url, safe='')}",
-    ])
+    uri = provider_uri([("crs", crs), ("format", image_format)] + [("layers", item) for item in camadas]
+                       + [("styles", ""), ("url", url)])
     layer = QgsRasterLayer(uri, name, "wms")
     return _finish_network_layer(layer, name, "WMS", url, attribution, {"layers": camadas, "crs_requested": crs})
 
@@ -446,7 +457,7 @@ def load_arcgis_rest_layer(params: dict[str, Any], context: dict[str, Any]):
         return {"dry_run": True, "service_type": "ArcGIS REST", "url": redact_source(url), "name": name,
                 "attribution": attribution, "network_request_made": False}
 
-    uri = f"crs={quote(crs, safe='')}&format=png&layer=0&url={quote(url, safe='')}"
+    uri = provider_uri([("crs", crs), ("format", "png"), ("layer", "0"), ("url", url)])
     layer = QgsRasterLayer(uri, name, "arcgismapserver")
     return _finish_network_layer(layer, name, "ArcGIS REST", url, attribution, {"crs_requested": crs})
 
