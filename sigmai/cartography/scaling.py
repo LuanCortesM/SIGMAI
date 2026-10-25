@@ -19,14 +19,16 @@ from typing import Any, Iterable
 
 #: Série de escalas usada em cartografia técnica e acadêmica. Combina os
 #: valores da série 1/2/2,5/5 × 10ⁿ com as escalas de mapeamento sistemático
-#: mais comuns (1:15.000, 1:75.000, 1:150.000...).
+#: mais comuns (1:15.000, 1:75.000, 1:150.000...) e degraus de 3 e 4 nos
+#: saltos de 2,5 para 5: sem eles um recorte que pedia 1:385.000 ia para
+#: 1:500.000 com 21 % de folha em branco de cada lado.
 SCALE_LADDER: tuple[int, ...] = (
     100, 200, 250, 500,
-    1_000, 1_500, 2_000, 2_500, 5_000, 7_500,
-    10_000, 15_000, 20_000, 25_000, 50_000, 75_000,
-    100_000, 150_000, 200_000, 250_000, 500_000, 750_000,
-    1_000_000, 1_500_000, 2_000_000, 2_500_000, 5_000_000,
-    10_000_000, 25_000_000, 50_000_000, 100_000_000,
+    1_000, 1_500, 2_000, 2_500, 3_000, 4_000, 5_000, 7_500,
+    10_000, 15_000, 20_000, 25_000, 30_000, 40_000, 50_000, 75_000,
+    100_000, 150_000, 200_000, 250_000, 300_000, 400_000, 500_000, 750_000,
+    1_000_000, 1_500_000, 2_000_000, 2_500_000, 3_000_000, 4_000_000, 5_000_000, 7_500_000,
+    10_000_000, 15_000_000, 20_000_000, 25_000_000, 50_000_000, 100_000_000,
 )
 
 #: Fração do quadro do mapa que uma barra de escala deve ocupar. Abaixo de
@@ -328,22 +330,46 @@ def scalebar_label_text(value: float) -> str:
     return f"{value:,.2f}".rstrip("0").rstrip(".")
 
 
+def scalebar_labels(units_per_segment: float, segments_right: int, segments_left: int) -> list[str]:
+    """Os números da barra, da esquerda para a direita: "0,5  0  0,5  1  1,5"."""
+    step = float(units_per_segment)
+    left = [scalebar_label_text(step * k) for k in range(int(segments_left), 0, -1)]
+    right = [scalebar_label_text(step * k) for k in range(1, int(segments_right) + 1)]
+    return left + ["0"] + right
+
+
+def scalebar_label_space(
+    units_per_segment: float, segments_right: int, segments_left: int, bar_width_mm: float, font_pt: float,
+) -> tuple[float, float, tuple[str, str]]:
+    """Largura do segmento, espaço que o par de rótulos vizinhos mais largo pede, e esse par.
+
+    Os rótulos ficam centrados nas divisões: dois vizinhos se tocam quando a
+    soma das suas meias larguras passa do segmento. O par mais largo nem
+    sempre é o da ponta direita — com segmentos fracionários "0,25" e "0,75"
+    são mais largos que "1".
+    """
+    labels = scalebar_labels(units_per_segment, segments_right, segments_left)
+    em_mm = float(font_pt) * _MM_PER_POINT * SCALEBAR_DIGIT_EM
+    needed, pair = 0.0, (labels[0], labels[0])
+    for a, b in zip(labels, labels[1:]):
+        space = (len(a) + len(b)) / 2.0 * em_mm * SCALEBAR_LABEL_CLEARANCE
+        if space > needed:
+            needed, pair = space, (a, b)
+    drawn = int(segments_right) + int(segments_left)
+    segment_mm = float(bar_width_mm) / drawn if drawn > 0 else 0.0
+    return segment_mm, needed, pair
+
+
 def scalebar_labels_fit(
     units_per_segment: float, segments_right: int, segments_left: int, bar_width_mm: float, font_pt: float,
 ) -> bool:
-    """Os rótulos da barra cabem nos segmentos sem encostar uns nos outros?
-
-    Os rótulos ficam centrados nas divisões; dois vizinhos colidem quando a
-    largura do maior passa da largura do segmento. Mede-se o maior número
-    escrito (o da extremidade direita) com a largura média de algarismo.
-    """
+    """Os rótulos da barra cabem nos segmentos sem encostar uns nos outros?"""
     drawn = int(segments_right) + int(segments_left)
     if drawn <= 0 or bar_width_mm <= 0 or font_pt <= 0 or units_per_segment <= 0:
         return True
-    segment_mm = float(bar_width_mm) / drawn
-    widest = scalebar_label_text(float(units_per_segment) * int(segments_right))
-    label_mm = len(widest) * float(font_pt) * _MM_PER_POINT * SCALEBAR_DIGIT_EM
-    return segment_mm >= label_mm * SCALEBAR_LABEL_CLEARANCE
+    segment_mm, needed, _pair = scalebar_label_space(
+        units_per_segment, segments_right, segments_left, bar_width_mm, font_pt)
+    return segment_mm >= needed
 
 @dataclass(frozen=True)
 class ScaleBarSpec:
@@ -460,13 +486,33 @@ def scalebar_spec(
     if max_width_mm is not None:
         ceiling = ((float(max_width_mm) / _MM_PER_METRE) * scale_denominator) / factor
     per_segment = nice_number(max(min(target_in_unit, ceiling) / 2.0, 1e-12), "down")
+    segments = 2
     total_ground = per_segment * 2 * factor
     bar_mm = (total_ground / scale_denominator) * _MM_PER_METRE
+    if label_font_pt and not scalebar_labels_fit(per_segment, 2, 0, bar_mm, label_font_pt):
+        # Sem espaço para três números, um segmento só: "0 —— 500 m". Se nem
+        # assim os dois números cabem, alonga-se o segmento por valores
+        # redondos até caberem, sem passar do teto da barra.
+        per_segment, segments = per_segment * 2, 1
+        ceiling_mm = SCALEBAR_MAX_FRACTION * frame_width_mm
+        if max_width_mm is not None:
+            ceiling_mm = min(ceiling_mm, float(max_width_mm))
+        candidate = per_segment
+        for _ in range(12):
+            candidate_mm = (candidate * factor / scale_denominator) * _MM_PER_METRE
+            if candidate_mm > ceiling_mm:
+                break
+            if scalebar_labels_fit(candidate, 1, 0, candidate_mm, label_font_pt):
+                per_segment = candidate
+                break
+            candidate = nice_number(candidate * 1.0001, "up")  # o próximo valor redondo: 200 → 250 → 500
+        total_ground = per_segment * factor
+        bar_mm = (total_ground / scale_denominator) * _MM_PER_METRE
     return ScaleBarSpec(
         unit=unit,
         unit_label=label,
         units_per_segment=per_segment,
-        segments_right=2,
+        segments_right=segments,
         segments_left=0,
         total_ground_metres=total_ground,
         bar_width_mm=bar_mm,
