@@ -62,6 +62,11 @@ OVERLAY_MAX_SURROUNDINGS_INK = 0.03
 FRAME_BAND_EMPTY_MAX = 0.05
 #: Sem camada de polígonos a mesma faixa é julgada pela tinta do raster.
 FRAME_BAND_EMPTY_INK = 0.02
+#: Na tinta só dos dados (cada camada desenhada sem grade nem rótulos),
+#: qualquer presença real conta: uma trilha atravessando a faixa norte é o
+#: assunto do mapa, e a 2 % — limiar da imagem exportada, que soma grade e
+#: rótulos — ela contava como papel em branco.
+FRAME_BAND_EMPTY_DATA_INK = 0.0005
 #: Folga, em mm, entre o que a legenda precisa e a caixa que tem (CART072).
 LEGEND_OVERFLOW_TOLERANCE_MM = 0.5
 #: CART073: croma mínimo (maior canal menos o menor, 0–255) para um pixel
@@ -75,6 +80,15 @@ LEGEND_OVERFLOW_TOLERANCE_MM = 0.5
 #: de cima, com no máximo uma lasca de contorno escapando na borda (a lasca de
 #: um traço de 1 mm em volta de dois polígonos cobertos deu 7 % no teste).
 COVERED_VISIBLE_MAX = 0.10
+#: ... a não ser que o pouco que fica à vista ocupe ao menos 1 % do quadro: um
+#: oceano coberto pelo continente em 92 % continua sendo o mar do mapa.
+COVERED_VISIBLE_SHARE = 0.01
+#: CART075: o assunto do mapa precisa ter à vista pelo menos metade do que
+#: desenha. Um preenchimento de contexto com 85 % de opacidade por cima de
+#: um modelo de elevação deixa 15 % — o relevo some e o mapa perde o assunto.
+#: Camadas em modo de mistura diferente do normal (sombreamento em
+#: "multiplicar") não contam como cobertura.
+SUBJECT_VISIBLE_MIN = 0.5
 GREYSCALE_CHROMA_MIN = 20
 GREYSCALE_MAX_CHROMATIC_FRACTION = 0.005
 
@@ -238,22 +252,48 @@ def _check_legend_has_no_phantoms(observation: dict[str, Any]) -> CheckOutcome:
     extra = [name for name in listed if name not in visible]
     # Ligada ao quadro mas sem nenhum pixel no mapa: coberta pelas de cima.
     # Só num quadro único — numa folha de painéis ela pode aparecer no outro.
-    covered = []
+    covered: list[str] = []
+    empty: list[str] = []
     if len(observation.get("map_frames") or []) <= 1:
         hidden = {str(name) for name in (_map(observation).get("hidden_layer_names") or [])}
+        nothing = {str(name) for name in (_map(observation).get("empty_layer_names") or [])}
         covered = [name for name in listed if name in hidden and name not in extra]
-    if not extra and not covered:
+        empty = [name for name in listed if name in nothing and name not in extra]
+    if not extra and not covered and not empty:
         return _pass("A legenda não lista camadas ausentes do mapa.")
     partes = []
     if extra:
         partes.append("A legenda lista " + ", ".join(repr(name) for name in extra) + ", que não aparece(m) no mapa.")
+    if empty:
+        partes.append(
+            "A legenda lista " + ", ".join(repr(name) for name in empty) + ", ligada(s) ao quadro mas sem nenhuma "
+            "feição na extensão do mapa. Tire-a(s) da legenda ou amplie a extensão."
+        )
     if covered:
         partes.append(
-            "A legenda lista " + ", ".join(repr(name) for name in covered) + ", ligada(s) ao quadro mas inteiramente "
+            "A legenda lista " + ", ".join(repr(name) for name in covered) + ", ligada(s) ao quadro mas "
             "coberta(s) pelas camadas desenhadas por cima: o QGIS desenha a primeira camada da lista por cima. "
             "Reordene as camadas ou desenhe a que cobre como contorno, sem preenchimento."
         )
-    return _fail(" ".join(partes), phantom_layers=extra, covered_layers=covered)
+    return _fail(" ".join(partes), phantom_layers=extra, covered_layers=covered, empty_layers=empty)
+
+
+def _check_subject_visible(observation: dict[str, Any]) -> CheckOutcome:
+    """CART075 — o assunto do mapa não está escondido sob outras camadas."""
+    map_info = _map(observation)
+    if not map_info.get("subject_layer_ids"):
+        return _skip("Assunto do mapa não informado (subject_layer_id).")
+    visible = map_info.get("subject_visible_fraction")
+    if visible is None:
+        return _skip("Não foi possível medir a visibilidade do assunto.")
+    if float(visible) >= SUBJECT_VISIBLE_MIN:
+        return _pass(f"O assunto do mapa está à vista ({float(visible):.0%} do que ele desenha).")
+    return _fail(
+        f"Só {float(visible):.0%} do que o assunto do mapa desenha fica à vista: camadas desenhadas por cima "
+        "o cobrem. Desenhe o contexto por cima como contorno, sem preenchimento, ou com transparência alta, ou "
+        "ponha o assunto acima do contexto.",
+        subject_visible_fraction=visible,
+    )
 
 
 def _check_scale_indication(observation: dict[str, Any]) -> CheckOutcome:
@@ -313,7 +353,7 @@ def _check_scalebar_proportion(observation: dict[str, Any]) -> CheckOutcome:
 
 def _check_scalebar_labels(observation: dict[str, Any]) -> CheckOutcome:
     """CART074 — os números da barra de escala não encostam uns nos outros."""
-    from .scaling import SCALEBAR_DIGIT_EM, SCALEBAR_LABEL_CLEARANCE, scalebar_label_text, scalebar_labels_fit
+    from .scaling import scalebar_label_space
 
     bar = observation.get("scalebar") or {}
     if not bar.get("item_id"):
@@ -323,15 +363,14 @@ def _check_scalebar_labels(observation: dict[str, Any]) -> CheckOutcome:
     right, left = int(bar.get("segments") or 0), int(bar.get("segments_left") or 0)
     if not font_pt or not bar_mm or per_segment <= 0 or right <= 0:
         return _skip("Não foi possível medir os rótulos da barra.")
-    if scalebar_labels_fit(per_segment, right, left, float(bar_mm), float(font_pt)):
+    segment_mm, needed_mm, pair = scalebar_label_space(per_segment, right, left, float(bar_mm), float(font_pt))
+    if segment_mm >= needed_mm:
         return _pass(f"Os {right + left + 1} rótulos da barra cabem nos segmentos.")
-    segment_mm = float(bar_mm) / (right + left)
-    widest = scalebar_label_text(per_segment * right)
     return _fail(
-        f"Os números da barra se sobrepõem: cada segmento tem {segment_mm:.1f} mm e o rótulo {widest!r} "
-        f"em {float(font_pt):g} pt precisa de cerca de {len(widest) * float(font_pt) * 0.3528 * SCALEBAR_DIGIT_EM * SCALEBAR_LABEL_CLEARANCE:.1f} mm. "
+        f"Os números da barra se sobrepõem: cada segmento tem {segment_mm:.1f} mm e os rótulos vizinhos "
+        f"{pair[0]!r} e {pair[1]!r} em {float(font_pt):g} pt precisam de cerca de {needed_mm:.1f} mm. "
         "Use menos segmentos (2 ou 3, sem o segmento à esquerda do zero) ou segmentos mais longos.",
-        segment_mm=round(segment_mm, 2), widest_label=widest,
+        segment_mm=round(segment_mm, 2), needed_mm=round(needed_mm, 2), tightest_pair=list(pair),
     )
 
 
@@ -863,12 +902,22 @@ def _empty_bands(cells: list[list[float]], threshold: float) -> list[str]:
 
 
 def _check_frame_coverage(observation: dict[str, Any]) -> CheckOutcome:
-    """CART069 — nenhuma faixa inteira do quadro é papel em branco."""
+    """CART069 — nenhuma faixa inteira do quadro é papel em branco.
+
+    Uma faixa é vazia quando nem dado de área (polígono ou raster) nem tinta
+    de dado (linhas e pontos, sem grade nem rótulos) a ocupam: um mapa de
+    hidrografia é feito de linhas, e medi-lo só pela área dos polígonos
+    acusava de vazio o quadro inteiro.
+    """
     map_info = _map(observation)
     coverage = map_info.get("polygon_coverage")
+    data_grid = map_info.get("data_ink_grid")
     if isinstance(coverage, dict) and coverage.get("cells"):
         fraction = float(coverage.get("fraction") or 0.0)
         bands = _empty_bands(coverage["cells"], FRAME_BAND_EMPTY_MAX)
+        if bands and data_grid:
+            inkless = set(_empty_bands(data_grid, FRAME_BAND_EMPTY_DATA_INK))
+            bands = [band for band in bands if band in inkless]
         if not bands:
             return _pass(f"Dados de área cobrem {fraction:.0%} do quadro, sem faixa vazia.", coverage=coverage)
         return _fail(
@@ -878,10 +927,10 @@ def _check_frame_coverage(observation: dict[str, Any]) -> CheckOutcome:
             "gire a página (orientation).",
             coverage=coverage, empty_bands=bands,
         )
-    grid = map_info.get("rendered_ink_grid")
+    grid = data_grid or map_info.get("rendered_ink_grid")
     if not grid:
         return _skip("Sem camada de polígonos e sem raster para medir a ocupação do quadro.")
-    bands = _empty_bands(grid, FRAME_BAND_EMPTY_INK)
+    bands = _empty_bands(grid, FRAME_BAND_EMPTY_DATA_INK if data_grid else FRAME_BAND_EMPTY_INK)
     if not bands:
         return _pass("Nenhuma faixa do quadro está vazia no raster exportado.", ink_grid=grid)
     return _fail(
@@ -1000,9 +1049,10 @@ def _check_greyscale(observation: dict[str, Any]) -> CheckOutcome:
         )
     return _fail(
         f"A figura foi pedida em tons de cinza, mas {fraction:.1%} da tinta tem cor: impressa em cinza, "
-        "duas cores de mesma luminosidade viram o mesmo tom. Componha com colour_mode='greyscale' (troca a "
-        "paleta, o contorno do inserto e a grade) e apply_style='all' se houver camadas com cor de uma "
-        "composição anterior; raster em pseudocor precisa de simbologia de banda única em cinza.",
+        "duas cores de mesma luminosidade viram o mesmo tom. Componha com colour_mode='greyscale': o "
+        "compositor troca a paleta, o contorno do inserto e a grade, e converte para cinza as classificações "
+        "e os rasters já estilizados mantendo as classes. Não use apply_style='all' numa camada classificada: "
+        "ele troca as classes por um cinza único.",
         chromatic_fraction=fraction,
     )
 
@@ -1085,8 +1135,17 @@ RULES: tuple[Rule, ...] = (
          "camada fora do quadro, seja ligada a ele mas inteiramente coberta por uma camada opaca desenhada por cima.",
          "Ative filter_to_map_layers ou remova as camadas extras de legend_layers; se a camada está coberta, "
          "reordene as camadas (o QGIS desenha a primeira da lista por cima) ou desenhe a que cobre como contorno.",
-         "Slocum et al. (2009) — legend design; camada coberta quando menos de 10 % do que ela desenha sozinha fica visível: decisão de projeto do SIGMAI; verificação: QGIS Documentation — Legend: filter by map content",
+         "Slocum et al. (2009) — legend design; camada coberta quando menos de 10 % do que ela desenha sozinha fica visível e o que fica ocupa menos de 1 % do quadro: decisão de projeto do SIGMAI; verificação: QGIS Documentation — Legend: filter by map content",
          _check_legend_has_no_phantoms),
+    Rule("CART075", "simbologia", SEVERITY_ERROR,
+         "O assunto do mapa está à vista", "The map subject is visible",
+         "O assunto é a razão do mapa. Coberto por preenchimentos de contexto desenhados por cima — "
+         "municípios opacos sobre um modelo de elevação, por exemplo — ele continua na legenda e na "
+         "lista de camadas, mas o leitor não o vê.",
+         "Desenhe o contexto que fica por cima como contorno (sem preenchimento) ou com transparência alta; "
+         "o compositor do SIGMAI já faz isso quando o assunto é um raster.",
+         "Brewer (2016) — figure-ground and visual hierarchy; Slocum et al. (2009) — visual hierarchy; ao menos metade do que o assunto desenha à vista: decisão de projeto do SIGMAI",
+         _check_subject_visible),
     Rule("CART003", "escala", SEVERITY_ERROR,
          "Escala indicada", "Scale indicated",
          "Sem escala não é possível medir nada; a peça deixa de ser mapa e vira ilustração.",
@@ -1240,8 +1299,8 @@ RULES: tuple[Rule, ...] = (
          "Periódicos imprimem em tons de cinza e cobram a cor impressa; uma figura pedida em cinza que "
          "sai com cor perde, no papel, a distinção entre cores de mesma luminosidade — e quem pediu "
          "cinza não vê o problema na tela.",
-         "Componha com colour_mode='greyscale' (e apply_style='all' para camadas com cor de composição "
-         "anterior); restilize raster em pseudocor como banda única em cinza.",
+         "Componha com colour_mode='greyscale': a paleta, o inserto e a grade saem em cinza, e as "
+         "classificações e rasters já estilizados são convertidos para cinza mantendo as classes.",
          "Transactions in GIS, Author Guidelines (gráficos de linha preferencialmente em preto e branco; cor impressa cobrada por figura); croma ≥ 20 em mais de 0,5 % da tinta: decisão de projeto do SIGMAI",
          _check_greyscale),
     Rule("CART071", "tipografia", SEVERITY_WARNING,
@@ -1408,12 +1467,18 @@ def rulebook_manifest() -> dict[str, Any]:
             "scalebar_frame_fraction": [SCALEBAR_MIN_FRACTION, SCALEBAR_MAX_FRACTION],
             "map_dominance_min": MAP_DOMINANCE_MIN,
             "frame_band_empty_max": FRAME_BAND_EMPTY_MAX,
+            "frame_band_empty_data_ink": FRAME_BAND_EMPTY_DATA_INK,
             "overlay_max_surroundings_ink": OVERLAY_MAX_SURROUNDINGS_INK,
             "colour_vision_delta_e_min": _colour_vision_threshold(),
             "legend_overflow_tolerance_mm": LEGEND_OVERFLOW_TOLERANCE_MM,
             "inset_min_coverage": INSET_MIN_COVERAGE,
             "greyscale_chroma_min": GREYSCALE_CHROMA_MIN,
             "greyscale_max_chromatic_fraction": GREYSCALE_MAX_CHROMATIC_FRACTION,
+            "covered_visible_max": COVERED_VISIBLE_MAX,
+            "covered_visible_share": COVERED_VISIBLE_SHARE,
+            "subject_visible_min": SUBJECT_VISIBLE_MIN,
+            "scalebar_digit_em": _scalebar_constant("SCALEBAR_DIGIT_EM"),
+            "scalebar_label_clearance": _scalebar_constant("SCALEBAR_LABEL_CLEARANCE"),
         },
         # Os limiares são parâmetros declarados, não medidos com leitores;
         # docs/experiments/2026-09-19_sensibilidade_limiares/ mostra em que
@@ -1421,6 +1486,12 @@ def rulebook_manifest() -> dict[str, Any]:
         "thresholds_provenance": "declared design parameters; sensitivity analysis in docs/experiments/2026-09-19_sensibilidade_limiares/",
         "categories": by_category,
     }
+
+
+def _scalebar_constant(name: str) -> float:
+    from . import scaling
+
+    return float(getattr(scaling, name))
 
 
 def _colour_vision_threshold() -> float:

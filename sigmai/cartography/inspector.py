@@ -85,6 +85,7 @@ def observe_layout(
     ink_grid: list[list[float]] | None = None,
     label_results: dict[str, dict[str, Any]] | None = None,
     print_width_mm: float | None = None,
+    subject_layer_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Descreve um ``QgsPrintLayout`` como dicionário puro.
 
@@ -172,7 +173,7 @@ def observe_layout(
     ids = {id(item): entry["id"] for item, entry in pairs}
 
     if map_item is not None:
-        observation["map"] = _observe_map(map_item, data_extent, ink_fraction)
+        observation["map"] = _observe_map(map_item, data_extent, ink_fraction, subject_layer_ids)
         observation["map"]["item_id"] = ids.get(id(map_item), observation["map"]["item_id"])
         observation["map"]["rendered_ink_grid"] = ink_grid
         if label_results and observation["map"]["item_id"] in label_results:
@@ -389,10 +390,21 @@ def _existing_grid(map_item: Any) -> Any:
         return None
 
 
-def _observe_map(map_item: Any, data_extent: dict[str, float] | None, ink_fraction: float | None) -> dict[str, Any]:
+def _observe_map(
+    map_item: Any, data_extent: dict[str, float] | None, ink_fraction: float | None,
+    subject_layer_ids: list[str] | None = None,
+) -> dict[str, Any]:
     crs = _safe(map_item.crs)
     layers = _safe(map_item.layers, []) or []
     grid = _existing_grid(map_item)
+    stack = measure_layer_stack(map_item, layers)
+    layer_ink = stack["ink_fraction"] if stack is not None else measure_layer_ink(map_item, layers)
+    # O assunto do mapa tem de estar à vista (CART075). Mede-se a menos
+    # visível das camadas de assunto que o quadro desenha.
+    subject_visible = None
+    if stack is not None and subject_layer_ids:
+        measured = [stack["visible_by_id"][layer_id] for layer_id in subject_layer_ids if layer_id in stack["visible_by_id"]]
+        subject_visible = min(measured) if measured else None
 
     info: dict[str, Any] = {
         "item_id": _safe(map_item.id, "") or "",
@@ -407,10 +419,13 @@ def _observe_map(map_item: Any, data_extent: dict[str, float] | None, ink_fracti
         "label_only_layer_names": _label_only_layer_names(layers),
         "data_extent": data_extent,
         "rendered_ink_fraction": ink_fraction,
-        "layer_ink_fraction": measure_layer_ink(map_item, layers),
-        **_visibility_entries(map_item, layers),
+        "layer_ink_fraction": layer_ink,
+        **_visibility_entries(stack),
+        "subject_layer_ids": list(subject_layer_ids or []),
+        "subject_visible_fraction": subject_visible,
         "layer_colours": _layer_colours(layers),
         "polygon_coverage": _polygon_coverage(map_item, layers),
+        "data_ink_grid": stack.get("ink_grid") if stack is not None else None,
     }
 
     if grid is not None:
@@ -509,21 +524,56 @@ def _observe_legend(legend_item: Any) -> dict[str, Any]:
 
 
 def _label_only_layer_names(layers: Any) -> list[str]:
-    """Camadas que não desenham símbolo nenhum (``QgsNullSymbolRenderer``).
+    """Camadas de apoio sem nada a explicar na legenda.
 
-    São camadas de apoio usadas só para posicionar rótulos — nome de estado,
-    nome da UC fora do polígono. Não há o que explicar na legenda: exigir uma
+    As que não desenham símbolo nenhum (``QgsNullSymbolRenderer``), usadas
+    só para posicionar rótulos — nome de estado, nome da UC fora do
+    polígono —, o relevo sombreado, que é efeito visual sobre outra camada
+    e não tem classes nem rampa, e o mapa de base (XYZ, WMS). Exigir uma
     entrada para elas acusava de incompleta uma legenda correta.
     """
     names: list[str] = []
     for layer in layers or []:
         try:
             renderer = layer.renderer()
-            if renderer is not None and str(renderer.type()) == "nullSymbol":
+            if renderer is not None and str(renderer.type()) in ("nullSymbol", "hillshade"):
                 names.append(str(layer.name()))
+            elif not hasattr(layer, "geometryType") and layer.providerType() in ("wms", "arcgismapserver"):
+                names.append(str(layer.name()))  # mapa de base: fundo, creditado na linha de fonte
         except Exception:
             continue
     return names
+
+
+def _symbol_appearance(symbol: Any, family: str) -> tuple[str, str]:
+    """Família e cor que o leitor de fato vê num símbolo.
+
+    Polígono sem preenchimento é um traço: compete com as linhas, pela cor do
+    contorno — o contorno destacado do estado entrava como "preenchimento
+    branco" e reprovava CART070 contra o azul quase branco do contexto.
+    Hachuras de padrões diferentes se distinguem pelo padrão, não pela cor:
+    cada padrão é uma família à parte.
+    """
+    colour = symbol.color().name()
+    if family != "polygon":
+        return family, colour
+    try:
+        from qgis.PyQt.QtCore import Qt  # type: ignore
+
+        from .qtcompat import qt_enum
+
+        first = symbol.symbolLayer(0)
+        brush = first.brushStyle() if hasattr(first, "brushStyle") else None
+        if brush is None:
+            return family, colour
+        if brush == qt_enum(Qt, "BrushStyle", "NoBrush"):
+            stroke = first.strokeColor() if hasattr(first, "strokeColor") else symbol.color()
+            return "line", stroke.name()
+        if brush != qt_enum(Qt, "BrushStyle", "SolidPattern"):
+            return f"polygon/{getattr(brush, 'name', int(brush) if isinstance(brush, int) else str(brush))}", colour
+    except Exception:
+        pass
+    return family, colour
 
 
 def _layer_colours(layers: Any) -> list[dict[str, Any]]:
@@ -532,7 +582,8 @@ def _layer_colours(layers: Any) -> list[dict[str, Any]]:
     Alimenta CART070 (daltonismo). Símbolo único: a cor do símbolo;
     categorizado/graduado: a cor de cada classe, com o rótulo da classe.
     ``family`` separa preenchimentos de polígono, traços de linha e pontos:
-    só cores da mesma família competem entre si na leitura.
+    só cores da mesma família competem entre si na leitura. Cada classe
+    leva a sua família, porque contorno e hachura mudam a família.
     """
     out: list[dict[str, Any]] = []
     for layer in layers or []:
@@ -542,26 +593,30 @@ def _layer_colours(layers: Any) -> list[dict[str, Any]]:
                 continue
             geometry = int(layer.geometryType())
             family = {0: "point", 1: "line", 2: "polygon"}.get(geometry, "other")
-            classes: list[dict[str, str]] = []
+            symbols: list[tuple[str, Any]] = []
             rtype = str(renderer.type())
+            # categories()/ranges() devolvem CÓPIAS, donas dos seus símbolos:
+            # a lista tem de viver enquanto os símbolos forem lidos. Numa
+            # compreensão sobre a chamada direta ela morria antes, e ler a cor
+            # de um símbolo já liberado derrubava o QGIS.
+            items: list[Any] = []
             if rtype == "singleSymbol":
-                symbol = renderer.symbol()
-                if symbol is not None:
-                    classes.append({"label": str(layer.name()), "colour": symbol.color().name()})
+                if renderer.symbol() is not None:
+                    symbols.append((str(layer.name()), renderer.symbol()))
             elif rtype == "categorizedSymbol":
-                for category in renderer.categories():
-                    symbol = category.symbol()
-                    if symbol is not None and category.renderState():
-                        classes.append({"label": str(category.label()), "colour": symbol.color().name()})
+                items = list(renderer.categories())
+                symbols = [(str(c.label()), c.symbol()) for c in items if c.symbol() is not None and c.renderState()]
             elif rtype == "graduatedSymbol":
-                for rng in renderer.ranges():
-                    symbol = rng.symbol()
-                    if symbol is not None and rng.renderState():
-                        classes.append({"label": str(rng.label()), "colour": symbol.color().name()})
+                items = list(renderer.ranges())
+                symbols = [(str(r.label()), r.symbol()) for r in items if r.symbol() is not None and r.renderState()]
             else:
                 continue
-            if classes:
-                out.append({"layer": str(layer.name()), "family": family, "classes": classes})
+            by_family: dict[str, list[dict[str, str]]] = {}
+            for label, symbol in symbols:
+                klass_family, colour = _symbol_appearance(symbol, family)
+                by_family.setdefault(klass_family, []).append({"label": label, "colour": colour})
+            for klass_family, classes in by_family.items():
+                out.append({"layer": str(layer.name()), "family": klass_family, "classes": classes})
         except Exception:
             continue
     return out
@@ -603,6 +658,26 @@ def _polygon_coverage(map_item: Any, layers: Any) -> dict[str, Any] | None:
         per_layer: list[dict[str, Any]] = []
         polygon_layers = 0
         for layer in layers or []:
+            if not hasattr(layer, "geometryType"):
+                # Raster temático (elevação, cobertura da terra): a extensão
+                # dele é dado de área tanto quanto um polígono. Mapa de base
+                # (XYZ, WMS) não conta — ele forra qualquer quadro.
+                try:
+                    if layer.providerType() in ("wms", "arcgismapserver") or str(layer.renderer().type()) == "hillshade":
+                        continue
+                    footprint = QgsGeometry.fromRect(layer.extent())
+                    if layer.crs().isValid() and layer.crs().authid() != crs.authid():
+                        footprint = QgsGeometry.fromRect(QgsCoordinateTransform(
+                            layer.crs(), crs, QgsProject.instance()).transformBoundingBox(layer.extent()))
+                    clipped = footprint.intersection(frame_geometry)
+                    polygon_layers += 1
+                    if clipped is not None and not clipped.isEmpty():
+                        pieces.append(clipped)
+                        per_layer.append({"layer": str(layer.name()), "fraction": round(float(clipped.area()) / frame_area, 3),
+                                          "raster": True})
+                except Exception:
+                    pass
+                continue
             try:
                 if int(layer.geometryType()) != 2:
                     continue
@@ -770,7 +845,10 @@ def _observe_scalebar(scalebar_item: Any, map_item: Any, items: list[dict[str, A
     # de papel, e não a largura da caixa do item — a caixa costuma ser maior.
     bar_width_mm = None
     fraction = None
-    scale = float(_safe(map_item.scale, 0.0) or 0.0) if map_item is not None else 0.0
+    # A barra mede o quadro a que está ligada, que nem sempre é o principal
+    # (num painel duplo cada quadro tem a sua).
+    linked = _safe(scalebar_item.linkedMap, None) or map_item
+    scale = float(_safe(linked.scale, 0.0) or 0.0) if linked is not None else 0.0
     factor = {"km": 1000.0, "m": 1.0, "cm": 0.01, "mi": 1609.344, "ft": 0.3048}.get(unit_label.strip().lower())
     if scale > 0 and factor and units_per_segment > 0 and (segments + segments_left) > 0:
         total_ground = units_per_segment * (segments + segments_left) * factor
@@ -780,7 +858,11 @@ def _observe_scalebar(scalebar_item: Any, map_item: Any, items: list[dict[str, A
 
     font_pt = None
     try:
-        font_pt = float(scalebar_item.textFormat().size())
+        text_format = scalebar_item.textFormat()
+        font_pt = float(text_format.size())
+        unit = str(getattr(text_format.sizeUnit(), "name", text_format.sizeUnit())).lower()
+        if "millimeter" in unit or unit in ("0", "rendermillimeters"):
+            font_pt = font_pt / (25.4 / 72.0)  # o corpo foi dado em mm
     except Exception:
         try:
             font_pt = float(scalebar_item.font().pointSizeF())
@@ -833,6 +915,15 @@ def _load_image(png_path: str | Path) -> Any:
         from qgis.PyQt.QtGui import QImage  # type: ignore
     except Exception:
         return None
+    try:
+        # O Qt 6 recusa por padrão imagens acima de 256 MB decodificados: um A1
+        # a 300 dpi não abria, e as medidas no raster diziam "sem raster".
+        from qgis.PyQt.QtGui import QImageReader  # type: ignore
+
+        if hasattr(QImageReader, "setAllocationLimit"):
+            QImageReader.setAllocationLimit(2048)
+    except Exception:
+        pass
     image = QImage(str(png_path))
     return None if image.isNull() else image
 
@@ -889,33 +980,57 @@ def _sample_ink(image: Any, box: tuple[int, int, int, int], steps: int = 140, un
     return inked / total
 
 
-def _render_layers(map_item: Any, layers: list[Any], width_px: int, labels: bool = True) -> Any:
-    """As camadas renderizadas sozinhas, na extensão e no CRS do quadro, sobre fundo transparente."""
-    from qgis.core import QgsMapRendererCustomPainterJob, QgsMapSettings  # type: ignore
-    from qgis.PyQt.QtCore import QSize  # type: ignore
-    from qgis.PyQt.QtGui import QColor, QImage, QPainter  # type: ignore
+#: Mais camadas que isto no quadro e a medida camada a camada não é feita: cada
+#: camada é uma renderização, e a auditoria roda na thread da interface.
+MAX_MEASURED_LAYERS = 12
 
-    from .qtcompat import qt_enum
 
+def _item_settings(map_item: Any, width_px: int, labels: bool = True) -> Any:
+    """As configurações de renderização do próprio quadro, numa largura em pixels.
+
+    Vêm de ``QgsLayoutItemMap.mapSettings``, como na exportação: mesma escala
+    (o dpi é o que faz ``width_px`` corresponder à largura do quadro no
+    papel), mesmo contexto de expressões (``@map_scale``), mesma rotação,
+    mesmo tema de camadas. Montar um ``QgsMapSettings`` do zero renderizava
+    noutra escala: camadas com visibilidade por escala sumiam da medida
+    embora aparecessem no PNG, e a auditoria as dava por cobertas.
+    """
+    from qgis.PyQt.QtCore import QSizeF  # type: ignore
+    from qgis.PyQt.QtGui import QColor  # type: ignore
+
+    rect = map_item.rect()
+    width_mm, height_mm = float(rect.width()), float(rect.height())
     extent = map_item.extent()
-    if extent.isEmpty() or extent.width() <= 0:
+    if width_mm <= 0 or height_mm <= 0 or extent.isEmpty():
         return None
-    height_px = max(1, int(round(width_px * extent.height() / extent.width())))
-    settings = QgsMapSettings()
-    settings.setLayers(list(layers))
-    settings.setDestinationCrs(map_item.crs())
-    settings.setExtent(extent)
-    settings.setOutputSize(QSize(width_px, height_px))
+    height_px = max(1, int(round(width_px * height_mm / width_mm)))
+    dpi = width_px * 25.4 / width_mm
+    settings = map_item.mapSettings(extent, QSizeF(width_px, height_px), dpi, True)
     settings.setBackgroundColor(QColor(255, 255, 255, 0))
     if not labels:
         try:
-            from qgis.core import Qgis, QgsMapSettings as _Settings  # type: ignore
+            from qgis.core import Qgis, QgsMapSettings  # type: ignore
 
-            flag = getattr(getattr(Qgis, "MapSettingsFlag", None), "DrawLabeling", None) or getattr(_Settings, "DrawLabeling")
+            flag = getattr(getattr(Qgis, "MapSettingsFlag", None), "DrawLabeling", None) or getattr(QgsMapSettings, "DrawLabeling")
             settings.setFlag(flag, False)
         except Exception:
             pass
-    image = QImage(width_px, height_px, qt_enum(QImage, "Format", "Format_ARGB32"))
+    return settings
+
+
+def _render_layers(map_item: Any, layers: list[Any], width_px: int, labels: bool = True) -> Any:
+    """As camadas renderizadas sozinhas, como o quadro as desenha, sobre fundo transparente."""
+    from qgis.core import QgsMapRendererCustomPainterJob  # type: ignore
+    from qgis.PyQt.QtGui import QImage, QPainter  # type: ignore
+
+    from .qtcompat import qt_enum
+
+    settings = _item_settings(map_item, width_px, labels)
+    if settings is None:
+        return None
+    settings.setLayers(list(layers))
+    size = settings.outputSize()
+    image = QImage(size.width(), size.height(), qt_enum(QImage, "Format", "Format_ARGB32"))
     image.fill(0)
     painter = QPainter(image)
     job = QgsMapRendererCustomPainterJob(settings, painter)
@@ -926,10 +1041,123 @@ def _render_layers(map_item: Any, layers: list[Any], width_px: int, labels: bool
 
 
 def _frame_layers(map_item: Any, layers: list[Any] | None) -> list[Any]:
+    """As camadas do quadro, da que fica por cima para a de baixo (a ordem do QGIS)."""
     drawn = list(layers or [])
     if not drawn:
-        drawn = list(map_item.layout().project().layerTreeRoot().checkedLayers())
+        # Quadro que segue o projeto (ou um tema): a lista é a que o próprio
+        # quadro renderizaria, e não as camadas marcadas na árvore.
+        settings = _item_settings(map_item, 64)
+        drawn = list(settings.layers()) if settings is not None else []
     return [layer for layer in drawn if layer is not None and layer.isValid()]
+
+
+def _occludes(layer: Any) -> bool:
+    """A camada cobre o que está embaixo? Só no modo de mistura normal.
+
+    Um sombreamento em "multiplicar" sobre um modelo de elevação modula as
+    cores de baixo em vez de escondê-las; contá-lo como cobertura acusaria
+    o desenho clássico de relevo.
+    """
+    try:
+        from qgis.PyQt.QtGui import QPainter  # type: ignore
+
+        from .qtcompat import qt_enum
+
+        return layer.blendMode() == qt_enum(QPainter, "CompositionMode", "CompositionMode_SourceOver")
+    except Exception:
+        return True
+
+
+def _erode(mask: Any) -> Any:
+    """Erosão de um pixel (vizinhança em cruz) de uma máscara booleana numpy."""
+    out = mask.copy()
+    out[1:, :] &= mask[:-1, :]
+    out[:-1, :] &= mask[1:, :]
+    out[:, 1:] &= mask[:, :-1]
+    out[:, :-1] &= mask[:, 1:]
+    out[0, :] = out[-1, :] = False
+    out[:, 0] = out[:, -1] = False
+    return out
+
+
+def measure_layer_stack(map_item: Any, layers: list[Any] | None = None, width_px: int = 400) -> dict[str, Any] | None:
+    """Tinta do quadro e, por camada, quanto do que ela desenha fica à vista.
+
+    Cada camada é renderizada sozinha, sem rótulos, como o quadro a desenha;
+    o canal alfa diz onde ela pinta e com que opacidade. A cobertura que as
+    camadas de cima fazem sobre cada pixel é a composição desses alfas
+    (a + b·(1 − a), "por cima de"), e o que fica à vista de uma camada é
+    1 − cobertura nos pixels em que ela pinta. Um preenchimento com 85 %
+    de opacidade deixa 15 % à vista — contar "pixels que mudam" dava 100 %,
+    e um modelo de elevação quase todo escondido sob os municípios passava
+    por visível. Sem os rótulos: o motor os desenha por cima de tudo, mas a
+    legenda mostra a amostra do símbolo, não os nomes.
+
+    Devolve ``ink_fraction`` (pixels com tinta de alguma camada, CART062),
+    ``visible_fraction`` e ``visible_share`` (fração do que a camada pinta
+    e fração do quadro em que ela aparece, por nome), ``visible_by_id`` e
+    ``empty`` (camadas sem nenhum pixel na extensão). ``None`` sem numpy,
+    sem camadas ou com camadas demais.
+    """
+    try:
+        import numpy  # type: ignore
+
+        frame = _frame_layers(map_item, layers)
+        drawn = [layer for layer in frame if not _is_label_only_layer(layer)]
+        if not drawn or len(drawn) > MAX_MEASURED_LAYERS:
+            return None
+        cover = None
+        union = None
+        visible_fraction: dict[str, float] = {}
+        visible_share: dict[str, float] = {}
+        visible_by_id: dict[str, float] = {}
+        empty: list[str] = []
+        for layer in drawn:  # de cima para baixo
+            pixels = _pixels(_render_layers(map_item, [layer], width_px, labels=False))
+            if pixels is None:
+                return None
+            alpha = pixels[:, :, 3].astype(numpy.float32) / 255.0  # ARGB32 em little-endian: alfa no 4º byte
+            if cover is None:
+                cover = numpy.zeros_like(alpha)
+                union = numpy.zeros_like(alpha)
+            ink = alpha >= (8.0 / 255.0)
+            name = str(layer.name())
+            painted = int(ink.sum())
+            if painted == 0:
+                visible_fraction[name] = 0.0
+                visible_share[name] = 0.0
+                visible_by_id[str(layer.id())] = 0.0
+                empty.append(name)
+            else:
+                shown = (1.0 - cover)[ink]
+                visible_fraction[name] = round(float(shown.mean()), 4)
+                # Fração do quadro em que a camada aparece como MANCHA: a máscara
+                # do que fica à vista é erodida de um pixel, o que apaga a lasca
+                # de contorno ao longo de uma divisa (uma linha, não uma área)
+                # e mantém o mar que sobra em volta de um continente.
+                patch = _erode(ink & (cover < 0.5))
+                visible_share[name] = round(float(patch.sum()) / float(alpha.size), 4)
+                visible_by_id[str(layer.id())] = visible_fraction[name]
+            if _occludes(layer):
+                cover = cover + alpha * (1.0 - cover)
+            union = union + alpha * (1.0 - union)
+        inked = union >= (8.0 / 255.0)
+        rows, cols = inked.shape
+        # Tinta só dos dados, célula a célula (3x3): sem grade, sem rótulos.
+        # É o que diz se uma faixa do quadro é papel em branco num mapa de
+        # linhas ou pontos, que não tem área de polígono para medir.
+        ink_grid = [[round(float(inked[rows * r // 3:rows * (r + 1) // 3, cols * c // 3:cols * (c + 1) // 3].mean()), 4)
+                     for c in range(3)] for r in range(3)]
+        return {
+            "ink_fraction": round(float(inked.mean()), 6),
+            "ink_grid": ink_grid,
+            "visible_fraction": visible_fraction,
+            "visible_share": visible_share,
+            "visible_by_id": visible_by_id,
+            "empty": empty,
+        }
+    except Exception:
+        return None
 
 
 def _pixels(image: Any) -> Any:
@@ -940,7 +1168,10 @@ def _pixels(image: Any) -> Any:
         pointer = image.constBits()
         pointer.setsize(image.sizeInBytes() if hasattr(image, "sizeInBytes") else image.byteCount())
         rows = numpy.frombuffer(pointer, numpy.uint8).reshape(image.height(), image.bytesPerLine())
-        return rows[:, : image.width() * 4].reshape(image.height(), image.width(), 4)
+        # Cópia, e não uma vista: a vista lê a memória da QImage, que é liberada
+        # quando a imagem temporária sai de escopo — e a medida passava a ler
+        # memória reaproveitada (pixels "pintados" numa camada vazia).
+        return rows[:, : image.width() * 4].reshape(image.height(), image.width(), 4).copy()
     except Exception:
         return None
 
@@ -952,57 +1183,31 @@ def _opaque_count(image: Any) -> int:
     return sum(1 for y in range(image.height()) for x in range(image.width()) if (image.pixel(x, y) >> 24) & 0xFF >= 8)
 
 
-def _changed_count(first: Any, second: Any) -> int:
-    a, b = _pixels(first), _pixels(second)
-    if a is not None and b is not None:
-        return int((a != b).any(axis=2).sum())
-    return sum(1 for y in range(first.height()) for x in range(first.width()) if first.pixel(x, y) != second.pixel(x, y))
-
-
 def measure_layer_visibility(map_item: Any, layers: list[Any] | None = None, width_px: int = 400) -> dict[str, float] | None:
-    """Para cada camada do quadro, que fração do que ela desenha sozinha aparece no mapa (CART021).
+    """Para cada camada do quadro, que fração do que ela desenha fica à vista (ver ``measure_layer_stack``)."""
+    stack = measure_layer_stack(map_item, layers, width_px)
+    return None if stack is None else stack["visible_fraction"]
 
-    Renderiza a camada sozinha, o quadro com todas as camadas e o quadro sem
-    ela; a fração é a dos pixels que mudam ao tirá-la sobre os que ela pinta
-    sozinha. Zero ou quase zero é camada escondida — coberta pelas de cima (o
-    QGIS desenha a primeira da lista por cima) ou sem nada na extensão. Achado
-    no experimento E1: um estado opaco listado antes dos municípios os cobria
-    inteiros, e eles seguiam na legenda; só uma lasca do contorno escapava na
-    borda, por isso a medida é uma fração e não "nenhum pixel mudou". Sem os
-    rótulos: o motor de rótulos os desenha por cima de tudo, e os nomes dos
-    municípios cobertos faziam a camada contar como visível — mas a legenda
-    mostra a amostra do símbolo, não os nomes.
+
+def _visibility_entries(stack: dict[str, Any] | None) -> dict[str, Any]:
+    """Camadas escondidas (CART021) e camadas sem nada na extensão, a partir da medida da pilha.
+
+    Escondida é a camada de que menos de ``COVERED_VISIBLE_MAX`` do que ela
+    pinta fica à vista e que, além disso, aparece em menos de
+    ``COVERED_VISIBLE_SHARE`` do quadro: um oceano que ocupa o quadro inteiro
+    com 8 % à vista continua sendo um oceano no mapa.
     """
-    try:
-        frame = _frame_layers(map_item, layers)
-        drawn = [layer for layer in frame if not _is_label_only_layer(layer)]
-        if not drawn or len(drawn) > 12:
-            return None
-        everything = _render_layers(map_item, frame, width_px, labels=False)
-        if everything is None:
-            return None
-        fractions: dict[str, float] = {}
-        for layer in drawn:
-            alone = _opaque_count(_render_layers(map_item, [layer], width_px, labels=False))
-            if alone == 0:
-                fractions[str(layer.name())] = 0.0
-                continue
-            without = _render_layers(map_item, [other for other in frame if other.id() != layer.id()], width_px,
-                                     labels=False)
-            fractions[str(layer.name())] = round(min(1.0, _changed_count(everything, without) / float(alone)), 4)
-        return fractions
-    except Exception:
-        return None
+    from .rulebook import COVERED_VISIBLE_MAX, COVERED_VISIBLE_SHARE
 
-
-def _visibility_entries(map_item: Any, layers: list[Any] | None) -> dict[str, Any]:
-    from .rulebook import COVERED_VISIBLE_MAX
-
-    fractions = measure_layer_visibility(map_item, layers)
-    if fractions is None:
-        return {"layer_visible_fraction": None, "hidden_layer_names": None}
-    hidden = [name for name, fraction in fractions.items() if fraction < COVERED_VISIBLE_MAX]
-    return {"layer_visible_fraction": fractions, "hidden_layer_names": hidden}
+    if stack is None:
+        return {"layer_visible_fraction": None, "layer_visible_share": None, "hidden_layer_names": None,
+                "empty_layer_names": None, "layer_visible_by_id": None}
+    empty = list(stack["empty"])
+    hidden = [name for name, fraction in stack["visible_fraction"].items()
+              if name not in empty and fraction < COVERED_VISIBLE_MAX
+              and stack["visible_share"].get(name, 0.0) < COVERED_VISIBLE_SHARE]
+    return {"layer_visible_fraction": stack["visible_fraction"], "layer_visible_share": stack["visible_share"],
+            "hidden_layer_names": hidden, "empty_layer_names": empty, "layer_visible_by_id": stack["visible_by_id"]}
 
 
 def _is_label_only_layer(layer: Any) -> bool:
