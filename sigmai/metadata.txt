@@ -17,9 +17,13 @@ repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=MIT
 changelog=1.2.0
-    - Modo em tons de cinza para figuras de periódico (colour_mode='greyscale') e regra CART073.
-    - Ordem de desenho cartográfica; polígono que contém outra camada é desenhado como contorno por cima.
-    - CART021 acusa camada da legenda coberta; nova regra CART074 (números da barra de escala legíveis).
+    - Modo em tons de cinza para figuras de periódico (colour_mode='greyscale'), mantendo as classes dos mapas temáticos; regra CART073.
+    - Ordem de desenho cartográfica; polígono que contém outra camada ou cobre um raster é desenhado como contorno por cima.
+    - CART021 acusa camada da legenda coberta; novas regras CART074 (números da barra de escala) e CART075 (assunto do mapa à vista).
+    - Classificação graduada por quantis, Jenks ou números redondos; estilo de raster (hipsometria, declividade Embrapa, valores únicos) e mapa de calor.
+    - Polígono que esconderia outra camada vira contorno; legenda em colunas; cores com significado nas classes.
+    - KMZ, OSM, FlatGeobuf e shapefile zipado; carregar dado fora da pasta de saída; busca e instalação de plugins no perfil em uso.
+    - Orientação e altura da faixa inferior escolhidas pelos dados; legenda de raster legível.
     - Corrigidas as regras CART003, CART061 e CART062.
     1.1.7
     - Nomes de variáveis ajustados (Flake8 E741). Sem mudança de comportamento.

@@ -86,7 +86,7 @@ Twenty MCP tools, each with a validated input schema. `sigmai_briefing` is where
 | `sigmai_brief_plugin` | ✓ | | Everything needed to drive another QGIS plugin in one call: state, Processing algorithms with their full contracts, and what is not scriptable |
 | `sigmai_run_command` | ✓ | ✓ | Any catalogued command: vector, raster, Processing, symbology, workflows |
 
-Behind them sit 232 catalogued commands, 219 of them enabled. `sigmai_run_command` reaches all of the enabled ones; the dedicated tools exist because a typed schema produces fewer wrong calls than a free-form escape hatch. The 13 disabled commands (the atlas family, the PostGIS family and `create_map_hierarchy`) are refused by the bridge as if they did not exist and listed in `get_capabilities` with the reason — the catalogue describes what the plugin does, not what it might do one day.
+Behind them sit 234 catalogued commands, 221 of them enabled. `sigmai_run_command` reaches all of the enabled ones; the dedicated tools exist because a typed schema produces fewer wrong calls than a free-form escape hatch. The 13 disabled commands (the atlas family, the PostGIS family and `create_map_hierarchy`) are refused by the bridge as if they did not exist and listed in `get_capabilities` with the reason — the catalogue describes what the plugin does, not what it might do one day.
 
 ## Access control
 
@@ -111,7 +111,7 @@ Independently of the mode: **output folders** restrict where files may be writte
 - places a real north arrow symbol linked to grid north;
 - declares datum, projection, source, authorship and date;
 - reprojects to the appropriate UTM zone when the project is in geographic coordinates, because a metric scale bar over degrees is wrong across most of the sheet;
-- picks the page orientation — and where the legend and scale bar go, side column or bottom band — from the shape of the data when you ask for `orientation: "auto"` (either choice switches only for a 12 % gain in scale; `arrangement` forces one), and lets you ask for a journal figure by column width (`journal_column`, `figure_width_mm`) instead of by paper size, and in greyscale for print (`colour_mode: "greyscale"`, checked on the exported image by `CART073`);
+- picks the page orientation — and where the legend and scale bar go, side column or bottom band — from the shape of the data when you ask for `orientation: "auto"` or say nothing about orientation (either choice switches only for a 12 % gain in scale; `arrangement` forces one), and lets you ask for a journal figure by column width (`journal_column`, `figure_width_mm`) instead of by paper size, and in greyscale for print (`colour_mode: "greyscale"`, checked on the exported image by `CART073`);
 - composes two, three or more panels — `second_map` or `panels` — lettered (a), (b), (c) with a shared scale when you ask for one;
 - takes `data_source` per layer and prints each layer's source in the legend, next to the layer it belongs to;
 - knows the field-campaign case (`compose_campaign_map`): sites over a track over an area over its context, with a locator inset and a coordinate table.
@@ -120,7 +120,7 @@ Then it audits what it produced, stores the **recipe** of the map in the layout 
 
 ## The cartographic rulebook
 
-36 rules across ten categories — elements, scale, orientation, provenance, grid, geometry, typography, projection, data, symbology. Each carries its severity, the reason it exists, its reference, and the command that satisfies it. `sigmai_cartographic_rulebook` returns the whole thing as data, so an assistant can read the rules before composing rather than discovering them by failing.
+37 rules across ten categories — elements, scale, orientation, provenance, grid, geometry, typography, projection, data, symbology. Each carries its severity, the reason it exists, its reference, and the command that satisfies it. `sigmai_cartographic_rulebook` returns the whole thing as data, so an assistant can read the rules before composing rather than discovering them by failing.
 
 Five rules came out of the 1.0.3 experiment in which the same request was given to an agent writing raw PyQGIS and to an agent driving SIGMAI, the audit was run on both maps, and the new version was then driven end to end by an emulated assistant: labels the labelling engine could not place (`CART068`), an empty band of the frame that the page shape left unused (`CART069`), colour pairs that a reader with a colour-vision deficiency cannot tell apart, simulated with the Machado, Oliveira & Fernandes (2009) matrices (`CART070`), fonts that fall below the readable size once the figure is printed at column width (`CART071`), and a legend whose content is larger than its box, which QGIS silently clips (`CART072`). The audit also learned to read hand-made layouts — items without an id, headings such as "Data sources", label-only layers — instead of failing them for what it could not see.
 
@@ -136,7 +136,7 @@ flowchart LR
     B["MCP server<br/>JSON-RPC 2.0 over stdio<br/>sigmai/mcp/"]
     C["Local bridge<br/>127.0.0.1 · bearer token<br/>sigmai/bridge_server.py"]
     D["Consent<br/>mode · folders · limits · audit<br/>sigmai/consent.py"]
-    E["Command registry<br/>219 validated actions<br/>sigmai/qgis_actions/"]
+    E["Command registry<br/>221 validated actions<br/>sigmai/qgis_actions/"]
     F["Cartographic engine<br/>page · scale · rulebook<br/>sigmai/cartography/"]
     G[("QGIS<br/>project, layers, layouts")]
 

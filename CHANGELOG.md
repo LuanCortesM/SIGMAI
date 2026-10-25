@@ -2,22 +2,44 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
-## [1.2.0] — 2026-10-05
+## [1.2.0] — 2026-10-25
 
 ### Adicionado
 - `colour_mode: "greyscale"` (ou `grayscale`, `grey`, `cinza`, `black_and_white`; padrão `"colour"`) em `compose_map`, `sigmai_plan_map`, `sigmai_compose_map` e `sigmai_campaign_map`.
-- Em cinza: quatro preenchimentos a ΔL* ≥ 18, hachuras da quinta camada em diante, traços e pontos em preto e cinza, recorte do inserto em preto.
-- Regras `CART073` (erro: figura pedida em cinza com tinta colorida; `GREYSCALE_CHROMA_MIN`, `GREYSCALE_MAX_CHROMATIC_FRACTION`) e `CART074` (números da barra legíveis).
+- Em cinza: quatro preenchimentos a ΔL* ≥ 18, hachuras da quinta camada em diante, traços e pontos em preto e cinza, recorte do inserto em preto; camada com estilo próprio convertida mantendo as classes (graduado, categorizado, por regras, raster paletado).
+- Regras `CART073` (erro: figura pedida em cinza com tinta colorida), `CART074` (números da barra legíveis, par a par) e `CART075` (erro: assunto do mapa coberto por outras camadas; `SUBJECT_VISIBLE_MIN`).
+- `apply_graduated_style` aceita `method` (`equal_interval`, `quantile`, `jenks`, `pretty`), `color_ramp` e `unit`; rótulos na língua do mapa (`map_language`) e cores em passos iguais de claridade.
+- `apply_raster_style`: rampa contínua ou em classes, valores únicos com nomes, relevo sombreado e cinza; `preset: "declividade_embrapa"`, `blend_mode`, rampas `hypsometric` e `slope`.
+- `apply_heatmap_style`: mapa de calor para camada de pontos, com peso por campo.
+- `load_vector_layer` abre KMZ, OSM/PBF, FlatGeobuf, GML e shapefile zipado, e escolhe a subcamada com `layer_name`.
+- `native:joinattributestable` e `native:fieldcalculator` no Processing; `raster_slope` aceita `as_percent`.
 - `sigmai_audit_layout` aceita `colour_mode` e `subject_layer_id`; num layout do SIGMAI, ambos vêm da receita.
 
 ### Alterado
-- Ordem de desenho cartográfica (raster, polígonos, linhas, pontos; assunto sobre contexto); polígono que contém outra camada vira contorno de 0,7 mm por cima.
-- `CART021` reprova camada da legenda coberta num quadro único (menos de 10 % visível, `COVERED_VISIBLE_MAX`); coordenadas da grade em `#1F1F1F`.
+- Ordem de desenho cartográfica (raster, polígonos, linhas, pontos; assunto sobre contexto); polígono que contém outra camada, ou que fica sobre um raster assunto do mapa, vira contorno por cima.
+- `CART021` reprova camada da legenda coberta (menos de 10 % visível e menos de 1 % do quadro), medida pela composição dos canais alfa de cada camada renderizada como o quadro a desenha; camada sem feição na extensão tem mensagem própria.
+- `CART070` compara polígono sem preenchimento com as linhas, pela cor do contorno, e cada hachura como família própria.
+- Polígono preenchido que esconderia outra camada vira contorno: sobre um raster temático, sobre parte de outra camada (o imóvel sobre a sua APP) ou sobre outra camada que também forra o quadro; contornos de camadas diferentes em cores diferentes.
+- `apply_categorized_style`: cor pelo nome da classe (água, floresta, área urbana...), paleta qualitativa sem par confundível por daltônicos, sem repetir cor, classes em ordem, categoria "Outros"; em linhas a cor vai no traço.
+- Legenda em colunas quando sobra largura, nomes de classe quebrados, uma entrada só para camadas com as mesmas classes; relevo sombreado e mapa de base fora da legenda.
+- Rótulo de linha acompanha a linha, com os trechos de mesmo nome fundidos; hidrônimos em itálico azul.
+- Série de escalas com 1:300.000, 1:400.000 e degraus equivalentes; `raster_slope` e `raster_hillshade` aplicam a escala de 111.120 m por grau a raster em graus.
+- `sigmai_campaign_map` enquadra também a área de estudo; `raster_clip_by_extent` limita o recorte à extensão do raster.
+- `CART069` conta raster e a tinta de linhas e pontos como ocupação do quadro.
+- Orientação omitida é escolhida pela forma do recorte, como `orientation: "auto"`.
+- Faixa inferior na altura da legenda; seta de norte limitada a 8 % do lado menor da folha.
+- Legenda de raster sem o nome da banda e com os extremos da rampa arredondados, no separador da língua do mapa.
+- `map_language` obrigatório no esquema MCP de plan, compose e campaign; a resposta avisa quando falta.
+- Coordenadas da grade em `#1F1F1F`.
 
 ### Corrigido
 - `CART003` não reprovava mapa sem barra de escala; `CART061` não era avaliada na auditoria de layout; `CART062` não via quadro em branco sob moldura e grade.
 - A primeira camada pedida era desenhada por cima e cobria as demais; descrição de `layer_ids` corrigida.
-- Números da barra de escala se sobrepunham em figura de coluna (`scalebar_spec`, `SCALEBAR_DIGIT_EM`, `SCALEBAR_LABEL_CLEARANCE`).
+- Números da barra de escala se sobrepunham em figura de coluna.
+- Com pasta de saída definida no painel, carregar dado de outra pasta era recusado: o caminho de leitura contava como gravação.
+- Busca e instalação de plugin pelo repositório oficial falhavam (o `plugins.xml` passou a exigir a versão do QGIS; o nome do pacote não casava com o nome de exibição).
+- A instalação de plugin gravava no perfil `default` do QGIS 3, e não no perfil em uso (QGIS 4 ou outro perfil).
+- Mapa de base XYZ, WMS e ArcGIS REST saía em branco no QGIS 3.x: o endereço era codificado à mão e o provedor não o decodificava. A composição agora avisa quando um mapa de base não desenha nada.
 
 ## [1.1.7] — 2026-10-04
 
