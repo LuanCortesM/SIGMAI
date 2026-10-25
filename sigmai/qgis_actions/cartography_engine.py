@@ -93,11 +93,14 @@ def audit_map_layout(params: dict[str, Any], context: dict[str, Any]) -> dict[st
     # avaliação — usar todas as camadas acusaria qualquer mapa ampliado sobre
     # uma camada de contexto maior que ele.
     data_extent = None
+    subject_layers: list[Any] = []
     subject_ids = params.get("subject_layer_id")
     if not subject_ids and recipe:
         subject_ids = (recipe.get("params") or {}).get("subject_layer_id")
-    if subject_ids and main_item is not None:
-        data_extent = _subject_extent(subject_ids, main_item, notes)
+    if subject_ids:
+        subject_layers = _subject_layers(subject_ids, notes)
+    if subject_layers and main_item is not None:
+        data_extent = _subject_extent(subject_layers, main_item, notes)
 
     print_width = params.get("print_width_mm")
     try:
@@ -132,6 +135,7 @@ def audit_map_layout(params: dict[str, Any], context: dict[str, Any]) -> dict[st
         map_frame=map_frame,
         print_width_mm=print_width_mm,
         colour_mode=colour_mode,
+        subject_layer_ids=[layer.id() for layer in subject_layers],
     )
     report["layout_name"] = layout_name
     if notes:
@@ -139,25 +143,44 @@ def audit_map_layout(params: dict[str, Any], context: dict[str, Any]) -> dict[st
     return report
 
 
-def _subject_extent(subject_ids: Any, map_item: Any, notes: list[str]) -> dict[str, float] | None:
-    """Extensão, no CRS do quadro, das camadas de assunto (uma id ou lista)."""
-    ids = [subject_ids] if isinstance(subject_ids, str) else [str(value) for value in (subject_ids or [])]
+def _subject_layers(subject_ids: Any, notes: list[str]) -> list[Any]:
+    """As camadas de assunto, dadas por id ou por nome, uma ou várias (como o compose_map aceita)."""
+    if isinstance(subject_ids, (str, int, float)):
+        wanted = [str(subject_ids)]
+    elif isinstance(subject_ids, (list, tuple, set)):
+        wanted = [str(value) for value in subject_ids if value not in (None, "")]
+    else:
+        notes.append(f"subject_layer_id {subject_ids!r} não é uma id nem uma lista de ids; assunto ignorado.")
+        return []
+    layers = []
+    for key in wanted:
+        layer = project().mapLayer(key)
+        if layer is None:
+            by_name = project().mapLayersByName(key)
+            layer = by_name[0] if by_name else None
+        if layer is None:
+            notes.append(f"subject_layer_id {key!r} não está no projeto; CART061 e CART075 ignoram essa camada.")
+            continue
+        layers.append(layer)
+    return layers
+
+
+def _subject_extent(subject_layers: list[Any], map_item: Any, notes: list[str]) -> dict[str, float] | None:
+    """Extensão, no CRS do quadro, das camadas de assunto."""
     try:
         from qgis.core import QgsCoordinateTransform  # type: ignore
 
         union = None
-        for layer_id in ids:
-            layer = project().mapLayer(layer_id)
-            if layer is None:
-                notes.append(f"subject_layer_id {layer_id!r} não está no projeto; CART061 ignora essa camada.")
-                continue
+        for layer in subject_layers:
             transform = QgsCoordinateTransform(layer.crs(), map_item.crs(), project())
             extent = transform.transformBoundingBox(layer.extent())
             if union is None:
                 union = extent
             else:
                 union.combineExtentWith(extent)
-        if union is None or union.isEmpty():
+        # Um ponto só tem extensão de área zero, mas tem posição: só um
+        # retângulo nulo (camada vazia) é "sem extensão".
+        if union is None or union.isNull():
             return None
         return {"xmin": union.xMinimum(), "ymin": union.yMinimum(), "xmax": union.xMaximum(), "ymax": union.yMaximum()}
     except Exception as exc:

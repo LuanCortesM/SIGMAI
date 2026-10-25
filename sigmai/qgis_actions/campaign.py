@@ -154,6 +154,26 @@ def build_campaign_params(params: dict[str, Any], resolved: dict[str, Any]) -> d
     return compose
 
 
+#: Área de estudo até este múltiplo da área dos pontos e da trilha entra no recorte.
+AREA_FRAMING_MAX_RATIO = 25.0
+
+
+def _wgs_bbox_area(layers: list[Any]) -> float:
+    """Área (graus²) do retângulo que envolve as camadas, em WGS 84 — só para comparar tamanhos."""
+    try:
+        from qgis.core import QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject, QgsRectangle  # type: ignore
+
+        wgs = QgsCoordinateReferenceSystem("EPSG:4326")
+        box = QgsRectangle()
+        box.setNull()
+        for layer in layers:
+            extent = QgsCoordinateTransform(layer.crs(), wgs, QgsProject.instance()).transformBoundingBox(layer.extent())
+            box.combineExtentWith(extent)
+        return max(box.width(), 1e-9) * max(box.height(), 1e-9) if not box.isNull() else 0.0
+    except Exception:
+        return 0.0
+
+
 def compose_campaign_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
     """Pontos + trilha + área + contexto + inserto, com os padrões de um mapa de campanha."""
     from .cartography_engine import compose_map
@@ -172,13 +192,25 @@ def compose_campaign_map(params: dict[str, Any], context: dict[str, Any]) -> dic
         dense_points = True
         label_field = None
 
-    # O recorte contém os pontos E a trilha (o assunto de um mapa de campanha
-    # é o que foi percorrido e coletado); áreas e contexto só entram se o
-    # chamador pedir com subject_layer_id.
+    # O recorte contém os pontos, a trilha e a área de estudo (o assunto de um
+    # mapa de campanha é o que foi percorrido e coletado, e onde). Só com os
+    # pontos e a trilha o imóvel vistoriado saía cortado na borda do quadro.
+    # Uma área muito maior que o trabalho de campo (o parque inteiro para três
+    # pontos) fica de fora do recorte, com nota; contexto nunca entra.
+    area_notes: list[str] = []
     if params.get("subject_layer_id"):
         subject_ids = [_layer(i, "subject_layer_id").id() for i in _id_list(params["subject_layer_id"], "subject_layer_id")]
     else:
         subject_ids = [points.id()] + ([track.id()] if track else [])
+        field = _wgs_bbox_area([points] + ([track] if track else []))
+        for area in areas:
+            size = _wgs_bbox_area([area])
+            if field and size and size > AREA_FRAMING_MAX_RATIO * field:
+                area_notes.append(
+                    f"A área {area.name()!r} é muito maior que o trabalho de campo e ficou fora do recorte; "
+                    "passe subject_layer_id para enquadrá-la inteira.")
+            else:
+                subject_ids.append(area.id())
 
     resolved = {
         "points": {"id": points.id(), "name": points.name()},
@@ -201,6 +233,7 @@ def compose_campaign_map(params: dict[str, Any], context: dict[str, Any]) -> dic
         notes.append(f"Nenhum campo de nome encontrado em {points.name()!r}; os pontos saem sem rótulo. Passe label_field.")
     if track is not None and not params.get("subject_layer_id"):
         notes.append(f"O recorte contém os pontos e a trilha {track.name()!r}.")
+    notes.extend(area_notes)
 
     result = compose_map(compose_params, context)
     result["campaign"] = {"resolved": resolved, "compose_params": compose_params}
