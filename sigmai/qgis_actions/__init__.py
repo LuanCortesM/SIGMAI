@@ -28,6 +28,7 @@ from . import (
     platform,
     processing_inventory,
     raster,
+    raster_style,
     run_processing,
     selection,
     spatial,
@@ -192,6 +193,8 @@ def register_actions(registry):
     registry.register("apply_single_symbol", symbology.apply_single_symbol)
     registry.register("apply_categorized_style", symbology.apply_categorized_style)
     registry.register("apply_graduated_style", symbology.apply_graduated_style)
+    registry.register("apply_heatmap_style", symbology.apply_heatmap_style)
+    registry.register("apply_raster_style", raster_style.apply_raster_style)
     registry.register("set_layer_opacity", symbology.set_layer_opacity)
     registry.register("inspect_layer_style", symbology.inspect_layer_style)
     registry.register("save_qml_style", symbology.save_qml_style)

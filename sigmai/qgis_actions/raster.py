@@ -168,10 +168,54 @@ def raster_reproject(params: dict[str, Any], context: dict[str, Any]):
     return _run_raster_algorithm(params, context, "gdal:warpreproject", {"INPUT": layer, "TARGET_CRS": target_crs})
 
 
+def _clip_window(layer: Any, extent: str) -> tuple[str, list[str]]:
+    """O recorte pedido limitado à extensão do raster.
+
+    Pedir além da borda fazia o GDAL preencher a sobra com 0: num modelo de
+    elevação, uma faixa chapada a "0 m" no mapa e na legenda. O recorte
+    passa a ser a interseção, e a resposta diz que foi limitado.
+    """
+    import re
+
+    match = re.fullmatch(r"\s*([-+0-9.eE]+)\s*,\s*([-+0-9.eE]+)\s*,\s*([-+0-9.eE]+)\s*,\s*([-+0-9.eE]+)\s*(?:\[(.+)\])?\s*",
+                         extent)
+    if not match:
+        raise ValidationError("BAD_REQUEST", "extent precisa ser 'xmin,xmax,ymin,ymax [EPSG:código]'.", {"extent": extent})
+    xmin, xmax, ymin, ymax = (float(match.group(k)) for k in range(1, 5))
+    if xmax <= xmin or ymax <= ymin:
+        raise ValidationError("BAD_REQUEST", "extent com xmax <= xmin ou ymax <= ymin.", {"extent": extent})
+    try:
+        from qgis.core import QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsRectangle  # type: ignore
+
+        crs = QgsCoordinateReferenceSystem(match.group(5).strip()) if match.group(5) else layer.crs()
+        available = QgsCoordinateTransform(layer.crs(), crs, project()).transformBoundingBox(layer.extent())
+    except Exception:
+        return extent, []
+    wanted = QgsRectangle(xmin, ymin, xmax, ymax)
+    inside = wanted.intersect(available)
+    if inside.isEmpty() or inside.width() <= 0 or inside.height() <= 0:
+        raise ValidationError("BAD_REQUEST", "O recorte pedido não toca a extensão do raster.",
+                              {"extent": extent, "raster_extent": available.toString(6)})
+    tolerance = 1e-9 * max(abs(xmax), abs(ymax), 1.0)
+    if (inside.xMinimum() - wanted.xMinimum() <= tolerance and wanted.xMaximum() - inside.xMaximum() <= tolerance
+            and inside.yMinimum() - wanted.yMinimum() <= tolerance and wanted.yMaximum() - inside.yMaximum() <= tolerance):
+        return extent, []
+    suffix = f" [{crs.authid()}]" if crs.authid() else ""
+    clipped = f"{inside.xMinimum()!r},{inside.xMaximum()!r},{inside.yMinimum()!r},{inside.yMaximum()!r}{suffix}"
+    return clipped, [
+        "O recorte pedido passa da extensão do raster; foi limitado ao que o raster cobre "
+        f"({inside.xMinimum():.6g}, {inside.xMaximum():.6g}, {inside.yMinimum():.6g}, {inside.yMaximum():.6g}). "
+        "Fora dela não há dado — o GDAL preencheria a sobra com 0."
+    ]
+
+
 def raster_clip_by_extent(params: dict[str, Any], context: dict[str, Any]):
     layer = _raster_layer(require_param(params, "layer_id", str))
-    extent = require_param(params, "extent", str)
-    return _run_raster_algorithm(params, context, "gdal:cliprasterbyextent", {"INPUT": layer, "PROJWIN": extent})
+    extent, notes = _clip_window(layer, require_param(params, "extent", str))
+    payload = _run_raster_algorithm(params, context, "gdal:cliprasterbyextent", {"INPUT": layer, "PROJWIN": extent})
+    if notes:
+        payload.setdefault("warnings", []).extend(notes)
+    return payload
 
 
 def raster_clip_by_mask(params: dict[str, Any], context: dict[str, Any]):
@@ -183,10 +227,30 @@ def raster_clip_by_mask(params: dict[str, Any], context: dict[str, Any]):
     return _run_raster_algorithm(params, context, "gdal:cliprasterbymasklayer", {"INPUT": layer, "MASK": mask})
 
 
+#: Metros por grau no equador: o fator que o GDAL pede para um modelo de
+#: elevação em graus (lat/long) com altitude em metros.
+METRES_PER_DEGREE = 111120.0
+
+
+def _vertical_scale(layer: Any, params: dict[str, Any]) -> tuple[float, list[str]]:
+    """``scale`` do GDAL: o dado, ou 111120 para um raster em graus — sem ele a declividade sai quase zero."""
+    if params.get("scale") is not None:
+        return float(params["scale"]), []
+    crs = layer.crs()
+    if crs and crs.isValid() and crs.isGeographic():
+        return METRES_PER_DEGREE, ["Raster em graus: scale = 111120 (metros por grau no equador) aplicado; "
+                                   "para precisão em latitudes altas, reprojete para um CRS métrico antes."]
+    return 1.0, []
+
+
 def raster_slope(params: dict[str, Any], context: dict[str, Any]):
     layer = _raster_layer(require_param(params, "layer_id", str))
-    payload = _run_raster_algorithm(params, context, "gdal:slope", {"INPUT": layer, "BAND": int(params.get("band", 1))})
-    payload.setdefault("warnings", []).extend(_raster_units_warning(layer))
+    scale, notes = _vertical_scale(layer, params)
+    payload = _run_raster_algorithm(params, context, "gdal:slope", {
+        "INPUT": layer, "BAND": int(params.get("band", 1)), "SCALE": scale,
+        "AS_PERCENT": bool(params.get("as_percent", False)),
+    })
+    payload.setdefault("warnings", []).extend(notes)
     return payload
 
 
@@ -199,15 +263,17 @@ def raster_aspect(params: dict[str, Any], context: dict[str, Any]):
 
 def raster_hillshade(params: dict[str, Any], context: dict[str, Any]):
     layer = _raster_layer(require_param(params, "layer_id", str))
+    scale, notes = _vertical_scale(layer, params)
     qgis_params = {
         "INPUT": layer,
         "BAND": int(params.get("band", 1)),
         "Z_FACTOR": float(params.get("z_factor", 1.0)),
+        "SCALE": scale,
         "AZIMUTH": float(params.get("azimuth", 315.0)),
         "ALTITUDE": float(params.get("altitude", 45.0)),
     }
     payload = _run_raster_algorithm(params, context, "gdal:hillshade", qgis_params)
-    payload.setdefault("warnings", []).extend(_raster_units_warning(layer))
+    payload.setdefault("warnings", []).extend(notes)
     return payload
 
 

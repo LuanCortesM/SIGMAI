@@ -179,26 +179,125 @@ def apply_single_symbol(params: dict[str, Any], context: dict[str, Any]):
     }
 
 
+#: Rótulos da categoria sem valor e da que reúne o que passou do limite.
+_CATEGORY_TEXT = {
+    "pt-BR": ("Sem informação", "Outros"), "en": ("No data", "Other"), "es": ("Sin información", "Otros"),
+    "fr": ("Sans information", "Autres"), "de": ("Keine Angabe", "Sonstige"), "it": ("Nessun dato", "Altri"),
+}
+
+
+def _sort_key(value: Any) -> tuple[int, Any]:
+    """Números em ordem numérica, textos em ordem alfabética, vazio por último."""
+    if value is None or str(value) in ("", "NULL"):
+        return (2, "")
+    try:
+        return (0, float(value))
+    except (TypeError, ValueError):
+        return (1, str(value).casefold())
+
+
+def categorized_colours(count: int, palette: list[str] | None = None, ramp_key: str = "",
+                        values: list[Any] | None = None) -> list[str]:
+    """Uma cor por categoria, sem repetir: a paleta pedida, cores com significado, as qualitativas ou uma rampa.
+
+    Sem paleta pedida, uma classe cujo nome diz o que ela é recebe a cor que
+    o leitor espera — água azul, floresta verde, área urbana vermelha; na
+    ordem alfabética, "Corpo d'água" saía laranja e "Vegetação campestre"
+    azul. As demais recebem as qualitativas que sobraram.
+    """
+    from .raster_style import QUALITATIVE, semantic_colour
+
+    if palette:
+        if len(palette) < count:
+            raise ValidationError("BAD_REQUEST", f"palette tem {len(palette)} cores para {count} categorias: as cores "
+                                  "se repetiriam e classes diferentes ficariam iguais no mapa.",
+                                  {"palette": len(palette), "categories": count})
+        return [str(colour) for colour in palette[:count]]
+    if ramp_key or count > len(QUALITATIVE):
+        from .raster_style import qgis_ramp
+
+        ramp = qgis_ramp(ramp_key or "Spectral")
+        return [ramp.color(k / float(max(1, count - 1))).name() for k in range(count)]
+    chosen: list[str | None] = [None] * count
+    used: set[str] = set()
+    for index, value in enumerate((values or [])[:count]):
+        colour = semantic_colour(value)
+        if colour and colour not in used:
+            chosen[index] = colour
+            used.add(colour)
+    spare = [colour for colour in QUALITATIVE if colour not in used]
+    return [colour if colour else spare.pop(0) for colour in chosen]
+
+
+def _class_symbol(layer: Any, colour: str) -> Any:
+    """Símbolo de uma classe: a cor vai no preenchimento do polígono, no traço da linha e no ponto.
+
+    Num categorizado de linhas a cor da classe ia para um preenchimento que a
+    linha não tem, e todas as classes saíam no mesmo cinza-escuro do traço.
+    Polígonos miúdos e numerosos (células de uso da terra, unidades de solo)
+    ganham borda fina: a borda de 0,35 mm desenhava a grade em vez do mapa.
+    """
+    imports = _imports()
+    kind = layer.geometryType()
+    try:
+        count = int(layer.featureCount())
+    except Exception:
+        count = 0
+    if kind == _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Line"):
+        return _symbol_for_layer(layer, colour, colour, 0.3 if count > 300 else 0.45)
+    if kind == _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Point"):
+        return _symbol_for_layer(layer, colour, "#1E2A32", 0.25)
+    return _symbol_for_layer(layer, colour, "#4D4D4D" if count > 200 else "#1E2A32", 0.1 if count > 200 else 0.26)
+
+
 def apply_categorized_style(params: dict[str, Any], context: dict[str, Any]):
     layer = _layer(require_param(params, "layer_id", str))
     field_name = require_param(params, "field_name", str)
     if not _field_exists(layer, field_name):
         raise ValidationError("FIELD_NOT_FOUND", "Field not found.", {"field_name": field_name})
-    values = layer.uniqueValues(layer.fields().indexOf(field_name), int(params.get("limit", 20)))
-    palette = params.get("palette") or ["#00A86B", "#075D68", "#F5A623", "#D94A4A", "#6B7A86", "#20E39A"]
+    limit = max(1, int(params.get("limit", 40)))
+    every = sorted(layer.uniqueValues(layer.fields().indexOf(field_name)), key=_sort_key)
+    null_values = [value for value in every if value is None or str(value) in ("", "NULL")]
+    values = [value for value in every if value not in null_values]
+    overflow = values[limit:]
+    values = values[:limit]
+    from ..cartography.maptext import resolve_language
+    from .raster_style import ramp_name
+
+    language, _known = resolve_language(str(params.get("map_language") or "pt-BR"))
+    no_data_text, other_text = _CATEGORY_TEXT.get(language, _CATEGORY_TEXT["en"])
+    names = {str(k): str(v) for k, v in (params.get("labels") or {}).items()} if isinstance(params.get("labels"), dict) else {}
+    warnings = []
+    if overflow:
+        warnings.append(f"{len(overflow)} valor(es) além do limite de {limit} foram reunidos na categoria '{other_text}'; "
+                        "aumente limit ou agrupe as classes num campo próprio.")
+    colours = categorized_colours(len(values), params.get("palette"), ramp_name(params.get("color_ramp") or ""), values)
     if context.get("dry_run"):
-        return {"dry_run": True, "layer_id": layer.id(), "field_name": field_name, "category_count": len(values)}
+        return {"dry_run": True, "layer_id": layer.id(), "field_name": field_name, "category_count": len(values),
+                "values": [str(v) for v in values], "warnings": warnings}
     imports = _imports()
     categories = []
     for index, value in enumerate(values):
-        color = str(palette[index % len(palette)])
-        symbol = _symbol_for_layer(layer, color, "#1E2A32", 0.35)
-        categories.append(imports["QgsRendererCategory"](value, symbol, str(value)))
+        symbol = _class_symbol(layer, colours[index])
+        categories.append(imports["QgsRendererCategory"](value, symbol, names.get(str(value), str(value))))
+    if null_values or overflow:
+        # Categoria de valor vazio: no QGIS ela recebe tudo que nenhuma outra
+        # recebeu — os sem valor E os que passaram do limite. As duas coisas
+        # não se separam por categoria (uma categoria NULL faz o mesmo papel).
+        text = (f"{other_text} / {no_data_text[0].lower()}{no_data_text[1:]}" if null_values and overflow
+                else other_text if overflow else names.get("NULL", no_data_text))
+        # Cinza que nenhuma das cores qualitativas confunde (o #D9D9D9 de
+        # antes ficava a ΔE 13,6 do verde-claro sob tritanopia).
+        symbol = _class_symbol(layer, "#BDBDBD")
+        categories.append(imports["QgsRendererCategory"]("", symbol, text))
     layer.setRenderer(imports["QgsCategorizedSymbolRenderer"](field_name, categories))
     mark_style_origin(layer, STYLE_ORIGIN_USER)
     _set_opacity(layer, float(params.get("opacity", 0.85)))
     layer.triggerRepaint()
-    return {"layer_id": layer.id(), "field_name": field_name, "style_type": "categorized", "category_count": len(categories)}
+    result = {"layer_id": layer.id(), "field_name": field_name, "style_type": "categorized", "category_count": len(categories)}
+    if warnings:
+        result["warnings"] = warnings
+    return result
 
 
 def apply_graduated_style(params: dict[str, Any], context: dict[str, Any]):
@@ -218,23 +317,201 @@ def apply_graduated_style(params: dict[str, Any], context: dict[str, Any]):
     if not values:
         raise ValidationError("NO_NUMERIC_VALUES", "No numeric values found for graduated style.", {"field_name": field_name})
     classes = max(2, min(9, int(params.get("classes", 5))))
+    method = str(params.get("method") or "equal_interval").strip().lower().replace("-", "_").replace(" ", "_")
+    method = {"equal": "equal_interval", "quantiles": "quantile", "quantis": "quantile", "natural_breaks": "jenks",
+              "intervalos_iguais": "equal_interval", "quebras_naturais": "jenks"}.get(method, method)
+    if method not in GRADUATED_METHODS:
+        raise ValidationError("BAD_REQUEST", f"method desconhecido: {method!r}. Aceitos: {', '.join(GRADUATED_METHODS)}.",
+                              {"method": method})
+    breaks = _class_breaks(sorted(values), classes, method)
     minimum, maximum = min(values), max(values)
-    step = (maximum - minimum) / classes if maximum > minimum else 1
+    from ..cartography.maptext import resolve_language
+    from .raster_style import class_labels, ramp_name
+
+    language, _known = resolve_language(str(params.get("map_language") or "pt-BR"))
+    labels = class_labels(breaks, str(params.get("unit") or "").strip(), language)
+    ramp_key = ramp_name(params.get("color_ramp") or "")
     if context.get("dry_run"):
-        return {"dry_run": True, "layer_id": layer.id(), "field_name": field_name, "classes": classes, "min": minimum, "max": maximum}
+        return {"dry_run": True, "layer_id": layer.id(), "field_name": field_name, "classes": len(breaks) - 1,
+                "method": method, "breaks": breaks, "labels": labels, "min": minimum, "max": maximum}
     imports = _imports()
     ranges = []
-    colors = ["#E8F5E9", "#C8E6C9", "#81C784", "#43A047", "#1B5E20", "#075D68", "#003B5C", "#062A3A", "#041B26"]
-    for index in range(classes):
-        lower = minimum + step * index
-        upper = maximum if index == classes - 1 else minimum + step * (index + 1)
-        symbol = _symbol_for_layer(layer, colors[index % len(colors)], "#1E2A32", 0.25)
-        ranges.append(imports["QgsRendererRange"](lower, upper, symbol, f"{lower:.2f} - {upper:.2f}"))
+    colors = _graduated_colours(len(breaks) - 1, ramp_key, bool(params.get("invert", False)))
+    for index, (lower, upper) in enumerate(zip(breaks, breaks[1:])):
+        symbol = _class_symbol(layer, colors[index])
+        ranges.append(imports["QgsRendererRange"](lower, upper, symbol, labels[index]))
     layer.setRenderer(imports["QgsGraduatedSymbolRenderer"](field_name, ranges))
     mark_style_origin(layer, STYLE_ORIGIN_USER)
     _set_opacity(layer, float(params.get("opacity", 0.85)))
     layer.triggerRepaint()
-    return {"layer_id": layer.id(), "field_name": field_name, "style_type": "graduated", "classes": classes}
+    result = {"layer_id": layer.id(), "field_name": field_name, "style_type": "graduated", "classes": len(ranges),
+              "method": method, "breaks": [round(value, 6) for value in breaks], "labels": labels}
+    from ..cartography.vision import confusable_pairs
+
+    clashes = confusable_pairs([(labels[index], colour) for index, colour in enumerate(colors)])
+    if clashes:
+        # A auditoria acusaria depois (CART070); avisar aqui deixa o assistente
+        # trocar a rampa ou o número de classes antes de compor.
+        pares = "; ".join(f"{c['a']} × {c['b']}" for c in clashes[:3])
+        result["warnings"] = [f"Com esta rampa e {len(ranges)} classes há classes vizinhas que um leitor daltônico não "
+                              f"distingue ({pares}). Use menos classes ou uma rampa de um matiz só (Blues, Greens, "
+                              "Purples, Greys, Viridis)."]
+    return result
+
+
+def _graduated_colours(count: int, ramp_key: str, invert: bool) -> list[str]:
+    """Uma cor por classe, da rampa pedida (Greens por padrão), em passos iguais de claridade."""
+    from .raster_style import lightness_positions, qgis_ramp
+
+    ramp = qgis_ramp(ramp_key or "Greens", invert)
+    samples = [ramp.color(k / 40.0).name() for k in range(41)]
+    return [ramp.color(position).name() for position in lightness_positions(samples, count)]
+
+
+_DENSITY_LABELS = {
+    "pt-BR": ("Menor densidade", "Maior densidade"), "en": ("Lower density", "Higher density"),
+    "es": ("Menor densidad", "Mayor densidad"), "fr": ("Densité faible", "Densité élevée"),
+    "de": ("Geringe Dichte", "Hohe Dichte"), "it": ("Densità bassa", "Densità alta"),
+}
+
+
+def apply_heatmap_style(params: dict[str, Any], context: dict[str, Any]):
+    """Mapa de calor (densidade de kernel desenhada pelo QGIS) para uma camada de pontos."""
+    layer = _layer(require_param(params, "layer_id", str))
+    imports = _imports()
+    point = _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Point")
+    if layer.geometryType() != point:
+        raise ValidationError("POINT_LAYER_REQUIRED", "O mapa de calor precisa de uma camada de pontos.", {"layer_id": layer.id()})
+    radius = float(params.get("radius", 6.0))
+    if radius <= 0:
+        raise ValidationError("BAD_REQUEST", "radius precisa ser maior que zero.", {"radius": radius})
+    unit = str(params.get("radius_unit") or "mm").strip().lower()
+    if unit not in ("mm", "map_units", "pixels"):
+        raise ValidationError("BAD_REQUEST", "radius_unit aceita mm, map_units ou pixels.", {"radius_unit": unit})
+    weight = params.get("weight_field")
+    if weight and not _field_exists(layer, str(weight)):
+        raise ValidationError("FIELD_NOT_FOUND", "Field not found.", {"field_name": weight})
+    quality = max(1, min(5, int(params.get("quality", 3))))
+    maximum = float(params.get("max_value", 0) or 0)
+    from ..cartography.maptext import resolve_language
+    from .raster_style import ramp_name
+
+    language, _known = resolve_language(str(params.get("map_language") or "pt-BR"))
+    ramp_key = ramp_name(params.get("color_ramp") or "heat")
+    plan = {"layer_id": layer.id(), "style_type": "heatmap", "radius": radius, "radius_unit": unit,
+            "weight_field": weight or None, "quality": quality, "max_value": maximum or "auto", "color_ramp": ramp_key}
+    if context.get("dry_run"):
+        return {"dry_run": True, **plan}
+    from qgis.core import QgsColorRampLegendNodeSettings, QgsGradientColorRamp, QgsGradientStop, QgsHeatmapRenderer  # type: ignore
+
+    from ..cartography.qtcompat import qt_enum
+    from .raster_style import qgis_ramp
+
+    source = qgis_ramp(ramp_key, bool(params.get("invert", False)))
+    # A rampa começa transparente: densidade baixa deixa ver o que está por baixo.
+    first = source.color(0.0)
+    first.setAlpha(0)
+    stops = [QgsGradientStop(position, source.color(position)) for position in (0.15, 0.35, 0.55, 0.75)]
+    ramp = QgsGradientColorRamp(first, source.color(1.0), False, stops)
+    renderer = QgsHeatmapRenderer()
+    renderer.setRadius(radius)
+    unit_member = {"mm": "Millimeters", "map_units": "MapUnits", "pixels": "Pixels"}[unit]
+    try:
+        renderer.setRadiusUnit(qt_enum(imports["Qgis"], "RenderUnit", unit_member))
+    except Exception:
+        pass
+    renderer.setColorRamp(ramp)
+    renderer.setRenderQuality(quality)
+    renderer.setMaximumValue(maximum)
+    if weight:
+        renderer.setWeightExpression(f'"{weight}"')
+    try:
+        legend = QgsColorRampLegendNodeSettings()
+        low, high = _DENSITY_LABELS.get(language, _DENSITY_LABELS["en"])
+        legend.setMinimumLabel(low)
+        legend.setMaximumLabel(high)
+        renderer.setLegendSettings(legend)
+    except Exception:
+        pass
+    layer.setRenderer(renderer)
+    mark_style_origin(layer, STYLE_ORIGIN_USER)
+    _set_opacity(layer, float(params.get("opacity", 1.0)))
+    layer.triggerRepaint()
+    return plan
+
+
+#: Métodos de classificação de apply_graduated_style.
+GRADUATED_METHODS = ("equal_interval", "quantile", "jenks", "pretty")
+
+
+def _class_breaks(values: list[float], classes: int, method: str) -> list[float]:
+    """Limites de classe (classes + 1 valores, do mínimo ao máximo) para valores já ordenados.
+
+    Puro, para ser testado sem QGIS. Quantis repartem as feições em partes
+    iguais; Jenks minimiza a variância dentro das classes (Jenks, 1967);
+    "pretty" arredonda para números redondos. Limites repetidos (muitos
+    valores iguais) são fundidos — melhor menos classes que classe vazia.
+    """
+    low, high = values[0], values[-1]
+    if high <= low:
+        return [low, high if high > low else low + 1.0]
+    if method == "quantile":
+        n = len(values)
+        cuts = [values[min(n - 1, int(round(n * k / classes)))] for k in range(1, classes)]
+    elif method == "jenks":
+        cuts = _jenks_cuts(values, classes)
+    elif method == "pretty":
+        from ..cartography.scaling import nice_number
+
+        step = nice_number((high - low) / classes, "nearest")
+        start = (low // step) * step
+        cuts = [start + step * k for k in range(1, classes + 3) if low < start + step * k < high]
+    else:
+        step = (high - low) / classes
+        cuts = [low + step * k for k in range(1, classes)]
+    edges = [low] + [c for c in cuts if low < c < high] + [high]
+    merged = [edges[0]]
+    for edge in edges[1:]:
+        if edge > merged[-1]:
+            merged.append(edge)
+    return merged
+
+
+def _jenks_cuts(values: list[float], classes: int, sample: int = 1000) -> list[float]:
+    """Quebras naturais de Jenks por programação dinâmica (amostra de até ``sample`` valores)."""
+    if len(values) > sample:
+        step = len(values) / float(sample)
+        values = [values[int(i * step)] for i in range(sample)] + [values[-1]]
+    n = len(values)
+    classes = min(classes, n)
+    lower = [[0] * (classes + 1) for _ in range(n + 1)]
+    variance = [[float("inf")] * (classes + 1) for _ in range(n + 1)]
+    for j in range(1, classes + 1):
+        lower[1][j] = 1
+        variance[1][j] = 0.0
+    for i in range(2, n + 1):
+        total = total_sq = weight = 0.0
+        for m in range(1, i + 1):
+            value = values[i - m]
+            total += value
+            total_sq += value * value
+            weight += 1
+            cost = total_sq - total * total / weight
+            k = i - m
+            if k:
+                for j in range(2, classes + 1):
+                    if variance[i][j] >= cost + variance[k][j - 1]:
+                        lower[i][j] = k + 1
+                        variance[i][j] = cost + variance[k][j - 1]
+        lower[i][1] = 1
+        variance[i][1] = cost
+    cuts = []
+    k = n
+    for j in range(classes, 1, -1):
+        index = lower[k][j] - 2
+        cuts.append(values[max(0, index)])
+        k = lower[k][j] - 1
+    return sorted(cuts)
 
 
 def set_layer_opacity(params: dict[str, Any], context: dict[str, Any]):
@@ -393,11 +670,61 @@ def _apply_labels(layer: Any, value: str, params: dict[str, Any], context: dict[
         buffer_settings.setSize(float(params.get("buffer_size", 1.0)))
         buffer_settings.setColor(imports["QColor"](str(params.get("buffer_color", "#FFFFFF"))))
         text_format.setBuffer(buffer_settings)
+    notes = []
+    if layer.geometryType() == _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Line"):
+        notes = _line_label_settings(layer, settings, text_format, imports)
     settings.setFormat(text_format)
     layer.setLabeling(imports["QgsVectorLayerSimpleLabeling"](settings))
     layer.setLabelsEnabled(True)
     layer.triggerRepaint()
-    return {"layer_id": layer.id(), "labels_enabled": True, "label": value, "is_expression": is_expression}
+    result = {"layer_id": layer.id(), "labels_enabled": True, "label": value, "is_expression": is_expression}
+    if notes:
+        result["notes"] = notes
+    return result
+
+
+#: Nome de camada que indica hidrografia: o rótulo vai em itálico azul, a
+#: convenção das cartas para hidrônimos.
+_HYDRO_TERMS = ("rio", "rios", "drenag", "hidro", "curso", "água", "agua", "stream", "river", "water", "riacho", "córrego")
+
+
+def _line_label_settings(layer: Any, settings: Any, text_format: Any, imports: dict[str, Any]) -> list[str]:
+    """Rótulo de linha que acompanha a linha, um por feição contínua.
+
+    Com o posicionamento padrão (o de ponto) o rótulo de um rio não cabia em
+    nenhum trecho curto da drenagem e o motor descartava todos — 187 nomes
+    na bateria de mapas, nenhum no papel. Curvo, sobre a linha, e com os
+    trechos conectados de mesmo nome fundidos: um nome por rio.
+    """
+    from ..cartography.qtcompat import qt_enum
+
+    notes = []
+    try:
+        settings.placement = qt_enum(imports["Qgis"], "LabelPlacement", "Curved")
+    except Exception:
+        try:
+            settings.placement = qt_enum(imports["QgsPalLayerSettings"], "Placement", "Curved")
+        except Exception:
+            pass
+    try:
+        settings.lineSettings().setMergeLines(True)
+        notes.append("Trechos conectados de mesmo nome fundidos num rótulo só.")
+    except Exception:
+        pass
+    # Trecho mais curto que isto (mm no papel) não comporta o próprio nome:
+    # nem vira candidato, em vez de ser descartado pelo motor.
+    try:
+        settings.minFeatureSize = 12.0
+    except Exception:
+        pass
+    name = str(layer.name()).casefold()
+    if any(term in name for term in _HYDRO_TERMS):
+        font = text_format.font()
+        font.setItalic(True)
+        text_format.setFont(font)
+        text_format.setColor(imports["QColor"]("#1F5F8B"))
+        notes.append("Hidronímia em itálico azul, como nas cartas.")
+    return notes
 
 
 def enable_labels(params: dict[str, Any], context: dict[str, Any]):
