@@ -110,7 +110,8 @@ class CampanhaNoQgis(unittest.TestCase):
                 "coordinate_table_path": os.path.join(pasta, "pontos.csv"), "table_crs": "EPSG:4674",
             }, {"dry_run": False})
             self.assertEqual(r["template"], "campanha")
-            self.assertEqual(r["campaign"]["compose_params"]["subject_layer_id"], [pontos.id(), trilha.id()])
+            # A área de estudo entra no recorte: só com pontos e trilha o imóvel saía cortado na borda.
+            self.assertEqual(r["campaign"]["compose_params"]["subject_layer_id"], [pontos.id(), trilha.id(), area.id()])
             self.assertEqual(r["campaign"]["resolved"]["label_field"], "sitio")
             labels = r["audit"]["observation"]["map"].get("labels") or {}
             self.assertEqual(labels.get("placed"), 4)
