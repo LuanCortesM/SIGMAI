@@ -33,4 +33,4 @@ identifiers:
   - type: doi
     value: 10.5281/zenodo.20389286
     description: All versions of SIGMAI (resolves to the latest)
-date-released: "2026-10-04"
+date-released: "2026-10-25"
