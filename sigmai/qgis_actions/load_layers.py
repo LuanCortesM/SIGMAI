@@ -24,7 +24,8 @@ from ..validators import ValidationError, require_param
 from .common import project
 
 
-ALLOWED_VECTOR_EXTENSIONS = {".shp", ".gpkg", ".geojson", ".json", ".kml", ".gpx"}
+ALLOWED_VECTOR_EXTENSIONS = {".shp", ".gpkg", ".geojson", ".json", ".kml", ".kmz", ".gpx", ".osm", ".pbf", ".fgb", ".gml",
+                             ".zip"}
 DELIMITED_EXTENSIONS = {".csv", ".txt", ".tsv"}
 
 #: Nomes de coluna reconhecidos como coordenada, em ordem de preferência.
@@ -143,6 +144,28 @@ def delimited_text_uri(
     }
 
 
+def _sublayer_names(source: str) -> list[str]:
+    """Nomes das subcamadas de um arquivo (GeoPackage, KMZ com pastas, OSM: points/lines/multipolygons…)."""
+    try:
+        from qgis.core import QgsProviderRegistry  # type: ignore
+
+        details = QgsProviderRegistry.instance().querySublayers(source)
+        names = [str(item.name()) for item in details if str(item.name())]
+        if names:
+            return names
+    except Exception:
+        pass
+    try:
+        from osgeo import ogr  # type: ignore
+
+        dataset = ogr.Open(source)
+        if dataset is None:
+            return []
+        return [dataset.GetLayer(index).GetName() for index in range(dataset.GetLayerCount())]
+    except Exception:
+        return []
+
+
 def handle(params: dict[str, Any], context: dict[str, Any]):
     path_value = require_param(params, "path", str)
     name = params.get("name") or Path(path_value).stem
@@ -172,7 +195,15 @@ def handle(params: dict[str, Any], context: dict[str, Any]):
                 {"suffix": path.suffix},
             )
         detected = {}
-        source = str(path)
+        # Shapefile zipado, como os órgãos públicos distribuem: o GDAL lê
+        # direto do .zip, sem extrair.
+        source = f"/vsizip/{path.as_posix()}" if suffix == ".zip" else str(path)
+        layer_name = params.get("layer_name")
+        if layer_name is not None:
+            if not isinstance(layer_name, str) or not layer_name.strip() or "|" in layer_name:
+                raise ValidationError("BAD_REQUEST", "layer_name precisa ser o nome de uma subcamada do arquivo.",
+                                      {"layer_name": layer_name})
+            source = f"{source}|layername={layer_name.strip()}"
 
     if context.get("dry_run"):
         return {
@@ -189,11 +220,18 @@ def handle(params: dict[str, Any], context: dict[str, Any]):
     except Exception as exc:
         raise RuntimeError("PyQGIS is only available inside QGIS.") from exc
 
+    sublayers = [] if delimited else _sublayer_names(source.split("|")[0])
+    if not delimited and params.get("layer_name") and params["layer_name"].strip() not in sublayers and sublayers:
+        raise ValidationError(
+            "SUBLAYER_NOT_FOUND",
+            f"O arquivo não tem a subcamada {params['layer_name']!r}. Subcamadas: {', '.join(sublayers)}.",
+            {"sublayers": sublayers},
+        )
     layer = QgsVectorLayer(source, str(name), provider)
     if not layer.isValid():
         raise ValidationError(
             "INVALID_VECTOR_LAYER", "QGIS could not load this vector layer.",
-            {"path": str(path), "provider": provider, "detected": detected},
+            {"path": str(path), "provider": provider, "detected": detected, "sublayers": sublayers},
         )
     if delimited and layer.featureCount() == 0:
         raise ValidationError(
@@ -212,6 +250,13 @@ def handle(params: dict[str, Any], context: dict[str, Any]):
         "valid": True,
         "feature_count": int(layer.featureCount()),
     }
+    if len(sublayers) > 1:
+        result["sublayers"] = sublayers
+        if not params.get("layer_name"):
+            result["warnings"] = [
+                f"O arquivo tem {len(sublayers)} subcamadas ({', '.join(sublayers)}); foi carregada a primeira. "
+                "Repita com layer_name para escolher outra."
+            ]
     if delimited:
         result["detected"] = detected
         result["notes"] = [
