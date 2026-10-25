@@ -99,6 +99,46 @@ GREY_GEOMETRY_DEFAULTS: dict[str, dict[str, Any]] = {
 }
 #: Espessura do contorno destacado de um polígono que contém outros (mm).
 OUTLINE_STROKE_MM = 0.7
+#: Contorno de uma subdivisão (municípios sobre a APA): fino, para não pesar.
+OUTLINE_SUBDIVISION_STROKE_MM = 0.3
+#: Cores dos contornos, uma por camada: dois contornos no mesmo cinza-escuro
+#: eram indistinguíveis no mapa e na legenda (CART070).
+OUTLINE_COLOURS = ("#1A1A1A", "#7B3294", "#B2182B", "#2166AC")
+#: Curvas de nível em sépia, como nas cartas topográficas.
+CONTOUR_COLOUR = "#8C510A"
+
+
+def _dense_line_width(layer: Any, default: float) -> float:
+    """Traço mais fino para camadas de linha densas: curvas de nível, malha viária estadual."""
+    try:
+        count = int(layer.featureCount())
+    except Exception:
+        return default
+    if count > 2000:
+        return min(default, 0.18)
+    if count > 300:
+        return min(default, 0.28)
+    return default
+
+
+def _semantic_layer_colour(layer: Any) -> str | None:
+    """Cor pelo nome da camada (água, área urbana, floresta...), ou None."""
+    try:
+        from ..qgis_actions.raster_style import semantic_colour
+
+        return semantic_colour(layer.name())
+    except Exception:
+        return None
+
+
+def _is_contour_layer(layer: Any) -> bool:
+    try:
+        name = str(layer.name()).lower()
+        if any(term in name for term in ("curva", "contour", "isolinha", "isoipsa", "höhenlinie", "courbe")):
+            return True
+        return layer.fields().indexOf("ELEV") >= 0
+    except Exception:
+        return False
 
 #: Traços e pontos em cinza: preto, cinza escuro e cinza médio.
 GREY_ACCENTS: tuple[str, ...] = ("#000000", "#4D4D4D", "#808080")
@@ -232,24 +272,51 @@ def apply_default_symbology(
     # preservada de um mapa anterior e a camada nova de agora saíam no
     # mesmo laranja — e CART070 reprovava o mapa que o SIGMAI compôs.
     fills_in_use: list[str] = []
+    outlines_in_use: set[str] = set()
     if mode == "missing":
         for layer in layers:
             if hasattr(layer, "renderer") and hasattr(layer, "geometryType") and not has_default_symbology(layer):
                 colour = _polygon_fill_of(layer, imports)
                 if colour:
                     fills_in_use.append(colour)
+                elif not _is_filled(layer):
+                    # Contorno de uma composição anterior: outra camada que
+                    # vire contorno agora não pode sair na mesma cor.
+                    try:
+                        outlines_in_use.add(layer.renderer().symbol().symbolLayer(0).strokeColor().name().upper())
+                    except Exception:
+                        pass
     polygon_slot = 0
+    outline_slot = 0
 
     for index, layer in enumerate(layers):
         if not hasattr(layer, "renderer") or not hasattr(layer, "geometryType"):
+            # Raster: a paleta não o toca, mas numa figura em cinza a cor dele
+            # também sai no papel — converte mantendo as classes.
+            if greyscale and hasattr(layer, "renderer"):
+                converted = greyscale_layer_style(layer, dry_run=dry_run)
+                if converted:
+                    applied.append({"layer": layer.name(), "action": "preservada", "reason": "raster",
+                                    "style_origin": style_origin(layer) or "project", "note": converted})
             continue  # raster ou camada sem simbologia vetorial
-        if mode == "missing" and not has_default_symbology(layer):
+        needs_outline = bool(outline_ids) and layer.id() in outline_ids
+        # A paleta de uma composição anterior é do próprio SIGMAI: refaz-se
+        # quando agora o polígono tem de ser contorno, ou quando a figura
+        # passou a ser em cinza e a paleta anterior era colorida.
+        own_palette_outdated = style_origin(layer) == STYLE_ORIGIN_PALETTE and (
+            (needs_outline and _is_filled(layer)) or (greyscale and _renderer_has_colour(layer)))
+        if mode == "missing" and not has_default_symbology(layer) and not own_palette_outdated:
             origem_estilo = style_origin(layer)
             reason = {
                 STYLE_ORIGIN_USER: "estilo definido por uma ação de simbologia (apply_single_symbol, graduado, categorizado ou QML)",
                 STYLE_ORIGIN_PALETTE: "paleta aplicada numa composição anterior",
             }.get(origem_estilo, "simbologia temática já definida")
-            applied.append({"layer": layer.name(), "action": "preservada", "reason": reason, "style_origin": origem_estilo or "project"})
+            entry = {"layer": layer.name(), "action": "preservada", "reason": reason, "style_origin": origem_estilo or "project"}
+            if greyscale:
+                converted = greyscale_layer_style(layer, dry_run=dry_run)
+                if converted:
+                    entry["note"] = converted
+            applied.append(entry)
             continue
 
         try:
@@ -276,8 +343,20 @@ def apply_default_symbology(
             # Polígono que contém outros do mapa (o estado sobre os municípios):
             # preenchido, ele cobre o que contém — os municípios sumiam sob o
             # estado e continuavam na legenda. Vira contorno destacado, por cima.
-            style.update({"fill": "#FFFFFF", "pattern": "no", "stroke_width": OUTLINE_STROKE_MM})
-            accent = "#000000" if greyscale else "#1A1A1A"
+            subdivision = False
+            try:
+                subdivision = int(layer.featureCount()) > 20
+            except Exception:
+                pass
+            style.update({"fill": "255,255,255,0", "pattern": "no",
+                          "stroke_width": OUTLINE_SUBDIVISION_STROKE_MM if subdivision else OUTLINE_STROKE_MM})
+            free = [colour for colour in OUTLINE_COLOURS if colour.upper() not in outlines_in_use] or list(OUTLINE_COLOURS)
+            accent = "#000000" if greyscale else free[outline_slot % len(free)]
+            outlines_in_use.add(accent.upper())
+            outline_slot += 1
+        elif kind == "Line" and _is_contour_layer(layer):
+            accent = "#4D4D4D" if greyscale else CONTOUR_COLOUR
+            style["stroke_width"] = _dense_line_width(layer, 0.25)
         elif greyscale:
             accent = GREY_ACCENTS[index % len(GREY_ACCENTS)]
             if kind == "Polygon":
@@ -293,12 +372,22 @@ def apply_default_symbology(
             # traço as distinguia — no papel, nada as distinguia. A sequência
             # POLYGON_FILLS alterna claridade e matiz para que as camadas de
             # polígono continuem distintas nas simulações de daltonismo.
-            accent, amount, polygon_slot = _next_polygon_fill(polygon_slot, fills_in_use)
-            style["fill"] = _tint(accent, amount)
+            meaning = _semantic_layer_colour(layer)
+            if meaning and _tint(meaning, 0.55) not in fills_in_use:
+                # Camada cujo nome diz o que ela é: massas d'água em azul,
+                # área urbana em vermelho — pela paleta em sequência elas
+                # saíam laranja e azul-claro.
+                accent = meaning
+                style["fill"] = _tint(meaning, 0.55)
+            else:
+                accent, amount, polygon_slot = _next_polygon_fill(polygon_slot, fills_in_use)
+                style["fill"] = _tint(accent, amount)
             fills_in_use.append(style["fill"])
         # Cor que de fato aparece no mapa: o preenchimento para polígono, o
         # próprio matiz para linha e ponto. Reportada em ambos os modos —
         # é o que permite a uma simulação dizer "com que cor" sem aplicá-la.
+        if kind == "Line":
+            style["stroke_width"] = _dense_line_width(layer, float(style.get("stroke_width", 0.45)))
         display_color = accent if outline else style.get("fill", accent)
         origem = type(layer.renderer()).__name__ if hasattr(layer, "renderer") else ""
 
@@ -340,6 +429,205 @@ def apply_default_symbology(
     return applied
 
 
+def _is_filled(layer: Any) -> bool:
+    """O símbolo único da camada tem algum preenchimento (o contrário de um contorno)."""
+    try:
+        from qgis.PyQt.QtCore import Qt  # type: ignore
+
+        from .qtcompat import qt_enum
+
+        no_brush = qt_enum(Qt, "BrushStyle", "NoBrush")
+        symbol = layer.renderer().symbol()
+        return any(hasattr(symbol.symbolLayer(i), "brushStyle") and symbol.symbolLayer(i).brushStyle() != no_brush
+                   for i in range(symbol.symbolLayerCount()))
+    except Exception:
+        return False
+
+
+#: Claridade (0–255) dos cinzas de uma classificação convertida: do quase
+#: branco ao quase preto. Cinco classes ficam a ΔL* ≥ 18 entre vizinhas.
+GREY_CLASS_LIGHT, GREY_CLASS_DARK = 236, 38
+#: Classes nominais além desta quantidade recebem hachuras em vez de mais cinzas.
+GREY_CLASS_MAX_SOLID = 5
+_GREY_HATCHES = ("b_diagonal", "f_diagonal", "cross", "horizontal", "vertical", "diagonal_x", "dense5", "dense3")
+_HATCH_BRUSH = {"b_diagonal": "BDiagPattern", "f_diagonal": "FDiagPattern", "cross": "CrossPattern",
+                "horizontal": "HorPattern", "vertical": "VerPattern", "diagonal_x": "DiagCrossPattern",
+                "dense5": "Dense5Pattern", "dense3": "Dense3Pattern"}
+
+
+def _renderer_has_colour(layer: Any) -> bool:
+    """O símbolo único da camada tem matiz (não é cinza)."""
+    try:
+        return _has_colour(layer.renderer().symbol())
+    except Exception:
+        return False
+
+
+def _luminance(colour: Any) -> float:
+    return 0.2126 * colour.red() + 0.7152 * colour.green() + 0.0722 * colour.blue()
+
+
+def _grey_levels(count: int) -> list[int]:
+    """``count`` cinzas espaçados por igual, do claro para o escuro."""
+    if count <= 1:
+        return [128]
+    step = (GREY_CLASS_LIGHT - GREY_CLASS_DARK) / float(count - 1)
+    return [int(round(GREY_CLASS_LIGHT - step * i)) for i in range(count)]
+
+
+def _grey_symbol(symbol: Any, level: int, hatch: str | None = None) -> Any:
+    """O símbolo no cinza dado (preenchimento, traço ou marcador); o contorno vira cinza escuro."""
+    from qgis.PyQt.QtCore import Qt  # type: ignore
+    from qgis.PyQt.QtGui import QColor  # type: ignore
+
+    from .qtcompat import qt_enum
+
+    clone = symbol.clone()
+    clone.setColor(QColor(level, level, level, clone.color().alpha()))
+    for index in range(clone.symbolLayerCount()):
+        symbol_layer = clone.symbolLayer(index)
+        try:
+            if hasattr(symbol_layer, "strokeColor") and hasattr(symbol_layer, "setStrokeColor"):
+                stroke = symbol_layer.strokeColor()
+                value = min(60, int(round(_luminance(stroke))))
+                symbol_layer.setStrokeColor(QColor(value, value, value, stroke.alpha()))
+            if hatch and hasattr(symbol_layer, "setBrushStyle"):
+                symbol_layer.setBrushStyle(qt_enum(Qt, "BrushStyle", _HATCH_BRUSH[hatch]))
+                symbol_layer.setColor(QColor(0, 0, 0))
+        except Exception:
+            continue
+    return clone
+
+
+def _has_colour(symbol: Any) -> bool:
+    try:
+        colours = [symbol.color()]
+        for index in range(symbol.symbolLayerCount()):
+            symbol_layer = symbol.symbolLayer(index)
+            if hasattr(symbol_layer, "strokeColor"):
+                colours.append(symbol_layer.strokeColor())
+        return any(max(c.red(), c.green(), c.blue()) - min(c.red(), c.green(), c.blue()) >= 12 for c in colours)
+    except Exception:
+        return False
+
+
+def greyscale_layer_style(layer: Any, dry_run: bool = False) -> str:
+    """Converte para tons de cinza o estilo que a camada já tem, mantendo as classes.
+
+    Numa figura pedida em cinza, uma camada com estilo próprio — uma
+    classificação graduada ou categorizada, um raster em pseudocor — saía
+    colorida e reprovava CART073; e o remédio de "reestilizar tudo" trocava
+    as classes por um cinza único, apagando o mapa temático. Aqui cada
+    classe recebe um cinza: do claro para o escuro numa graduação, na ordem
+    da claridade original numa categorização (com hachuras além de seis
+    classes). Devolve a nota do que foi (ou seria) feito, ou "".
+    """
+    try:
+        renderer = layer.renderer()
+    except Exception:
+        return ""
+    if renderer is None:
+        return ""
+    kind = str(renderer.type()) if callable(getattr(renderer, "type", None)) else ""
+    verb = "seria convertida" if dry_run else "convertida"
+    try:
+        if not hasattr(layer, "geometryType"):
+            return _greyscale_raster(layer, renderer, dry_run, verb)
+        if kind == "graduatedSymbol":
+            ranges = renderer.ranges()
+            if not any(_has_colour(item.symbol()) for item in ranges):
+                return ""
+            if not dry_run:
+                for index, (level, item) in enumerate(zip(_grey_levels(len(ranges)), ranges)):
+                    renderer.updateRangeSymbol(index, _grey_symbol(item.symbol(), level))
+            note = f"{verb} para tons de cinza mantendo as {len(ranges)} classes (do claro para o escuro)"
+        elif kind == "categorizedSymbol":
+            categories = renderer.categories()
+            if not any(_has_colour(c.symbol()) for c in categories if c.symbol() is not None):
+                return ""
+            if not dry_run:
+                order = sorted(range(len(categories)), key=lambda i: -_luminance(categories[i].symbol().color()))
+                solid = min(len(order), GREY_CLASS_MAX_SOLID)
+                levels = _grey_levels(solid)
+                for rank, index in enumerate(order):
+                    symbol = categories[index].symbol()
+                    if symbol is None:
+                        continue
+                    if rank < solid:
+                        renderer.updateCategorySymbol(index, _grey_symbol(symbol, levels[rank]))
+                    else:
+                        hatch = _GREY_HATCHES[(rank - solid) % len(_GREY_HATCHES)]
+                        renderer.updateCategorySymbol(index, _grey_symbol(symbol, 255, hatch))
+            note = f"{verb} para tons de cinza mantendo as {len(categories)} categorias"
+        elif kind == "RuleRenderer":
+            rules = [rule for rule in renderer.rootRule().descendants() if rule.symbol() is not None]
+            if not any(_has_colour(rule.symbol()) for rule in rules):
+                return ""
+            if not dry_run:
+                ordered = sorted(rules, key=lambda rule: -_luminance(rule.symbol().color()))
+                for level, rule in zip(_grey_levels(len(ordered)), ordered):
+                    rule.setSymbol(_grey_symbol(rule.symbol(), level))
+            note = f"{verb} para tons de cinza mantendo as {len(rules)} regras"
+        elif kind == "singleSymbol":
+            symbol = renderer.symbol()
+            if symbol is None or not _has_colour(symbol):
+                return ""
+            if not dry_run:
+                renderer.setSymbol(_grey_symbol(symbol, int(round(_luminance(symbol.color())))))
+            note = f"{verb} para cinza na claridade da cor original"
+        else:
+            return ""
+    except Exception:
+        return ""
+    if not dry_run:
+        layer.triggerRepaint()
+    return note
+
+
+def _greyscale_raster(layer: Any, renderer: Any, dry_run: bool, verb: str) -> str:
+    """Raster: classes de uma paleta viram cinzas distintos; o resto passa por um filtro de luminosidade."""
+    from qgis.PyQt.QtGui import QColor  # type: ignore
+
+    kind = str(renderer.type())
+    if kind in ("singlebandgray", "hillshade"):
+        return ""
+    if kind == "paletted":
+        classes = list(renderer.classes())
+        if not classes:
+            return ""
+        if not dry_run:
+            from qgis.core import QgsPalettedRasterRenderer  # type: ignore
+
+            order = sorted(range(len(classes)), key=lambda i: -_luminance(classes[i].color))
+            levels = _grey_levels(len(classes))
+            for rank, index in enumerate(order):
+                classes[index].color = QColor(levels[rank], levels[rank], levels[rank], classes[index].color.alpha())
+            grey = QgsPalettedRasterRenderer(layer.dataProvider(), renderer.band(), classes)
+            grey.setOpacity(renderer.opacity())
+            layer.setRenderer(grey)
+            layer.triggerRepaint()
+        return f"{verb} para tons de cinza mantendo as {len(classes)} classes"
+    try:
+        current = layer.hueSaturationFilter().grayscaleMode()
+        off = getattr(getattr(type(layer.hueSaturationFilter()), "GrayscaleMode", None), "GrayscaleOff", 0)
+        if current != off:
+            return ""
+    except Exception:
+        pass
+    if not dry_run:
+        try:
+            from qgis.core import QgsHueSaturationFilter  # type: ignore
+
+            from .qtcompat import qt_enum
+
+            layer.hueSaturationFilter().setGrayscaleMode(
+                qt_enum(QgsHueSaturationFilter, "GrayscaleMode", "GrayscaleLuminosity"))
+            layer.triggerRepaint()
+        except Exception:
+            return ""
+    return f"{verb} para tons de cinza pela luminosidade"
+
+
 def _polygon_fill_of(layer: Any, imports: dict[str, Any]) -> str:
     """Cor de preenchimento de uma camada de polígono com símbolo único, ou ''."""
     try:
@@ -348,8 +636,8 @@ def _polygon_fill_of(layer: Any, imports: dict[str, Any]) -> str:
         if layer.geometryType() != geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Polygon"):
             return ""
         renderer = layer.renderer()
-        if renderer is None or str(renderer.type()) != "singleSymbol":
-            return ""
+        if renderer is None or str(renderer.type()) != "singleSymbol" or not _is_filled(layer):
+            return ""  # contorno não ocupa cor de preenchimento
         symbol = renderer.symbol()
         return str(symbol.color().name()).upper() if symbol is not None else ""
     except Exception:

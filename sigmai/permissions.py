@@ -233,6 +233,8 @@ COMMAND_PERMISSIONS: dict[str, CommandPermission] = {
     "apply_single_symbol": CommandPermission("apply_single_symbol", "symbology", SAFE_WRITE, supports_dry_run=True),
     "apply_categorized_style": CommandPermission("apply_categorized_style", "symbology", SAFE_WRITE, supports_dry_run=True),
     "apply_graduated_style": CommandPermission("apply_graduated_style", "symbology", SAFE_WRITE, supports_dry_run=True),
+    "apply_heatmap_style": CommandPermission("apply_heatmap_style", "symbology", SAFE_WRITE, supports_dry_run=True),
+    "apply_raster_style": CommandPermission("apply_raster_style", "symbology", SAFE_WRITE, supports_dry_run=True),
     "set_layer_opacity": CommandPermission("set_layer_opacity", "symbology", SAFE_WRITE, supports_dry_run=True),
     "inspect_layer_style": CommandPermission("inspect_layer_style", "symbology", READ_ONLY),
     "save_qml_style": CommandPermission("save_qml_style", "symbology", SAFE_WRITE, supports_dry_run=True),

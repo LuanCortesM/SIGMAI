@@ -26,6 +26,8 @@ PROCESSING_ALLOWLIST = {
     "native:extractbylocation",
     "native:extractbyexpression",
     "native:countpointsinpolygon",
+    "native:joinattributestable",
+    "native:fieldcalculator",
     "gdal:cliprasterbyextent",
     "gdal:cliprasterbymasklayer",
     "gdal:warpreproject",
