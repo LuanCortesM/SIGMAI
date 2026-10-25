@@ -292,6 +292,23 @@ def layer_details(args: dict[str, Any]) -> dict[str, Any]:
     return {**info, "data": data, "warnings": warnings}
 
 
+def _with_language_warning(args: dict[str, Any], response: dict[str, Any]) -> dict[str, Any]:
+    """Sem map_language, os textos do compositor saem em português: dizer isso, alto, na resposta.
+
+    Num experimento com assistentes escrevendo em inglês, a maioria deixou o
+    padrão e entregou mapas com "Legenda" e "Fonte" em português ao lado de
+    título e camadas em inglês. O esquema marca o parâmetro como obrigatório;
+    este aviso cobre o cliente que não respeita o esquema.
+    """
+    if not str(args.get("map_language") or "").strip() and isinstance(response, dict):
+        warning = ("map_language não informado: os textos que o compositor escreve (Legenda, Fonte, Elaboração, "
+                   "Escala) saíram em português (pt-BR). Se a conversa é em outra língua, recomponha com "
+                   "map_language nessa língua (por exemplo 'en').")
+        response = dict(response)
+        response["warnings"] = [warning] + list(response.get("warnings") or [])
+    return response
+
+
 def _obj(properties: dict[str, Any], required: list[str] | None = None, additional: bool = False) -> dict[str, Any]:
     schema: dict[str, Any] = {"type": "object", "properties": properties, "additionalProperties": additional}
     if required:
@@ -342,7 +359,7 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
     )},
     "orientation": {**_S, "description": (
         "'landscape'/'portrait' (ou retrato/paisagem), quando não vier junto de 'page'; ou 'auto' para o "
-        "SIGMAI girar a folha se o recorte aproveitar melhor a outra orientação (recomendado quando você não sabe)."
+        "SIGMAI girar a folha se o recorte aproveitar melhor a outra orientação. Omitida (e sem orientação em 'page'), vale 'auto'."
     )},
     "arrangement": {**_S, "description": (
         "Onde ficam legenda, escala e norte: 'coluna_lateral' (quadro alto) ou 'faixa_inferior' (quadro largo). "
@@ -380,15 +397,18 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
     "grid_style": {"type": "string", "enum": ["solid", "cross", "markers", "frame"]},
     "colour_mode": {"type": "string", "enum": ["colour", "greyscale"], "description": (
         "'colour' (padrão) ou 'greyscale': figura em tons de cinza para impressão — paleta de quatro cinzas "
-        "a ΔL* ≥ 18 e hachuras da quinta camada em diante, contorno do inserto em preto. A auditoria mede a "
-        "cor no PNG exportado (CART073). Camadas com cor de uma composição anterior só mudam com apply_style='all'."
+        "a ΔL* ≥ 18 e hachuras da quinta camada em diante, contorno do inserto em preto. Camadas já "
+        "estilizadas (classificação graduada ou categorizada, raster em pseudocor, paleta de uma composição "
+        "colorida anterior) são convertidas para cinza mantendo as classes — não use apply_style='all' para "
+        "isso, ele troca as classes por um cinza único. A auditoria mede a cor no PNG exportado (CART073)."
     )},
     "apply_style": {"type": "string", "enum": ["missing", "all", "none"], "description": (
         "'missing' (padrão): reestiliza com a paleta segura só as camadas que ainda têm o símbolo único "
         "padrão do QGIS (sorteado ao carregar) ou um estilo embutido de KML sem amostra de legenda; uma "
         "camada com estilo temático (graduado, categorizado) ou um símbolo único que VOCÊ acabou de "
-        "aplicar por apply_single_symbol é preservada. 'all' força a paleta em todas; 'none' não toca "
-        "em nenhuma. A resposta lista camada a camada o que foi feito e por quê."
+        "aplicar por apply_single_symbol é preservada. 'all' força a paleta em todas — inclusive nas "
+        "classificadas, que perdem as classes; 'none' não toca em nenhuma. A resposta lista camada a "
+        "camada o que foi feito e por quê."
     )},
     "subject_layer_id": {
         "description": (
@@ -550,9 +570,9 @@ TOOLS: list[dict[str, Any]] = [
             "será composto lá. Funciona em qualquer modo de acesso, inclusive somente leitura. Use para "
             "mostrar ao usuário o que será feito antes de pedir autorização para executar."
         ),
-        "inputSchema": _obj(dict(COMPOSE_PROPERTIES), ["layer_ids"]),
+        "inputSchema": _obj(dict(COMPOSE_PROPERTIES), ["layer_ids", "map_language"]),
         "annotations": {"title": "Planejar mapa", **READ_ONLY},
-        "handler": lambda args: bridge_call("compose_map", dict(args), dry_run=True),
+        "handler": lambda args: _with_language_warning(args, bridge_call("compose_map", dict(args), dry_run=True)),
     },
     {
         "name": "sigmai_compose_map",
@@ -566,9 +586,9 @@ TOOLS: list[dict[str, Any]] = [
             "ESTA AÇÃO GRAVA ARQUIVO: exige que o usuário tenha liberado escrita no painel do SIGMAI. "
             "Se vier recusada, use sigmai_plan_map para mostrar o plano e peça a liberação."
         ),
-        "inputSchema": _obj(dict(COMPOSE_PROPERTIES), ["layer_ids", "title", "output_path"]),
+        "inputSchema": _obj(dict(COMPOSE_PROPERTIES), ["layer_ids", "title", "output_path", "map_language"]),
         "annotations": {"title": "Compor mapa", **WRITES},
-        "handler": lambda args: bridge_call("compose_map", dict(args), dry_run=False),
+        "handler": lambda args: _with_language_warning(args, bridge_call("compose_map", dict(args), dry_run=False)),
     },
     {
         "name": "sigmai_audit_layout",
@@ -685,9 +705,9 @@ TOOLS: list[dict[str, Any]] = [
             "output_path": _S, "format": _S, "dpi": _N, "page": _S, "orientation": _S, "map_language": _S,
             "margin_percent": _N, "include_grid": _B, "confirm_overwrite": _B, "layout_name": _S, "recipe_path": _S,
             "journal_column": _S, "figure_width_mm": _N, "colour_mode": {"type": "string", "enum": ["colour", "greyscale"]},
-        }, ["points_layer_id"]),
+        }, ["points_layer_id", "map_language"]),
         "annotations": {"title": "Mapa de campanha", **WRITES},
-        "handler": lambda args: bridge_call("compose_campaign_map", dict(args)),
+        "handler": lambda args: _with_language_warning(args, bridge_call("compose_campaign_map", dict(args))),
     },
     {
         "name": "sigmai_export_coordinate_table",
