@@ -372,6 +372,20 @@ class PageSpec:
         }
 
 
+def page_states_orientation(page: Any) -> bool:
+    """``page`` já fixa a orientação: traz o termo, é uma página sob medida ou um ``PageSpec`` pronto."""
+    if isinstance(page, PageSpec):
+        return True
+    if isinstance(page, dict):
+        if page.get("width_mm") is not None and page.get("height_mm") is not None:
+            return True
+        value = page.get("orientation")
+        return isinstance(value, str) and _extract_orientation(value)[0] is not None
+    if isinstance(page, str):
+        return _extract_orientation(page)[0] is not None
+    return False
+
+
 def resolve_page(
     page: str | dict[str, Any] | PageSpec | None = None,
     orientation: str | None = None,

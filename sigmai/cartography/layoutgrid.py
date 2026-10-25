@@ -140,6 +140,25 @@ MIN_FOOTER_MM = 5.0
 MIN_NORTH_MM = 11.0
 MIN_SCALEBAR_MM = 7.0
 
+#: A seta de norte não passa desta fração do lado menor da folha (17 mm numa
+#: A4). Numa faixa inferior alta ela crescia até 85% da faixa — 45 mm numa A4
+#: retrato, maior que o título — e virava o elemento mais pesado da página.
+NORTH_MAX_PAGE_FRACTION = 0.08
+
+#: Menor altura da faixa inferior quando ela é dimensionada pelo conteúdo:
+#: cabe a escala numérica sobre a barra e uma seta de norte legível.
+SUPPORT_BAND_MIN_MM = 22.0
+#: Teto da faixa inferior medida pela legenda, como fração do corpo. Com a
+#: legenda em linha própria (dez classes de solo numa figura de coluna) o
+#: teto sobe: é ela ou nomes cortados.
+SUPPORT_BAND_MAX_FRACTION = 0.4
+LEGEND_ROW_MAX_FRACTION = 0.5
+#: Altura da linha de escala e norte sob a legenda quando ela ganha uma
+#: linha própria na faixa inferior (``legend_row``).
+LEGEND_ROW_SUPPORT_MM = 15.0
+#: Menor altura da legenda na linha própria.
+LEGEND_ROW_MIN_MM = 12.0
+
 #: Menor lado que o quadro do mapa pode ter para mostrar alguma coisa. Título,
 #: subtítulo e rodapé já usam ``max(MIN_*, ...)`` acima, ou seja, já estão no
 #: piso deles quando a página é pequena — não sobra margem para "comprimir"
@@ -233,6 +252,8 @@ def solve_layout(
     panels: int = 1,
     scale_bar_under_map: bool = False,
     arrangement: str | None = None,
+    support_content_mm: float | None = None,
+    legend_row: bool = False,
 ) -> LayoutPlan:
     """Resolve o template escolhido para a página informada.
 
@@ -242,6 +263,16 @@ def solve_layout(
     dados pede — um estado alto e estreito numa A4 retrato aproveita mais a
     folha com coluna lateral (quadro alto) do que com faixa inferior (quadro
     quase quadrado).
+
+    ``support_content_mm`` é a altura que a legenda pede (medida pelo
+    compositor). Com ela a faixa inferior tem a altura do conteúdo, entre
+    ``SUPPORT_BAND_MIN_MM`` e 30% do corpo, e o que sobra vai para o mapa; sem
+    ela a faixa ocupa uma fração fixa do corpo.
+
+    ``legend_row`` dá à legenda a largura inteira da faixa, numa linha
+    própria, com escala e norte numa linha baixa embaixo: o caminho para uma
+    legenda longa que, dividindo a faixa com a escala e o norte, não cabia
+    (doze classes de solo numa figura de coluna, numa caixa de 34 mm).
     """
     spec = resolve_page(page)
     template_key = template if template in TEMPLATES else DEFAULT_TEMPLATE
@@ -331,6 +362,7 @@ def solve_layout(
             slots,
             Rect(content_x + map_w + gutter, body_y, side_w, body_h),
             gutter=gutter,
+            north_max=_north_max(spec),
             include_legend=include_legend,
             include_scale_bar=include_scale_bar and not strip_h,
             include_scale_text=include_scale_text,
@@ -346,12 +378,30 @@ def solve_layout(
             )
     else:
         support_h = min(body_h * 0.30, max(26.0, body_h * 0.22))
+        narrow = include_legend and legend_row
+        # O inserto precisa de altura própria para ser lido; com ele a faixa
+        # fica na fração fixa.
+        ceiling = LEGEND_ROW_MAX_FRACTION if narrow else SUPPORT_BAND_MAX_FRACTION
+        if support_content_mm and support_content_mm > 0 and not include_inset:
+            wanted = float(support_content_mm) + (LEGEND_ROW_SUPPORT_MM + gutter if narrow else 0.0)
+            support_h = min(body_h * ceiling, max(SUPPORT_BAND_MIN_MM, wanted))
+        if narrow:
+            # A linha própria precisa de altura para a legenda acima da linha
+            # de escala e norte, mesmo antes de a legenda ser medida.
+            support_h = min(body_h * ceiling, max(support_h, LEGEND_ROW_SUPPORT_MM + gutter + LEGEND_ROW_MIN_MM))
         map_h = body_h - support_h - gutter
         slots["map"] = Rect(content_x, body_y, content_w, map_h)
+        band = Rect(content_x, body_y + map_h + gutter, content_w, support_h)
+        if narrow and support_h >= LEGEND_ROW_SUPPORT_MM + gutter + LEGEND_ROW_MIN_MM - 1e-6:
+            legend_h = support_h - LEGEND_ROW_SUPPORT_MM - gutter
+            slots["legend"] = Rect(band.x, band.y, band.width, legend_h)
+            band = Rect(band.x, band.y + legend_h + gutter, band.width, LEGEND_ROW_SUPPORT_MM)
+            include_legend = False
         _fill_support_band(
             slots,
-            Rect(content_x, body_y + map_h + gutter, content_w, support_h),
+            band,
             gutter=gutter,
+            north_max=_north_max(spec),
             include_legend=include_legend,
             include_scale_bar=include_scale_bar,
             include_scale_text=include_scale_text,
@@ -454,11 +504,16 @@ def solve_layout(
     return LayoutPlan(page=spec, template=template_key, arrangement=arrangement, slots=slots, fonts=fonts, notes=notes)
 
 
+def _north_max(spec: PageSpec) -> float:
+    return max(MIN_NORTH_MM, min(spec.width_mm, spec.height_mm) * NORTH_MAX_PAGE_FRACTION)
+
+
 def _fill_support_column(
     slots: dict[str, Rect],
     column: Rect,
     *,
     gutter: float,
+    north_max: float = float("inf"),
     include_legend: bool,
     include_scale_bar: bool,
     include_scale_text: bool,
@@ -471,7 +526,7 @@ def _fill_support_column(
     remaining = column.height
 
     if include_north_arrow:
-        north_h = max(MIN_NORTH_MM, column.height * 0.09)
+        north_h = min(north_max, max(MIN_NORTH_MM, column.height * 0.09))
         north_w = min(column.width * 0.42, north_h * 0.72)
         slots["north"] = Rect(column.x + (column.width - north_w) / 2.0, cursor, north_w, north_h)
         cursor += north_h + gutter
@@ -520,6 +575,7 @@ def _fill_support_band(
     band: Rect,
     *,
     gutter: float,
+    north_max: float = float("inf"),
     include_legend: bool,
     include_scale_bar: bool,
     include_scale_text: bool,
@@ -562,7 +618,7 @@ def _fill_support_band(
                 bar_h = max(MIN_SCALEBAR_MM, block.bottom - inner_cursor)
                 slots["scale_bar"] = Rect(block.x, inner_cursor, block.width, min(bar_h, block.bottom - inner_cursor))
         elif name == "north":
-            north_h = min(band.height, max(MIN_NORTH_MM, band.height * 0.85))
+            north_h = min(band.height, north_max, max(MIN_NORTH_MM, band.height * 0.85))
             north_w = min(width, north_h * 0.72)
             slots["north"] = Rect(cursor + (width - north_w) / 2.0, band.y + (band.height - north_h) / 2.0, north_w, north_h)
         else:

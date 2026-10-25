@@ -30,12 +30,13 @@ from typing import Any
 
 from .layoutgrid import DEFAULT_TEMPLATE, TEMPLATES, LayoutPlan, Rect, solve_layout
 from .maptext import MAP_TEXT, RTL_LANGUAGES, maptext, resolve_language
-from .pagespec import PAGE_SIZES, PageSpec, resolve_page
+from .pagespec import PAGE_SIZES, PageSpec, page_states_orientation, resolve_page
 from .params import ParameterError, as_flag, as_id_list, as_number, as_text
 from .qtcompat import distance_unit, layout_unit_mm, qt_enum
 from ..security import classify_output_path
 from .rulebook import SCALEBAR_MIN_LENGTH_MM, evaluate
 from .scaling import (
+    SCALEBAR_DIGIT_EM,
     SCALEBAR_MIN_FRACTION,
     fit_extent_to_frame,
     graticule_interval,
@@ -762,7 +763,10 @@ def _basemap_attributions(layers: list[Any]) -> list[str]:
 AUTO_ORIENTATION_TERMS = frozenset({"auto", "automatic", "automatica", "automática", "automatique", "automatisch"})
 
 
-def _orientation_is_auto(value: Any) -> bool:
+def _orientation_is_auto(value: Any, page: Any = None) -> bool:
+    """Orientação a escolher pela forma do recorte: pedida como "auto" ou não dita em lugar nenhum."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return not page_states_orientation(page)
     return isinstance(value, str) and value.strip().lower() in AUTO_ORIENTATION_TERMS
 
 
@@ -890,7 +894,10 @@ def _credit_line(params: dict[str, Any], crs_label: str, date_label: str, map_la
     # dado como qualquer outra, e a licença o exige na peça publicada.
     partes_fonte = [source] if source else []
     for credito in (basemap_credits or []):
-        if credito not in partes_fonte:
+        # "© OpenStreetMap contributors (ODbL)" já está dito quando a fonte
+        # declarada traz "© OpenStreetMap contributors": o crédito saía duas vezes.
+        nucleo = credito.split(" (")[0].strip().casefold()
+        if nucleo and not any(nucleo in parte.casefold() for parte in partes_fonte):
             partes_fonte.append(credito)
     if partes_fonte:
         pieces.append(f"{maptext(map_language, 'fonte')}{'; '.join(partes_fonte)}")
@@ -1008,6 +1015,14 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # Polígono que contém outros do mapa (o estado sobre os municípios) vira
     # contorno destacado desenhado por cima; preenchido, ele os escondia.
     container_ids = _container_polygon_ids(layers, imports)
+    # Assunto raster (modelo de elevação, imagem, classificação): o contexto
+    # de polígonos desenhado por cima vira contorno. Preenchido, mesmo com
+    # transparência, ele escondia o relevo que era a razão do mapa.
+    container_ids |= _polygons_over_raster_subject(layers, wanted_subject, imports)
+    # Medida de verdade, pelas áreas: polígono preenchido sobre um raster
+    # temático, sobre uma mancha que ele cobre em boa parte, ou duas camadas
+    # que forram o quadro uma sobre a outra — a de cima escondia a de baixo.
+    container_ids |= _hiding_polygon_ids(layers, wanted_subject, container_ids, imports)
     styling = apply_default_symbology(styling_targets, apply_style_value, dry_run=True, colour_mode=colour_mode,
                                       outline_ids=container_ids)
     styling_verb = "seria reestilizada" if composing_dry_run else "foi reestilizada"
@@ -1017,7 +1032,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     ]
     # ``strict=True``: se o assistente pediu um formato que não existe, é melhor
     # dizer isso do que devolver, em silêncio, uma folha A4 que ninguém pediu.
-    orientation_auto = _orientation_is_auto(params.get("orientation"))
+    orientation_auto = _orientation_is_auto(params.get("orientation"), params.get("page"))
     try:
         page: PageSpec = resolve_page(
             params.get("page"), None if orientation_auto else params.get("orientation"), params.get("margin_mm"),
@@ -1192,6 +1207,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # recorte (sem encher a folha de faixa vazia), até figure_max_height_mm.
     figure_width = _resolve_figure_width(params)
     print_width_mm: float | None = None
+    figure_shape: tuple[Any, ...] | None = None
     if figure_width is not None:
         figure_height = as_number(params, "figure_height_mm", None, minimum=20.0, maximum=600.0, label="figure_height_mm")
         max_height = as_number(params, "figure_max_height_mm", default=FIGURE_DEFAULT_MAX_HEIGHT_MM, minimum=20.0, maximum=600.0,
@@ -1203,6 +1219,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         page, plan = _solve_figure_page(
             figure_width, figure_height, max_height, margin_for_figure, extent, layout_request,
         )
+        figure_shape = (figure_width, figure_height, max_height, margin_for_figure, extent)
         layout_request["page"] = page  # as passadas seguintes (barra sob o mapa) resolvem nesta página
         frame = plan.map_frame()
         orientation_auto = False
@@ -1329,6 +1346,37 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         except ValueError as exc:
             raise CompositionError(str(exc)) from exc
         frame = plan.map_frame()
+
+    # Coluna lateral estreita demais para a legenda (doze unidades geológicas
+    # numa figura de revista): a legenda vai para uma faixa inferior, onde
+    # cabe em colunas, se lá ela couber.
+    if plan.arrangement == "coluna_lateral" and include_legend and not params.get("arrangement"):
+        column_need = _legend_need_mm(_legend_entries(layers, extra_specs, params, imports), plan, params, imports,
+                                      map_language, layer_sources)
+        if column_need is not None and column_need > plan.slots["legend"].height + 1.0:
+            chosen_band = _fit_band(layout_request, _legend_entries(layers, extra_specs, params, imports), params, imports,
+                                    map_language, layer_sources, figure_shape)
+            if chosen_band is not None and chosen_band[2]:
+                plan = chosen_band[0]
+                _refresh_figure_note(notes, page, plan.page)
+                page = plan.page
+                layout_request.update(arrangement="faixa_inferior", page=page,
+                                      legend_row=plan.slots["legend"].width >= plan.page.content_width_mm - 0.5,
+                                      support_content_mm=chosen_band[1])
+                frame = plan.map_frame()
+                notes.append("Legenda numa faixa inferior: na coluna lateral ela não cabia.")
+
+    # Faixa inferior na altura da legenda que vai recebê-la; o que sobra vai
+    # para o mapa. Depois da orientação e do arranjo, que só ganham com isso.
+    if plan.arrangement == "faixa_inferior" and include_legend and not extra_specs:
+        chosen_band = _fit_band(layout_request, layers, params, imports, map_language, layer_sources, figure_shape)
+        if chosen_band is not None:
+            plan = chosen_band[0]
+            _refresh_figure_note(notes, page, plan.page)
+            page = plan.page
+            layout_request.update(arrangement="faixa_inferior", page=page, support_content_mm=chosen_band[1],
+                                  legend_row=plan.slots["legend"].width >= plan.page.content_width_mm - 0.5)
+            frame = plan.map_frame()
 
     fitted = _fit(frame)
 
@@ -1536,8 +1584,10 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # aceitos, o que sai daqui para a frente é um mapa ou uma falha de QGIS.
     styling = apply_default_symbology(styling_targets, apply_style_value, dry_run=False, colour_mode=colour_mode,
                                       outline_ids=container_ids)
-    outlined = {layer.id() for layer in layers if layer.name() in
-                {entry.get("layer") for entry in styling if entry.get("outline") and entry.get("action") == "estilizada"}}
+    # Desenhada como contorno é a candidata cujo símbolo, depois da
+    # simbologia, não tem preenchimento — inclusive a que uma composição
+    # anterior já deixou assim e que apply_style=missing preservou.
+    outlined = _outlined_layer_ids(layers, container_ids)
 
     # --- layout -----------------------------------------------------------
     if replace_layout:
@@ -1657,7 +1707,11 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # transborda cerca de meia largura de rótulo de cada lado — uma folga em
     # milímetros, não uma fração. Descontar 30% da faixa punia justamente as
     # faixas largas, onde sobra espaço de sobra para os rótulos.
-    label_overhang_mm = max(10.0, plan.fonts["legend"] * 1.6)
+    # Meio rótulo da direita ("100 km", ~6 caracteres) mais meio da esquerda
+    # ("0" ou "10"), à largura média de dígito: ~4,5 caracteres. Os 10 mm
+    # fixos de antes deixavam, numa figura de coluna (85 mm), uma barra de
+    # 8 mm — 12 % do quadro, abaixo do mínimo de CART022.
+    label_overhang_mm = max(5.0, _scalebar_font_pt(plan) * 0.3528 * SCALEBAR_DIGIT_EM * 4.5)
     bar_spec = scalebar_spec(
         fitted.scale_denominator,
         frame.width,
@@ -1760,9 +1814,19 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         map_frame=frame,
         print_width_mm=print_width_mm,
         colour_mode=colour_mode,
+        subject_layer_ids=[layer.id() for layer in drawn_layers
+                           if layer.id() in wanted_subject or layer.name() in wanted_subject],
     )
 
     _reject_if_audit_found_blank_output(audit)
+    # Mapa de base que não desenhou nada (sem rede, endereço errado, servidor
+    # que recusou): fora da legenda, nenhuma regra o via, e o mapa saía com
+    # o fundo em branco onde o pedido era um OpenStreetMap.
+    empty = set(((audit.get("observation") or {}).get("map") or {}).get("empty_layer_names") or [])
+    for layer in drawn_layers:
+        if not hasattr(layer, "geometryType") and _is_basemap_raster(layer) and layer.name() in empty:
+            notes.append(f"O mapa de base {layer.name()!r} não desenhou nada no quadro: sem rede, endereço errado ou "
+                         "servidor que recusou os tiles. Confira o endereço e a conexão, ou troque de serviço.")
 
     result = {
         "layout_name": layout_name,
@@ -1913,8 +1977,14 @@ def _resolve_figure_width(params: dict[str, Any]) -> float | None:
 
 def _solve_figure_page(
     width: float, height: float | None, max_height: float, margin_mm: Any, extent: Any, layout_request: dict[str, Any],
+    legend_need: float | None = None,
 ) -> tuple[PageSpec, LayoutPlan]:
-    """Página da figura: largura fixa; altura dada ou a que casa o quadro com o recorte."""
+    """Página da figura: largura fixa; altura dada ou a que casa o quadro com o recorte.
+
+    Com ``legend_need`` (a altura que a legenda pede), as alturas em que ela
+    cabe vêm antes: doze unidades geológicas numa figura de coluna dupla
+    transbordavam da legenda na altura que só olhava o recorte.
+    """
     def solve(h: float) -> tuple[PageSpec, LayoutPlan]:
         spec = resolve_page({"width_mm": width, "height_mm": h, "name": "figura"}, None, margin_mm)
         return spec, solve_layout(**{**layout_request, "page": spec})
@@ -1934,6 +2004,9 @@ def _solve_figure_page(
             frame = plan.map_frame()
             if frame.height > 0:
                 mismatch = abs(math.log((frame.width / frame.height) / data_aspect))
+                slot = plan.slots.get("legend")
+                if legend_need is not None and slot is not None and slot.height + 0.5 < legend_need:
+                    mismatch += 10.0 + (legend_need - slot.height) / 10.0
                 if best is None or mismatch < best[0] - 1e-9:
                     best = (mismatch, spec, plan)
         except ValueError:
@@ -2069,6 +2142,7 @@ def audit_layout(
     print_width_mm: float | None = None,
     collect_labels: bool = True,
     colour_mode: str | None = None,
+    subject_layer_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Observa um layout e roda o regulamento cartográfico contra ele.
 
@@ -2122,9 +2196,10 @@ def audit_layout(
         ink_grid=grid,
         label_results=label_results or None,
         print_width_mm=print_width_mm,
+        subject_layer_ids=subject_layer_ids,
     )
     observation["colour_mode"] = colour_mode or None
-    if raster_path:
+    if raster_path and colour_mode == "greyscale":  # só CART073 usa, e só para figura pedida em cinza
         observation["output"]["chromatic_fraction"] = measure_chromatic_fraction(raster_path)
 
     # Tinta em volta dos itens desenhados sobre o quadro do mapa — só faz
@@ -2393,9 +2468,254 @@ def _container_polygon_ids(layers: list[Any], imports: dict[str, Any]) -> set[st
                     and outer_extent.yMinimum() - tol_y <= inner_extent.yMinimum()
                     and outer_extent.xMaximum() + tol_x >= inner_extent.xMaximum()
                     and outer_extent.yMaximum() + tol_y >= inner_extent.yMaximum()):
-                containers.add(outer.id())
-                break
+                # O envelope só sugere: as massas d'água de uma região têm um
+                # envelope que abrange o das áreas urbanas e não contêm nenhuma.
+                # Confirma pela área quando a conta é barata.
+                share = _area_share_covered(outer, inner, imports)
+                if share is None or share >= CONTAINER_MIN_SHARE:
+                    containers.add(outer.id())
+                    break
     return containers
+
+
+#: Fração da área de uma camada que outra precisa cobrir para contê-la.
+CONTAINER_MIN_SHARE = 0.9
+#: Camada que cobre pelo menos esta fração da área a enquadrar "forra" o quadro.
+TILING_MIN_COVERAGE = 0.85
+#: Polígono por cima que cobre esta fração de uma mancha abaixo a esconde:
+#: a APP de 30 m de um imóvel tem uns 20 % dentro dele, e é a parte que o
+#: laudo existe para mostrar.
+HIDING_MIN_SHARE = 0.05
+#: Acima disto a união das geometrias custa caro demais para a composição.
+HIDING_MAX_FEATURES = 3000
+
+
+def _wgs_union(layer: Any, rect_wgs: Any | None, imports: dict[str, Any]) -> Any | None:
+    """União (em WGS 84) das geometrias da camada, restrita ao retângulo; None se grande demais."""
+    try:
+        from qgis.core import QgsFeatureRequest, QgsGeometry  # type: ignore
+
+        wgs = imports["QgsCoordinateReferenceSystem"]("EPSG:4326")
+        project = imports["QgsProject"].instance()
+        to_wgs = imports["QgsCoordinateTransform"](layer.crs(), wgs, project)
+        request = QgsFeatureRequest().setNoAttributes()
+        if rect_wgs is not None:
+            to_layer = imports["QgsCoordinateTransform"](wgs, layer.crs(), project)
+            request.setFilterRect(to_layer.transformBoundingBox(rect_wgs))
+        parts = []
+        for feature in layer.getFeatures(request):
+            geometry = feature.geometry()
+            if geometry is None or geometry.isEmpty():
+                continue
+            geometry = QgsGeometry(geometry)
+            geometry.transform(to_wgs)
+            parts.append(geometry.makeValid() if not geometry.isGeosValid() else geometry)
+            if len(parts) > HIDING_MAX_FEATURES:
+                return None
+        if not parts:
+            return QgsGeometry()
+        union = QgsGeometry.unaryUnion(parts)
+        if rect_wgs is not None:
+            union = union.intersection(QgsGeometry.fromRect(rect_wgs))
+        return union
+    except Exception:
+        return None
+
+
+def _area_share_covered(outer: Any, inner: Any, imports: dict[str, Any]) -> float | None:
+    """Fração da área de ``inner`` coberta por ``outer``; None quando não dá para medir."""
+    inner_union = _wgs_union(inner, None, imports)
+    outer_union = _wgs_union(outer, None, imports)
+    if inner_union is None or outer_union is None or inner_union.isEmpty() or inner_union.area() <= 0:
+        return None
+    try:
+        return float(inner_union.intersection(outer_union).area()) / float(inner_union.area())
+    except Exception:
+        return None
+
+
+def _is_basemap_raster(layer: Any) -> bool:
+    try:
+        return layer.providerType() in ("wms", "arcgismapserver", "xyzvectortiles", "vectortile")
+    except Exception:
+        return False
+
+
+def _hiding_polygon_ids(layers: list[Any], subject: set[str], already: set[str], imports: dict[str, Any]) -> set[str]:
+    """Polígonos preenchidos que esconderiam outra camada do mapa: viram contorno por cima.
+
+    Três casos, todos medidos pela área dentro do recorte a enquadrar:
+    sobre um raster temático (uso da terra, elevação), o polígono preenchido
+    apagava o raster por baixo — a fazenda sobre a cobertura da terra que o
+    mapa existia para mostrar; sobre uma mancha de outra camada que ele cobre
+    em boa parte — o imóvel sobre a sua APP; e duas camadas que forram o
+    quadro inteiro uma sobre a outra — a APA sobre os municípios —, quando a
+    de mais feições (a subdivisão) vira contorno e a outra continua fundo.
+    O assunto não vira contorno por cobrir um fundo que forra o quadro: ali
+    ele é a figura e o fundo, o fundo.
+    """
+    from .qtcompat import geometry_type
+
+    try:
+        from qgis.core import QgsRectangle, QgsWkbTypes  # type: ignore
+
+        polygon = geometry_type(imports["Qgis"], QgsWkbTypes, "Polygon")
+        wgs = imports["QgsCoordinateReferenceSystem"]("EPSG:4326")
+        project = imports["QgsProject"].instance()
+    except Exception:
+        return set()
+
+    def is_subject(layer: Any) -> bool:
+        return layer.id() in subject or layer.name() in subject
+
+    def wgs_extent(layer: Any) -> Any | None:
+        try:
+            return imports["QgsCoordinateTransform"](layer.crs(), wgs, project).transformBoundingBox(layer.extent())
+        except Exception:
+            return None
+
+    polygons = [layer for layer in layers if hasattr(layer, "geometryType") and not _is_label_only(layer)
+                and layer.geometryType() == polygon and layer.id() not in already]
+    if not polygons:
+        return set()
+    framed = [layer for layer in layers if is_subject(layer)] or list(layers)
+    area_of_interest: Any = None
+    for layer in framed:
+        extent = wgs_extent(layer)
+        if extent is None or extent.isNull():
+            continue
+        if area_of_interest is None:
+            area_of_interest = QgsRectangle(extent)
+        else:
+            area_of_interest.combineExtentWith(extent)
+    if area_of_interest is None or area_of_interest.width() <= 0 or area_of_interest.height() <= 0:
+        return set()
+    area_of_interest.scale(1.05)
+    aoi_area = area_of_interest.width() * area_of_interest.height()
+
+    unions: dict[str, Any] = {}
+    for layer in polygons:
+        union = _wgs_union(layer, area_of_interest, imports)
+        if union is not None:
+            unions[layer.id()] = union
+    found: set[str] = set()
+
+    # 1. sobre um raster temático
+    from qgis.core import QgsGeometry  # type: ignore
+
+    thematic = [layer for layer in layers if not hasattr(layer, "geometryType") and not _is_basemap_raster(layer)
+                and not _is_overlay_raster(layer)]
+    for raster in thematic:
+        extent = wgs_extent(raster)
+        if extent is None:
+            continue
+        footprint = QgsGeometry.fromRect(extent).intersection(QgsGeometry.fromRect(area_of_interest))
+        if footprint.isEmpty() or footprint.area() <= 0:
+            continue
+        for layer in polygons:
+            union = unions.get(layer.id())
+            if union is None or union.isEmpty():
+                continue
+            if union.intersection(footprint).area() / footprint.area() >= 0.02:
+                found.add(layer.id())
+
+    # 2 e 3. polígono sobre polígono, na ordem de desenho (assunto por cima,
+    # depois a ordem da lista)
+    position = {layer.id(): index for index, layer in enumerate(layers)}
+    ordered = sorted([layer for layer in polygons if layer.id() in unions and layer.id() not in found],
+                     key=lambda layer: (not is_subject(layer), position[layer.id()]))
+    coverage = {layer.id(): (unions[layer.id()].area() / aoi_area if aoi_area else 0.0) for layer in ordered}
+    whole: dict[str, Any] = {}
+    for upper_index, upper in enumerate(ordered):
+        for lower in ordered[upper_index + 1:]:
+            if upper.id() in found or lower.id() in found:
+                continue
+            lower_union, upper_union = unions[lower.id()], unions[upper.id()]
+            if lower_union.isEmpty() or upper_union.isEmpty() or lower_union.area() <= 0:
+                continue
+            tiling_lower = coverage[lower.id()] >= TILING_MIN_COVERAGE
+            tiling_upper = coverage[upper.id()] >= TILING_MIN_COVERAGE
+            if tiling_lower:
+                if tiling_upper and not is_subject(upper):
+                    more = lower if lower.featureCount() >= upper.featureCount() else upper
+                    found.add(more.id())
+                continue
+            # Fração da camada de baixo INTEIRA (não só da parte no recorte):
+            # um vizinho que encosta no parque mostra no quadro só a faixa
+            # sob o parque, e isso não faz do parque um contorno.
+            if lower.id() not in whole:
+                whole[lower.id()] = _wgs_union(lower, None, imports)
+            full = whole[lower.id()]
+            if full is None or full.isEmpty() or full.area() <= 0:
+                continue
+            share = lower_union.intersection(upper_union).area() / full.area()
+            if share >= HIDING_MIN_SHARE:
+                # Assunto temático (geologia, uso da terra) por cima de um
+                # contexto (o parque): o contexto é que vira contorno, por cima
+                # das classes. Um perímetro simples (o imóvel) vira contorno ele
+                # mesmo, e o tema embaixo (a APP) fica à vista.
+                if is_subject(upper) and not is_subject(lower) and _is_thematic(upper):
+                    found.add(lower.id())
+                else:
+                    found.add(upper.id())
+    return found
+
+
+def _is_thematic(layer: Any) -> bool:
+    """Camada de classes (categorizado, graduado, regras) ou um mosaico de muitas feições."""
+    try:
+        if str(layer.renderer().type()) in ("categorizedSymbol", "graduatedSymbol", "RuleRenderer"):
+            return True
+        return int(layer.featureCount()) > 50
+    except Exception:
+        return False
+
+
+def _polygons_over_raster_subject(layers: list[Any], subject: set[str], imports: dict[str, Any]) -> set[str]:
+    """Polígonos de contexto num mapa cujo assunto é um raster: vão por cima como contorno."""
+    from .qtcompat import geometry_type
+
+    def is_subject(layer: Any) -> bool:
+        return layer.id() in subject or layer.name() in subject
+
+    if not any(is_subject(layer) and not hasattr(layer, "geometryType") for layer in layers):
+        return set()
+    try:
+        from qgis.core import QgsWkbTypes  # type: ignore
+
+        polygon = geometry_type(imports["Qgis"], QgsWkbTypes, "Polygon")
+    except Exception:
+        return set()
+    found: set[str] = set()
+    for layer in layers:
+        try:
+            if (hasattr(layer, "geometryType") and layer.geometryType() == polygon and not is_subject(layer)
+                    and not _is_label_only(layer)):
+                found.add(layer.id())
+        except Exception:
+            continue
+    return found
+
+
+def _outlined_layer_ids(layers: list[Any], candidates: set[str]) -> set[str]:
+    """Das candidatas a contorno, as que estão de fato sem preenchimento (por id)."""
+    from qgis.PyQt.QtCore import Qt  # type: ignore
+
+    from .qtcompat import qt_enum
+
+    no_brush = qt_enum(Qt, "BrushStyle", "NoBrush")
+    outlined: set[str] = set()
+    for layer in layers:
+        if layer.id() not in candidates:
+            continue
+        try:
+            symbol = layer.renderer().symbol()
+            fills = [symbol.symbolLayer(i) for i in range(symbol.symbolLayerCount())]
+            if fills and all(hasattr(fill, "brushStyle") and fill.brushStyle() == no_brush for fill in fills):
+                outlined.add(layer.id())
+        except Exception:
+            continue
+    return outlined
 
 
 def _cartographic_draw_order(layers: list[Any], subject: set[str], outlined: set[str], imports: dict[str, Any]) -> list[Any]:
@@ -2404,11 +2724,15 @@ def _cartographic_draw_order(layers: list[Any], subject: set[str], outlined: set
 
     from .qtcompat import geometry_type
 
-    def kind(layer: Any) -> int:
+    def kind(layer: Any) -> float:
         if _is_label_only(layer):
             return 0
         if not hasattr(layer, "geometryType"):
-            return 5  # raster: fundo
+            # Raster: fundo. Um relevo sombreado ou um raster em modo de
+            # mistura (multiplicar, sobrepor) existe para tingir o que está
+            # embaixo: fica acima dos rasters opacos, senão o modelo de
+            # elevação colorido — o assunto, que sobe na pilha — o cobre.
+            return 4.5 if _is_overlay_raster(layer) else 5
         try:
             geometry = layer.geometryType()
             for rank, name in ((1, "Point"), (2, "Line")):
@@ -2423,6 +2747,35 @@ def _cartographic_draw_order(layers: list[Any], subject: set[str], outlined: set
 
     position = {layer.id(): index for index, layer in enumerate(layers)}
     return sorted(layers, key=lambda layer: (kind(layer), not is_subject(layer), position[layer.id()]))
+
+
+def _is_legendless(layer: Any) -> bool:
+    """Sem entrada na legenda: camada só de rótulo, relevo sombreado ou mapa de base.
+
+    O relevo sombreado é efeito sobre outra camada e o mapa de base (XYZ,
+    WMS) é fundo; nenhum tem classe a explicar, e o crédito de ambos vai na
+    linha de fonte.
+    """
+    if _is_label_only(layer) or (not hasattr(layer, "geometryType") and _is_basemap_raster(layer)):
+        return True
+    try:
+        return str(layer.renderer().type()) == "hillshade"
+    except Exception:
+        return False
+
+
+def _is_overlay_raster(layer: Any) -> bool:
+    try:
+        if str(layer.renderer().type()) == "hillshade":
+            return True
+    except Exception:
+        pass
+    try:
+        from qgis.PyQt.QtGui import QPainter  # type: ignore
+
+        return layer.blendMode() != qt_enum(QPainter, "CompositionMode", "CompositionMode_SourceOver")
+    except Exception:
+        return False
 
 
 def _is_label_only(layer: Any) -> bool:
@@ -2441,11 +2794,6 @@ LEGEND_WRAP = "\u2028"
 #: Largura reservada, em mm, para o símbolo e os espaçamentos à esquerda do
 #: texto de uma entrada da legenda.
 LEGEND_SYMBOL_BAND_MM = 14.0
-
-
-def _legend_columns(plan: LayoutPlan, entries: int) -> int:
-    slot = plan.slots.get("legend")
-    return 2 if (slot is not None and slot.aspect > 1.6 and entries > 3) else 1
 
 
 def _wrap_legend_label(
@@ -2487,6 +2835,33 @@ def _wrap_legend_label(
     return LEGEND_WRAP.join(lines)
 
 
+def _wrap_class_labels(model: Any, node: Any, layout: Any, imports: dict[str, Any], plan: LayoutPlan,
+                       columns: int = 1) -> bool:
+    """Quebra os rótulos de classe compridos na largura da coluna.
+
+    O nome da camada já era quebrado; os das classes não — "FFc - Plintossolo
+    Pétrico Concrecionário" saía cortado na borda da caixa numa figura de
+    coluna. O texto vai como rótulo da entrada só na legenda do mapa.
+    """
+    try:
+        from qgis.core import QgsMapLayerLegendUtils  # type: ignore
+
+        changed = False
+        for index, item in enumerate(model.layerOriginalLegendNodes(node)):
+            text = str(item.data(0) or "")
+            if not text or LEGEND_WRAP in text:
+                continue
+            wrapped = _wrap_legend_label(layout, imports, text, "", plan, columns)
+            if wrapped != text:
+                QgsMapLayerLegendUtils.setLegendNodeUserLabel(node, index, wrapped)
+                changed = True
+        if changed:
+            model.refreshLayerLegend(node)
+        return changed
+    except Exception:
+        return False
+
+
 def _legend_content_size_mm(legend: Any) -> tuple[float, float] | None:
     """Tamanho mínimo (mm) que o conteúdo da legenda precisa para ser desenhado inteiro."""
     try:
@@ -2505,6 +2880,44 @@ def _set_legend_font(legend: Any, imports: dict[str, Any], size_pt: float) -> No
 
     for style_name in ("Title", "Group", "Subgroup", "SymbolLabel"):
         legend.setStyleFont(qt_enum(QgsLegendStyle, "Style", style_name), font)
+
+
+#: Mais colunas que isto e a legenda vira uma tabela que ninguém lê.
+LEGEND_MAX_COLUMNS = 3
+#: Coluna de legenda mais estreita que isto não comporta símbolo e nome.
+LEGEND_MIN_COLUMN_MM = 30.0
+
+
+def _legend_column_options(slot_width: float) -> int:
+    """Quantas colunas a caixa comporta: o texto é quebrado de novo para a largura de cada uma."""
+    return max(1, min(LEGEND_MAX_COLUMNS, int(slot_width // LEGEND_MIN_COLUMN_MM)))
+
+
+def _rewrap_legend(legend: Any, layout: Any, imports: dict[str, Any], plan: LayoutPlan,
+                   layer_sources: dict[str, str], columns: int) -> None:
+    """Refaz a quebra dos nomes e das classes para a largura de ``columns`` colunas."""
+    from qgis.core import QgsMapLayerLegendUtils  # type: ignore
+
+    legend.setWrapString(LEGEND_WRAP)
+    model = legend.model()
+    for node in model.rootGroup().findLayers():
+        layer = node.layer()
+        if layer is None:
+            continue
+        try:
+            merged = str(node.customProperty("sigmai/merged-title", "") or "")
+            name = merged or layer.name()
+            label = _wrap_legend_label(layout, imports, name, "" if merged else layer_sources.get(layer.id(), ""), plan, columns)
+            if label != layer.name():
+                node.setCustomProperty("legend/title-label", label)
+            for index, item in enumerate(model.layerOriginalLegendNodes(node)):
+                original = str(item.data(0) or "").replace(LEGEND_WRAP, " ")
+                if original and original != "NULL":
+                    QgsMapLayerLegendUtils.setLegendNodeUserLabel(
+                        node, index, _wrap_legend_label(layout, imports, original, "", plan, columns))
+            model.refreshLayerLegend(node)
+        except Exception:
+            continue
 
 
 def _fit_legend_in_box(
@@ -2530,6 +2943,37 @@ def _fit_legend_in_box(
 
     if fits():
         return
+    # Antes de diminuir a fonte, mais colunas: uma legenda de nove classes
+    # numa faixa larga ocupava um terço da largura e era cortada embaixo.
+    most = _legend_column_options(slot.width + tolerance)
+
+    def overflow() -> float:
+        c = _legend_content_size_mm(legend)
+        return 0.0 if c is None else max(0.0, c[0] - slot.width) + max(0.0, c[1] - slot.height)
+
+    tried = {1: overflow()}
+    for count in range(2, most + 1):
+        try:
+            legend.setColumnCount(count)
+            _rewrap_legend(legend, layout, imports, plan, layer_sources, count)
+            legend.updateLegend()
+        except Exception:
+            break
+        if fits():
+            if notes is not None:
+                notes.append(f"Legenda em {count} colunas para caber na caixa.")
+            return
+        tried[count] = overflow()
+    # Nenhuma contagem coube: fica a que transborda menos (palavras longas
+    # alargam as colunas além da caixa), e só então a fonte diminui.
+    best = min(tried, key=lambda count: tried[count])
+    if best != int(legend.columnCount()):
+        try:
+            legend.setColumnCount(best)
+            _rewrap_legend(legend, layout, imports, plan, layer_sources, best)
+            legend.updateLegend()
+        except Exception:
+            pass
     size_pt = float(plan.fonts.get("legend", 8.0))
     while not fits() and size_pt - 0.5 >= MIN_FONT_PT:
         size_pt -= 0.5
@@ -2593,6 +3037,188 @@ def _fit_legend_in_box(
             )
 
 
+def _refresh_figure_note(notes: list[str], before: PageSpec, after: PageSpec) -> None:
+    """A nota "Figura para periódico: página de L x A mm" acompanha a altura que a legenda pediu."""
+    if abs(before.height_mm - after.height_mm) < 0.05:
+        return
+    old = f"página de {before.width_mm:g} x {before.height_mm:g} mm"
+    new = f"página de {after.width_mm:g} x {after.height_mm:g} mm"
+    for index, note in enumerate(notes):
+        if old in note:
+            notes[index] = note.replace(old, new) + " A altura cresceu para a legenda caber."
+
+
+def _fit_band(
+    request: dict[str, Any], entries: list[Any], params: dict[str, Any], imports: dict[str, Any], map_language: str,
+    layer_sources: dict[str, str], figure: tuple[Any, ...] | None = None,
+) -> tuple[LayoutPlan, float | None, bool] | None:
+    """Faixa inferior na altura da legenda: dividida com escala e norte ou, se não couber, com linha própria.
+
+    Devolve ``(plano, altura pedida, cabe)``; a opção que cabe, senão a que
+    transborda menos. ``figure`` (largura, altura, altura máxima, margem,
+    recorte) refaz a altura de uma figura de revista para a legenda caber.
+    """
+    options: list[tuple[float, LayoutPlan, float]] = []
+    for row in (False, True):
+        base = {**request, "arrangement": "faixa_inferior", "legend_row": row}
+        base.pop("support_content_mm", None)
+        try:
+            first = solve_layout(**base)
+        except ValueError:
+            continue
+        need = _legend_need_mm(entries, first, params, imports, map_language, layer_sources)
+        if need is None:
+            continue
+        try:
+            if figure is not None:
+                width, height, max_height, margin, extent = figure
+                fitted = _solve_figure_page(width, height, max_height, margin, extent,
+                                            {**base, "support_content_mm": need}, legend_need=need)[1]
+            else:
+                fitted = solve_layout(**{**base, "support_content_mm": need})
+        except (ValueError, CompositionError):
+            continue
+        overflow = need - fitted.slots["legend"].height
+        if overflow <= 0.5:
+            return fitted, need, True
+        options.append((overflow, fitted, need))
+    if not options:
+        return None
+    overflow, fitted, need = min(options, key=lambda option: option[0])
+    return fitted, need, False
+
+
+def _legend_entries(layers: list[Any], extra_specs: list[Any], params: dict[str, Any], imports: dict[str, Any]) -> list[Any]:
+    """As camadas que a legenda vai listar: as do quadro e as dos painéis extras."""
+    entries = list(layers)
+    for index, spec in enumerate(extra_specs):
+        try:
+            for layer in _resolve_layer_ids(spec, imports, _panel_label(index)):
+                if all(layer.id() != existing.id() for existing in entries):
+                    entries.append(layer)
+        except Exception:
+            continue
+    return entries
+
+
+def _legend_signature(layer: Any) -> tuple[Any, ...] | None:
+    """Classes (rótulo, cor) de um categorizado ou graduado; None para os demais."""
+    try:
+        renderer = layer.renderer()
+        kind = str(renderer.type())
+        if kind == "categorizedSymbol":
+            items = list(renderer.categories())
+            return (kind, str(renderer.classAttribute()), tuple((str(c.label()), c.symbol().color().name()) for c in items))
+        if kind == "graduatedSymbol":
+            items = list(renderer.ranges())
+            return (kind, str(renderer.classAttribute()), tuple((str(r.label()), r.symbol().color().name()) for r in items))
+    except Exception:
+        return None
+    return None
+
+
+def _merge_identical_legends(legend: Any, imports: dict[str, Any], layout: Any, plan: LayoutPlan) -> list[str]:
+    """Duas camadas com as mesmas classes (2000 e 2020) viram uma entrada só na legenda.
+
+    A figura de dois painéis repetia a lista inteira de classes e a legenda
+    não cabia na coluna. A segunda camada continua no modelo da legenda — a
+    auditoria a encontra —, só sem título nem classes desenhados; a primeira
+    passa a se chamar pelas duas.
+    """
+    try:
+        from qgis.core import QgsLegendRenderer, QgsLegendStyle, QgsMapLayerLegendUtils  # type: ignore
+    except Exception:
+        return []
+    model = legend.model()
+    seen: dict[tuple[Any, ...], Any] = {}
+    merged: list[str] = []
+    for node in model.rootGroup().findLayers():
+        layer = node.layer()
+        signature = _legend_signature(layer) if layer is not None else None
+        if signature is None or len(signature[2]) < 2:
+            continue
+        first = seen.get(signature)
+        if first is None:
+            seen[signature] = node
+            continue
+        try:
+            QgsMapLayerLegendUtils.setLegendNodeOrder(node, [])
+            QgsLegendRenderer.setNodeLegendStyle(node, qt_enum(QgsLegendStyle, "Style", "Hidden"))
+            model.refreshLayerLegend(node)
+            title = f"{first.customProperty('sigmai/merged-title', '') or first.layer().name()} / {layer.name()}"
+            first.setCustomProperty("sigmai/merged-title", title)
+            first.setCustomProperty("legend/title-label", _wrap_legend_label(layout, imports, title, "", plan, 1))
+            model.refreshLayerLegend(first)
+            merged.append(layer.name())
+        except Exception:
+            continue
+    return merged
+
+
+def _legend_need_mm(
+    layers: list[Any], plan: LayoutPlan, params: dict[str, Any], imports: dict[str, Any], map_language: str,
+    layer_sources: dict[str, str],
+) -> float | None:
+    """Altura (mm) que a legenda pede na caixa planejada, medida pelo próprio QGIS.
+
+    A faixa inferior tinha altura fixa — 53 mm numa A4 retrato — e uma legenda
+    de duas entradas ocupava metade dela; o resto era papel em branco tirado
+    do mapa. A medida monta, num layout descartável, a mesma legenda que o
+    mapa vai ter: mesmo texto (nome quebrado e fonte), corpo e colunas.
+    """
+    slot = plan.slots.get("legend")
+    entries = [layer for layer in layers if not _is_legendless(layer)]
+    if slot is None or not entries:
+        return None
+    try:
+        layout = imports["QgsPrintLayout"](imports["QgsProject"].instance())
+        layout.initializeDefaults()
+        title = as_text(params, "legend_title", default=maptext(map_language, "legenda_padrao"), label="legend_title")
+
+        def measure(columns: int) -> tuple[float, float] | None:
+            legend = imports["QgsLayoutItemLegend"](layout)
+            layout.addLayoutItem(legend)
+            legend.setTitle(title)
+            legend.setAutoUpdateModel(False)
+            root = legend.model().rootGroup()
+            for node in list(root.children()):
+                root.removeChildNode(node)
+            for layer in entries:
+                node = root.addLayer(layer)
+                if node is None:
+                    continue
+                if not hasattr(layer, "geometryType"):
+                    _tidy_raster_legend(legend.model(), node, layer, imports, map_language)
+                label = _wrap_legend_label(layout, imports, layer.name(), layer_sources.get(layer.id(), ""), plan, columns)
+                if label != layer.name():
+                    node.setCustomProperty("legend/title-label", label)
+                    legend.model().refreshLayerLegend(node)
+                _wrap_class_labels(legend.model(), node, layout, imports, plan, columns)
+            legend.setWrapString(LEGEND_WRAP)
+            _merge_identical_legends(legend, imports, layout, plan)
+            legend.setColumnCount(columns)
+            legend.setSplitLayer(True)
+            legend.setEqualColumnWidth(True)
+            _set_legend_font(legend, imports, float(plan.fonts["legend"]))
+            legend.updateLegend()
+            return _legend_content_size_mm(legend)
+
+        single = measure(1)
+        if single is None:
+            return None
+        # As mesmas colunas que _fit_legend_in_box vai tentar: tantas quantas
+        # a largura da caixa comporta, e fica a altura menor.
+        best = single[1]
+        most = _legend_column_options(slot.width)
+        for count in range(2, most + 1):
+            size = measure(count)
+            if size is not None and size[0] <= slot.width + 0.5:
+                best = min(best, size[1])
+        return best + 2.0
+    except Exception:
+        return None
+
+
 def _add_legend(
     layout: Any, map_item: Any, layers: list[Any], plan: LayoutPlan,
     params: dict[str, Any], imports: dict[str, Any], mm: Any, map_language: str = "pt-BR",
@@ -2612,8 +3238,8 @@ def _add_legend(
         root = legend.model().rootGroup()
         for node in list(root.children()):
             root.removeChildNode(node)
-        legend_layers = [layer for layer in layers if not _is_label_only(layer)]
-        columns = _legend_columns(plan, len(legend_layers))
+        legend_layers = [layer for layer in layers if not _is_legendless(layer)]
+        columns = 1
         for layer in legend_layers:
             # Camada só-de-rótulo (sem símbolo) não tem o que mostrar na
             # legenda; uma entrada vazia com o nome "Nomes — Piauí" confunde.
@@ -2623,6 +3249,8 @@ def _add_legend(
             # criado, por isso a propriedade vai ANTES de updateLegend — e
             # sem renomear a camada do projeto.
             source = (layer_sources or {}).get(layer.id(), "")
+            if node is not None and not hasattr(layer, "geometryType"):
+                _tidy_raster_legend(legend.model(), node, layer, imports, map_language)
             if node is not None:
                 try:
                     # A fonte vai numa segunda linha, e o nome comprido é
@@ -2635,8 +3263,16 @@ def _add_legend(
                         # antigo; a propriedade só vale depois de recriá-lo.
                         legend.model().refreshLayerLegend(node)
                         legend.setWrapString(LEGEND_WRAP)
+                    if _wrap_class_labels(legend.model(), node, layout, imports, plan, columns):
+                        legend.setWrapString(LEGEND_WRAP)
                 except Exception:
                     pass
+        # Sempre: os nomes e as classes quebrados levam LEGEND_WRAP, e sem a
+        # quebra ligada o QGIS os desenhava numa linha só, além da caixa.
+        legend.setWrapString(LEGEND_WRAP)
+        merged = _merge_identical_legends(legend, imports, layout, plan)
+        if merged and notes is not None:
+            notes.append("Legenda única para camadas com as mesmas classes: " + ", ".join(merged) + ".")
         legend.updateLegend()
     except Exception:
         try:
@@ -2649,7 +3285,7 @@ def _add_legend(
     try:
         legend.setResizeToContents(False)
         # Colunas: uma coluna estreita com muitas entradas transborda a caixa.
-        legend.setColumnCount(_legend_columns(plan, max(1, len([layer for layer in layers if not _is_label_only(layer)]))))
+        legend.setColumnCount(1)
         legend.setSplitLayer(True)
         legend.setEqualColumnWidth(True)
     except Exception:
@@ -2660,14 +3296,13 @@ def _add_legend(
         pass
     _place(legend, slot, imports, mm)
     try:
-        columns = _legend_columns(plan, max(1, len([layer for layer in layers if not _is_label_only(layer)])))
-        _fit_legend_in_box(legend, slot, plan, layout, imports, layer_sources or {}, columns, notes)
+        _fit_legend_in_box(legend, slot, plan, layout, imports, layer_sources or {}, 1, notes)
     except Exception:
         pass
     return legend
 
 
-def _scalebar_number_format(imports: dict[str, Any], map_language: str) -> Any:
+def _scalebar_number_format(imports: dict[str, Any], map_language: str, decimals: int | None = None) -> Any:
     """Formato numérico dos rótulos da barra na língua do mapa.
 
     Sem isto o QGIS formata pelo locale do processo: num mapa em português
@@ -2685,9 +3320,73 @@ def _scalebar_number_format(imports: dict[str, Any], map_language: str) -> Any:
             fmt.setThousandsSeparator(thousands[0])
         fmt.setDecimalSeparator("," if thousands == "." else ".")
         fmt.setShowTrailingZeros(False)
+        if decimals is not None:
+            fmt.setNumberDecimalPlaces(int(decimals))
         return fmt
     except Exception:
         return None
+
+
+def _ramp_decimals(minimum: float, maximum: float) -> int:
+    """Casas decimais dos extremos de uma rampa: as que a amplitude dos valores justifica."""
+    span = abs(float(maximum) - float(minimum))
+    if span >= 20:
+        return 0
+    if span >= 2:
+        return 1
+    if span >= 0.2:
+        return 2
+    return 3
+
+
+def _tidy_raster_legend(model: Any, node: Any, layer: Any, imports: dict[str, Any], map_language: str) -> None:
+    """Legenda de raster de banda única: sem o nome técnico da banda e com os extremos legíveis.
+
+    O QGIS abre a entrada com "Band 1 (Gray)" e escreve os extremos da rampa
+    pelo locale do processo, com seis casas — "867,538025" num mapa em
+    inglês. O nome da banda sai da entrada (só na legenda do mapa, não na
+    árvore do projeto) e os extremos ficam com as casas que a amplitude pede,
+    no separador da língua do mapa.
+    """
+    try:
+        renderer = layer.renderer()
+        kind = str(renderer.type())
+    except Exception:
+        return
+    holder = None
+    minimum = maximum = None
+    try:
+        if kind == "singlebandgray":
+            holder = renderer
+            enhancement = renderer.contrastEnhancement()
+            minimum, maximum = enhancement.minimumValue(), enhancement.maximumValue()
+        elif kind == "singlebandpseudocolor":
+            holder = renderer.shader().rasterShaderFunction()
+            minimum, maximum = renderer.classificationMin(), renderer.classificationMax()
+    except Exception:
+        holder = None
+    if holder is not None and minimum is not None and hasattr(holder, "legendSettings"):
+        fmt = _scalebar_number_format(imports, map_language, _ramp_decimals(minimum, maximum))
+        if fmt is not None:
+            try:
+                settings = holder.legendSettings()
+                settings.setNumericFormat(fmt)
+                holder.setLegendSettings(settings)
+            except Exception:
+                pass
+    if kind not in ("singlebandgray", "singlebandpseudocolor", "paletted"):
+        return
+    try:
+        from qgis.core import QgsMapLayerLegendUtils, QgsSimpleLegendNode  # type: ignore
+
+        model.refreshLayerLegend(node)
+        nodes = model.layerOriginalLegendNodes(node)
+        keep = [index for index, item in enumerate(nodes) if not isinstance(item, QgsSimpleLegendNode)]
+        if keep and len(keep) < len(nodes):
+            QgsMapLayerLegendUtils.setLegendNodeOrder(node, keep)
+            model.refreshLayerLegend(node)
+    except Exception:
+        pass
 
 
 def _add_scalebar(
@@ -3136,7 +3835,13 @@ def _build_comparison_map(
     layout.addLayoutItem(second)
     _place(second, frame, imports, mm)
     second.setCrs(map_crs)
-    second.setLayers(comparison["layers"])
+    # A mesma ordem cartográfica do quadro principal: sem ela, as mesmas
+    # camadas se empilhavam de um jeito no painel A e de outro no B.
+    panel_subject = str(comparison["spec"].get("subject_layer_id") or "").strip()
+    panel_layers = list(comparison["layers"])
+    second.setLayers(_cartographic_draw_order(
+        panel_layers, {panel_subject} if panel_subject else set(),
+        _outlined_layer_ids(panel_layers, {layer.id() for layer in panel_layers}), imports))
     second.zoomToExtent(imports["QgsRectangle"](fitted.xmin, fitted.ymin, fitted.xmax, fitted.ymax))
     second.setFrameEnabled(True)
     # grid_style já validado por compose_map; reaproveitado aqui em vez de ler
