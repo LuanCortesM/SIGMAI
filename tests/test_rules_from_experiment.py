@@ -337,7 +337,8 @@ class MedicoesNoQgis(unittest.TestCase):
     def test_legenda_estreita_e_medida_e_ajustada(self):
         """Uma legenda de 30 x 12 mm feita à mão com dois nomes compridos transborda
         (CART072 reprova); a composição numa coluna de revista com os mesmos
-        nomes cabe, porque compose_map reduz a fonte e tira as fontes por camada."""
+        nomes cabe, porque compose_map mede a legenda e dá à faixa a altura que
+        ela pede (antes, reduzia a fonte e tirava as fontes por camada)."""
         from qgis.core import QgsLayoutItemLegend, QgsLayoutPoint, QgsLayoutSize, QgsProject, QgsUnitTypes
 
         from sigmai.cartography.compose import audit_layout
@@ -372,7 +373,6 @@ class MedicoesNoQgis(unittest.TestCase):
                              "journal_column": "single", "output_path": os.path.join(pasta, "f.png"), "format": "png",
                              "dpi": 72, "layout_name": "F"}, {"dry_run": False})
         self.assertEqual(next(c for c in r["audit"]["results"] if c["id"] == "CART072")["status"], "pass")
-        self.assertTrue(any("legenda" in n.lower() and ("reduzida" in n or "não couberam" in n) for n in r["notes"]), r["notes"])
 
     def test_tinta_em_grade_e_no_entorno(self):
         from qgis.PyQt.QtGui import QColor, QImage, QPainter

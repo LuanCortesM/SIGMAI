@@ -47,12 +47,18 @@ class ScaleTests(unittest.TestCase):
         self.assertEqual(basis, "serie_cartografica")
 
     def test_publication_scale_abandons_the_ladder_rather_than_wasting_the_page(self):
-        # O degrau seguinte da série (500.000) dobraria a extensão: 46% de
-        # margem. É a regressão que motivou choose_publication_scale.
-        scale, basis = choose_publication_scale(260_000, 286_000)
+        # O degrau seguinte da série (50.000.000) quase dobraria a extensão:
+        # 46% de margem. É a regressão que motivou choose_publication_scale.
+        scale, basis = choose_publication_scale(26_000_000, 28_600_000)
         self.assertEqual(basis, "dois_algarismos_significativos")
-        self.assertGreaterEqual(scale, 260_000)
-        self.assertLess((scale / 260_000 - 1) / 2 * 100, 25.0)
+        self.assertGreaterEqual(scale, 26_000_000)
+        self.assertLess((scale / 26_000_000 - 1) / 2 * 100, 25.0)
+
+    def test_ladder_has_rungs_between_250k_and_500k(self):
+        # Um recorte que pedia 1:385.000 ia para 1:500.000, com 21% de branco
+        # de cada lado; com o degrau de 400.000 a margem cai para 2%.
+        scale, basis = choose_publication_scale(385_000, 404_000)
+        self.assertEqual((scale, basis), (400_000, "serie_cartografica"))
 
 
 class FitExtentTests(unittest.TestCase):

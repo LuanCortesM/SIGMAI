@@ -48,7 +48,7 @@ class EsquemaDoComposeMapEIgualAoCompositor(unittest.TestCase):
             tools["sigmai_plan_map"]["inputSchema"]["properties"],
             tools["sigmai_compose_map"]["inputSchema"]["properties"],
         )
-        self.assertEqual(tools["sigmai_plan_map"]["inputSchema"]["required"], ["layer_ids"])
+        self.assertEqual(tools["sigmai_plan_map"]["inputSchema"]["required"], ["layer_ids", "map_language"])
 
     def test_descricoes_de_inserto_dizem_a_verdade(self) -> None:
         mcp = _mcp_module()

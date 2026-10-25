@@ -161,8 +161,8 @@ class FiguraEmCinzaNoQgis(unittest.TestCase):
         with pasta_temporaria() as pasta:
             _, resultado = self._compor(pasta)
             self.assertEqual(self._cart073(resultado)["status"], rulebook.STATUS_SKIP)
-            self.assertGreater(resultado["audit"]["observation"]["output"]["chromatic_fraction"],
-                               rulebook.GREYSCALE_MAX_CHROMATIC_FRACTION)
+            # Numa figura colorida a fração cromática nem é medida: ninguém a cobra.
+            self.assertNotIn("chromatic_fraction", resultado["audit"]["observation"]["output"])
 
 
 if __name__ == "__main__":

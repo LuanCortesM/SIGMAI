@@ -75,6 +75,20 @@ class GuardrailTests(unittest.TestCase):
         self.assertFalse(manager.evaluate(request(output_path="/tmp/fora.png")).allowed)
         self.assertTrue(manager.evaluate(request(output_path="/home/usuario/mapas/ok.png")).allowed)
 
+    def test_reading_a_file_outside_the_sandbox_is_not_a_write(self):
+        """Carregar dado da pasta do usuário não grava nela; o logotipo também é só lido."""
+        manager = ConsentManager(mode=MODE_ALLOW_SESSION)
+        manager.set_output_roots(["/home/usuario/mapas"])
+        load = ConsentRequest("load_vector_layer", "layers", "safe_write", {"path": "/dados/municipios.shp"}, "127.0.0.1")
+        self.assertTrue(manager.evaluate(load).allowed)
+        self.assertEqual(load.output_paths(), [])
+        logo = request(output_path="/home/usuario/mapas/ok.png", logo_path="/dados/logo.png")
+        self.assertTrue(manager.evaluate(logo).allowed)
+        # O que de fato grava continua preso à pasta.
+        self.assertFalse(manager.evaluate(request(output_path="/dados/fora.png", logo_path="/dados/logo.png")).allowed)
+        export = ConsentRequest("export_layout", "cartography", "safe_write", {"path": "/dados/fora.pdf"}, "127.0.0.1")
+        self.assertFalse(manager.evaluate(export).allowed)
+
     def test_sandbox_resists_traversal(self):
         manager = ConsentManager(mode=MODE_ALLOW_SESSION)
         manager.set_output_roots(["/home/usuario/mapas"])

@@ -96,8 +96,13 @@ class OrientacaoAutomatica(unittest.TestCase):
     def test_grafias_aceitas(self):
         for termo in ("auto", "AUTO", " automática ", "automatic"):
             self.assertTrue(_orientation_is_auto(termo), termo)
-        for termo in ("portrait", "paisagem", None, 3):
+        for termo in ("portrait", "paisagem", 3):
             self.assertFalse(_orientation_is_auto(termo), termo)
+        # Orientação não dita em lugar nenhum: escolhida pela forma do recorte.
+        self.assertTrue(_orientation_is_auto(None))
+        self.assertTrue(_orientation_is_auto(None, "A4"))
+        self.assertFalse(_orientation_is_auto(None, "A4 retrato"))
+        self.assertFalse(_orientation_is_auto(None, {"width_mm": 85, "height_mm": 120}))
         self.assertIn("auto", AUTO_ORIENTATION_TERMS)
 
     def test_orientation_continua_parametro_conhecido(self):
@@ -205,7 +210,7 @@ class AssuntoEContextoNoQgis(unittest.TestCase):
 
         QgsProject.instance().clear()
         QgsProject.instance().setCrs(QgsCoordinateReferenceSystem("EPSG:31984"))
-        vizinho = self._poligono("Vizinho", 500900, 501900)
+        vizinho = self._poligono("Vizinho", 501000, 502000)
         parque = self._poligono("Parque", 500000, 501000)
         matiz, quanto = POLYGON_FILLS[0]
         with pasta_temporaria() as pasta:
