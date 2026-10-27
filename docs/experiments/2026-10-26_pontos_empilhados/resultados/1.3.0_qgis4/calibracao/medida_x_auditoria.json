@@ -1,0 +1,674 @@
+[
+ {
+  "caso": "gbif_300_A5_pontos_2.2mm_0.95",
+  "ocultos": 0.8133,
+  "cobertura": 0.238,
+  "parque_visivel": 0.9365,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_300_A5_pontos_2.2mm_0.5",
+  "ocultos": 0.54,
+  "cobertura": 0.1754,
+  "parque_visivel": 0.954,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_300_A5_pontos_2.2mm_0.25",
+  "ocultos": 0.39,
+  "cobertura": 0.1196,
+  "parque_visivel": 0.9687,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_300_A5_pontos_1.4mm_0.95",
+  "ocultos": 0.77,
+  "cobertura": 0.1182,
+  "parque_visivel": 0.9673,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_300_A5_pontos_1.4mm_0.5",
+  "ocultos": 0.4867,
+  "cobertura": 0.083,
+  "parque_visivel": 0.9775,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_300_A5_pontos_1.4mm_0.25",
+  "ocultos": 0.3167,
+  "cobertura": 0.0551,
+  "parque_visivel": 0.9854,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_300_A5_pontos_0.9mm_0.95",
+  "ocultos": 0.74,
+  "cobertura": 0.0548,
+  "parque_visivel": 0.9852,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_300_A5_pontos_0.9mm_0.5",
+  "ocultos": 0.49,
+  "cobertura": 0.0363,
+  "parque_visivel": 0.9901,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_300_A5_pontos_0.9mm_0.25",
+  "ocultos": 0.32,
+  "cobertura": 0.0233,
+  "parque_visivel": 0.9937,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_300_A5_pontos_0.5mm_0.95",
+  "ocultos": 0.7133,
+  "cobertura": 0.0186,
+  "parque_visivel": 0.9941,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_300_A5_pontos_0.5mm_0.5",
+  "ocultos": 0.4533,
+  "cobertura": 0.0122,
+  "parque_visivel": 0.9961,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_300_A5_pontos_0.5mm_0.25",
+  "ocultos": 0.2967,
+  "cobertura": 0.0077,
+  "parque_visivel": 0.9976,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_3000_A5_pontos_2.2mm_0.95",
+  "ocultos": 0.9523,
+  "cobertura": 0.3005,
+  "parque_visivel": 0.8359,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_3000_A5_pontos_2.2mm_0.5",
+  "ocultos": 0.863,
+  "cobertura": 0.2343,
+  "parque_visivel": 0.872,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_3000_A5_pontos_2.2mm_0.25",
+  "ocultos": 0.7823,
+  "cobertura": 0.1756,
+  "parque_visivel": 0.9056,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_3000_A5_pontos_1.4mm_0.95",
+  "ocultos": 0.9333,
+  "cobertura": 0.1696,
+  "parque_visivel": 0.906,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_3000_A5_pontos_1.4mm_0.5",
+  "ocultos": 0.8273,
+  "cobertura": 0.1266,
+  "parque_visivel": 0.9294,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_3000_A5_pontos_1.4mm_0.25",
+  "ocultos": 0.7517,
+  "cobertura": 0.0898,
+  "parque_visivel": 0.9502,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_3000_A5_pontos_0.9mm_0.95",
+  "ocultos": 0.915,
+  "cobertura": 0.0891,
+  "parque_visivel": 0.9514,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_3000_A5_pontos_0.9mm_0.5",
+  "ocultos": 0.7997,
+  "cobertura": 0.0638,
+  "parque_visivel": 0.9651,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_3000_A5_pontos_0.9mm_0.25",
+  "ocultos": 0.7277,
+  "cobertura": 0.0433,
+  "parque_visivel": 0.9763,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_3000_A5_pontos_0.5mm_0.95",
+  "ocultos": 0.8947,
+  "cobertura": 0.034,
+  "parque_visivel": 0.978,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_3000_A5_pontos_0.5mm_0.5",
+  "ocultos": 0.774,
+  "cobertura": 0.0236,
+  "parque_visivel": 0.9848,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_3000_A5_pontos_0.5mm_0.25",
+  "ocultos": 0.6997,
+  "cobertura": 0.0155,
+  "parque_visivel": 0.99,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_30000_A5_pontos_2.2mm_0.95",
+  "ocultos": 0.9903,
+  "cobertura": 0.3725,
+  "parque_visivel": 0.6592,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_30000_A5_pontos_2.2mm_0.5",
+  "ocultos": 0.9679,
+  "cobertura": 0.3066,
+  "parque_visivel": 0.7191,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_30000_A5_pontos_2.2mm_0.25",
+  "ocultos": 0.9454,
+  "cobertura": 0.2461,
+  "parque_visivel": 0.7759,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_30000_A5_pontos_1.4mm_0.95",
+  "ocultos": 0.9856,
+  "cobertura": 0.2229,
+  "parque_visivel": 0.7887,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_30000_A5_pontos_1.4mm_0.5",
+  "ocultos": 0.9547,
+  "cobertura": 0.1792,
+  "parque_visivel": 0.8303,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_30000_A5_pontos_1.4mm_0.25",
+  "ocultos": 0.9246,
+  "cobertura": 0.1409,
+  "parque_visivel": 0.8678,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_30000_A5_pontos_0.9mm_0.95",
+  "ocultos": 0.9802,
+  "cobertura": 0.1268,
+  "parque_visivel": 0.879,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_30000_A5_pontos_0.9mm_0.5",
+  "ocultos": 0.9389,
+  "cobertura": 0.1009,
+  "parque_visivel": 0.9042,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_30000_A5_pontos_0.9mm_0.25",
+  "ocultos": 0.9009,
+  "cobertura": 0.0781,
+  "parque_visivel": 0.9275,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_30000_A5_pontos_0.5mm_0.95",
+  "ocultos": 0.9711,
+  "cobertura": 0.0571,
+  "parque_visivel": 0.9351,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_30000_A5_pontos_0.5mm_0.5",
+  "ocultos": 0.9174,
+  "cobertura": 0.0441,
+  "parque_visivel": 0.95,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_30000_A5_pontos_0.5mm_0.25",
+  "ocultos": 0.8754,
+  "cobertura": 0.0326,
+  "parque_visivel": 0.964,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_362210_A5_pontos_2.2mm_0.95",
+  "ocultos": 0.9984,
+  "cobertura": 0.5163,
+  "parque_visivel": 0.3298,
+  "cart075": "fail"
+ },
+ {
+  "caso": "gbif_362210_A5_pontos_2.2mm_0.5",
+  "ocultos": 0.9944,
+  "cobertura": 0.4409,
+  "parque_visivel": 0.4263,
+  "cart075": "fail"
+ },
+ {
+  "caso": "gbif_362210_A5_pontos_2.2mm_0.25",
+  "ocultos": 0.9899,
+  "cobertura": 0.3685,
+  "parque_visivel": 0.5221,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_362210_A5_pontos_1.4mm_0.95",
+  "ocultos": 0.9974,
+  "cobertura": 0.3455,
+  "parque_visivel": 0.5335,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_362210_A5_pontos_1.4mm_0.5",
+  "ocultos": 0.9914,
+  "cobertura": 0.2851,
+  "parque_visivel": 0.6141,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_362210_A5_pontos_1.4mm_0.25",
+  "ocultos": 0.985,
+  "cobertura": 0.2307,
+  "parque_visivel": 0.6892,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_362210_A5_pontos_0.9mm_0.95",
+  "ocultos": 0.9962,
+  "cobertura": 0.2111,
+  "parque_visivel": 0.7124,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_362210_A5_pontos_0.9mm_0.5",
+  "ocultos": 0.988,
+  "cobertura": 0.1696,
+  "parque_visivel": 0.7675,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_362210_A5_pontos_0.9mm_0.25",
+  "ocultos": 0.9793,
+  "cobertura": 0.1342,
+  "parque_visivel": 0.8167,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_362210_A5_pontos_0.5mm_0.95",
+  "ocultos": 0.994,
+  "cobertura": 0.1011,
+  "parque_visivel": 0.8358,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_362210_A5_pontos_0.5mm_0.5",
+  "ocultos": 0.9817,
+  "cobertura": 0.0803,
+  "parque_visivel": 0.8683,
+  "cart075": "pass"
+ },
+ {
+  "caso": "gbif_362210_A5_pontos_0.5mm_0.25",
+  "ocultos": 0.9689,
+  "cobertura": 0.0629,
+  "parque_visivel": 0.8975,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_300_A5_pontos_2.2mm_0.95",
+  "ocultos": 0.2133,
+  "cobertura": 0.2973,
+  "parque_visivel": 0.7267,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_300_A5_pontos_2.2mm_0.5",
+  "ocultos": 0.0,
+  "cobertura": 0.1739,
+  "parque_visivel": 0.8438,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_300_A5_pontos_2.2mm_0.25",
+  "ocultos": 0.0,
+  "cobertura": 0.0924,
+  "parque_visivel": 0.9184,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_300_A5_pontos_1.4mm_0.95",
+  "ocultos": 0.0967,
+  "cobertura": 0.1374,
+  "parque_visivel": 0.875,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_300_A5_pontos_1.4mm_0.5",
+  "ocultos": 0.0,
+  "cobertura": 0.0757,
+  "parque_visivel": 0.9317,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_300_A5_pontos_1.4mm_0.25",
+  "ocultos": 0.0,
+  "cobertura": 0.0388,
+  "parque_visivel": 0.9653,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_300_A5_pontos_0.9mm_0.95",
+  "ocultos": 0.04,
+  "cobertura": 0.0601,
+  "parque_visivel": 0.9505,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_300_A5_pontos_0.9mm_0.5",
+  "ocultos": 0.0,
+  "cobertura": 0.0322,
+  "parque_visivel": 0.9735,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_300_A5_pontos_0.9mm_0.25",
+  "ocultos": 0.0,
+  "cobertura": 0.0163,
+  "parque_visivel": 0.9867,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_300_A5_pontos_0.5mm_0.95",
+  "ocultos": 0.0033,
+  "cobertura": 0.0192,
+  "parque_visivel": 0.9828,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_300_A5_pontos_0.5mm_0.5",
+  "ocultos": 0.0,
+  "cobertura": 0.0101,
+  "parque_visivel": 0.9908,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_300_A5_pontos_0.5mm_0.25",
+  "ocultos": 0.0,
+  "cobertura": 0.0051,
+  "parque_visivel": 0.9954,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_3000_A5_pontos_2.2mm_0.95",
+  "ocultos": 0.776,
+  "cobertura": 0.6524,
+  "parque_visivel": 0.0481,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_3000_A5_pontos_2.2mm_0.5",
+  "ocultos": 0.147,
+  "cobertura": 0.5842,
+  "parque_visivel": 0.1882,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_3000_A5_pontos_2.2mm_0.25",
+  "ocultos": 0.0003,
+  "cobertura": 0.4381,
+  "parque_visivel": 0.4295,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_3000_A5_pontos_1.4mm_0.95",
+  "ocultos": 0.55,
+  "cobertura": 0.5233,
+  "parque_visivel": 0.2669,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_3000_A5_pontos_1.4mm_0.5",
+  "ocultos": 0.0113,
+  "cobertura": 0.3821,
+  "parque_visivel": 0.4951,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_3000_A5_pontos_1.4mm_0.25",
+  "ocultos": 0.0,
+  "cobertura": 0.2352,
+  "parque_visivel": 0.7028,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_3000_A5_pontos_0.9mm_0.95",
+  "ocultos": 0.2983,
+  "cobertura": 0.3315,
+  "parque_visivel": 0.6025,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_3000_A5_pontos_0.9mm_0.5",
+  "ocultos": 0.0,
+  "cobertura": 0.2034,
+  "parque_visivel": 0.7647,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_3000_A5_pontos_0.9mm_0.25",
+  "ocultos": 0.0,
+  "cobertura": 0.1113,
+  "parque_visivel": 0.8744,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_3000_A5_pontos_0.5mm_0.95",
+  "ocultos": 0.1067,
+  "cobertura": 0.1289,
+  "parque_visivel": 0.8407,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_3000_A5_pontos_0.5mm_0.5",
+  "ocultos": 0.0,
+  "cobertura": 0.0713,
+  "parque_visivel": 0.9121,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_3000_A5_pontos_0.5mm_0.25",
+  "ocultos": 0.0,
+  "cobertura": 0.0367,
+  "parque_visivel": 0.9551,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_30000_A5_pontos_2.2mm_0.95",
+  "ocultos": 0.9757,
+  "cobertura": 0.6723,
+  "parque_visivel": 0.0,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_30000_A5_pontos_2.2mm_0.5",
+  "ocultos": 0.8806,
+  "cobertura": 0.666,
+  "parque_visivel": 0.0001,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_30000_A5_pontos_2.2mm_0.25",
+  "ocultos": 0.7433,
+  "cobertura": 0.6557,
+  "parque_visivel": 0.009,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_30000_A5_pontos_1.4mm_0.95",
+  "ocultos": 0.9432,
+  "cobertura": 0.6351,
+  "parque_visivel": 0.0005,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_30000_A5_pontos_1.4mm_0.5",
+  "ocultos": 0.7217,
+  "cobertura": 0.6288,
+  "parque_visivel": 0.0041,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_30000_A5_pontos_1.4mm_0.25",
+  "ocultos": 0.4028,
+  "cobertura": 0.614,
+  "parque_visivel": 0.0381,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_30000_A5_pontos_0.9mm_0.95",
+  "ocultos": 0.8668,
+  "cobertura": 0.6156,
+  "parque_visivel": 0.0159,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_30000_A5_pontos_0.9mm_0.5",
+  "ocultos": 0.3743,
+  "cobertura": 0.5968,
+  "parque_visivel": 0.0802,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_30000_A5_pontos_0.9mm_0.25",
+  "ocultos": 0.0267,
+  "cobertura": 0.5161,
+  "parque_visivel": 0.2692,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_30000_A5_pontos_0.5mm_0.95",
+  "ocultos": 0.6186,
+  "cobertura": 0.5376,
+  "parque_visivel": 0.1887,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_30000_A5_pontos_0.5mm_0.5",
+  "ocultos": 0.0214,
+  "cobertura": 0.4172,
+  "parque_visivel": 0.4045,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_30000_A5_pontos_0.5mm_0.25",
+  "ocultos": 0.0,
+  "cobertura": 0.2689,
+  "parque_visivel": 0.6334,
+  "cart075": "pass"
+ },
+ {
+  "caso": "uniforme_362210_A5_pontos_2.2mm_0.95",
+  "ocultos": 0.998,
+  "cobertura": 0.6795,
+  "parque_visivel": 0.0,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_362210_A5_pontos_2.2mm_0.5",
+  "ocultos": 0.9898,
+  "cobertura": 0.6773,
+  "parque_visivel": 0.0,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_362210_A5_pontos_2.2mm_0.25",
+  "ocultos": 0.9777,
+  "cobertura": 0.6749,
+  "parque_visivel": 0.0078,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_362210_A5_pontos_1.4mm_0.95",
+  "ocultos": 0.9952,
+  "cobertura": 0.6464,
+  "parque_visivel": 0.0,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_362210_A5_pontos_1.4mm_0.5",
+  "ocultos": 0.9761,
+  "cobertura": 0.6445,
+  "parque_visivel": 0.0,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_362210_A5_pontos_1.4mm_0.25",
+  "ocultos": 0.9478,
+  "cobertura": 0.6413,
+  "parque_visivel": 0.0078,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_362210_A5_pontos_0.9mm_0.95",
+  "ocultos": 0.9888,
+  "cobertura": 0.6235,
+  "parque_visivel": 0.0001,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_362210_A5_pontos_0.9mm_0.5",
+  "ocultos": 0.9442,
+  "cobertura": 0.6218,
+  "parque_visivel": 0.0005,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_362210_A5_pontos_0.9mm_0.25",
+  "ocultos": 0.8778,
+  "cobertura": 0.6193,
+  "parque_visivel": 0.0099,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_362210_A5_pontos_0.5mm_0.95",
+  "ocultos": 0.9646,
+  "cobertura": 0.6068,
+  "parque_visivel": 0.0071,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_362210_A5_pontos_0.5mm_0.5",
+  "ocultos": 0.8238,
+  "cobertura": 0.6054,
+  "parque_visivel": 0.0136,
+  "cart075": "fail"
+ },
+ {
+  "caso": "uniforme_362210_A5_pontos_0.5mm_0.25",
+  "ocultos": 0.615,
+  "cobertura": 0.6022,
+  "parque_visivel": 0.0254,
+  "cart075": "fail"
+ }
+]
