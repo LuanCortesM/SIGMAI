@@ -2177,10 +2177,46 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         for extra in pp.get("layers", []):
             if all(extra.id() != existing.id() for existing in recipe_layers):
                 recipe_layers.append(extra)
+    # O inserto e a camada rotulada também entram: sem elas a receita não
+    # refazia o mapa num projeto novo.
+    wanted_ids: list[Any] = []
+    for key in ("inset_layer_ids", "label_layer_id"):
+        wanted = params.get(key)
+        wanted_ids.extend(wanted if isinstance(wanted, list) else [wanted])
+    # E as camadas de onde add_context_annotations tirou divisas e nomes:
+    # recompor refaz estas a partir daquelas.
+    for layer in list(recipe_layers):
+        try:
+            made = json.loads(str(layer.customProperty("sigmai/derived_by", "") or "{}"))
+        except (ValueError, AttributeError):
+            continue
+        if isinstance(made, dict):
+            wanted_ids.extend((made.get("params") or {}).get(k) for k in ("boundary_layer_id", "label_within_layer_id"))
+    for value in wanted_ids:
+        extra = project.mapLayer(str(value)) if value else None
+        if extra is not None and all(extra.id() != existing.id() for existing in recipe_layers):
+            recipe_layers.append(extra)
     recipe = _store_recipe(layout, params, recipe_layers, layer_sources, result, output_path, export_format, imports, notes)
     result["recipe"] = {"stored_in_layout": True, "embedded_in_output": recipe.get("embedded_in_output", False),
                         "recipe_path": recipe.get("recipe_path", ""), "created_at": recipe.get("created_at")}
     return result
+
+
+#: Estilo maior que isto (bytes de QML) não vai na receita: ela viaja dentro do PNG.
+RECIPE_STYLE_MAX_BYTES = 1_000_000
+
+
+def _layer_style_xml(layer: Any) -> str:
+    """O estilo da camada (simbologia, rótulos, mistura, opacidade) como QML, ou "" se não houver ou passar do teto."""
+    try:
+        from qgis.core import QgsMapLayerStyle  # type: ignore
+
+        style = QgsMapLayerStyle()
+        style.readFromLayer(layer)
+        text = str(style.xmlData() or "")
+        return text if 0 < len(text.encode("utf-8")) <= RECIPE_STYLE_MAX_BYTES else ""
+    except Exception:
+        return ""
 
 
 def _store_recipe(
@@ -2206,6 +2242,20 @@ def _store_recipe(
         derived = str(_quiet(lambda: layer.customProperty("sigmai/derived_from", "")) or "")
         if derived:
             entry["derived_from"] = derived
+        # Para refazer o mapa num QGIS que não tem o projeto: o estilo da camada
+        # e, para as que um comando do SIGMAI criou, o comando e os parâmetros.
+        style = _layer_style_xml(layer)
+        if style:
+            entry["style_qml"] = style
+        derived_by = str(_quiet(lambda: layer.customProperty("sigmai/derived_by", "")) or "")
+        if derived_by:
+            try:
+                entry["derived_by"] = json.loads(derived_by)
+            except ValueError:
+                pass
+        provider = _quiet(layer.dataProvider)
+        if provider is not None and hasattr(provider, "isProviderResamplingEnabled"):
+            entry["smooth_resampling"] = bool(_quiet(provider.isProviderResamplingEnabled))
         described.append(entry)
     try:
         from ..bridge_server import plugin_version

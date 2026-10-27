@@ -784,6 +784,11 @@ TOOLS: list[dict[str, Any]] = [
             "layout_name": _S,
             "recipe_path": {**_S, "description": "Um .json de receita ou o .png exportado."},
             "overrides": {"type": "object", "additionalProperties": True, "description": "Parâmetros de compose_map a substituir."},
+            "data_dir": {**_S, "description": (
+                "Pasta onde procurar os arquivos de dados pelo nome (e pelo SHA-256 da receita) quando o caminho gravado "
+                "não existe — para refazer o mapa noutra máquina. As camadas que faltam no projeto são recarregadas com "
+                "o estilo da receita."
+            )},
         }),
         "annotations": {"title": "Recompor da receita", **WRITES},
         "handler": lambda args: bridge_call("recompose_from_recipe", dict(args), dry_run=False),

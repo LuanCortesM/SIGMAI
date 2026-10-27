@@ -455,4 +455,14 @@ def add_context_annotations(params: dict[str, Any], context: dict[str, Any]) -> 
         "Inclua os ids criados em layer_ids de compose_map para que apareçam no mapa; as camadas de "
         "rótulo não têm símbolo e não entram na legenda (CART020 as dispensa)."
     )
+    # Cada camada criada guarda o comando que a fez: recompose_from_recipe o
+    # roda de novo num projeto que não tem as camadas de memória.
+    import json
+
+    recorded = {key: value for key, value in params.items() if key != "output_gpkg"}
+    for entry in created:
+        layer = prj.mapLayer(entry["id"])
+        if layer is not None:
+            layer.setCustomProperty("sigmai/derived_by", json.dumps(
+                {"command": "add_context_annotations", "params": recorded, "kind": entry["kind"]}, ensure_ascii=False))
     return {**plan, "created_layers": created, "notes": notes}
