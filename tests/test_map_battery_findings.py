@@ -30,6 +30,15 @@ HAS_QGIS = importlib.util.find_spec("qgis") is not None
 
 
 class PaletasSemConfusao(unittest.TestCase):
+    def test_contexto_da_paleta_nao_parece_agua(self):
+        """O preenchimento de contexto era azul-claro, e municípios em volta de um parque se liam como mar."""
+        from sigmai.cartography.symbology import POLYGON_FILLS, _tint
+
+        cor = _tint(*POLYGON_FILLS[1]).lstrip("#")
+        r, g, b = (int(cor[i:i + 2], 16) for i in (0, 2, 4))
+        self.assertLess(max(r, g, b) - min(r, g, b), 12)
+        self.assertGreaterEqual(r, b)
+
     def test_qualitativas_distinguiveis_para_daltonicos(self):
         self.assertEqual(confusable_pairs([(c, c) for c in QUALITATIVE]), [])
 
