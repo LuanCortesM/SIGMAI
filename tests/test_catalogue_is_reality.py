@@ -414,7 +414,8 @@ class RepairDataSourcePathConserta(unittest.TestCase):
             {"layer_id": self.layer.id(), "new_path": str(novo)}, {"dry_run": False}
         )
         self.assertTrue(resultado["valid"])
-        self.assertEqual(resultado["new_path"], str(novo))
+        # No macOS /var é atalho para /private/var: compara o arquivo, não a grafia.
+        self.assertEqual(Path(resultado["new_path"]).resolve(), novo.resolve())
 
     def test_dry_run_nao_muda_a_fonte_de_dados(self) -> None:
         novo = self.tmp / "novo.geojson"
