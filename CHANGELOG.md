@@ -2,6 +2,48 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.3.0] — 2026-10-27
+
+### Adicionado
+- Regra `CART076` (aviso): os pontos não escondem a contagem. Os pontos de cada camada de símbolo de tamanho fixo são levados para mm do quadro e contados em células do tamanho do símbolo; reprova com 50 pontos ou mais e mais da metade oculta. No símbolo proporcional, mede os locais com o menor círculo e, quando se amontoam, diz o `scale` para agrupá-los. Mapa de calor e agrupamento ficam de fora.
+- `count_points_by_site`: um ponto por local (coordenadas repetidas juntas, com casas decimais configuráveis), com o número de registros, gravado em GeoPackage e marcado como derivado da camada de origem. Com `scale` (o denominador da escala do mapa), junta os locais a menos de `min_spacing_mm` (padrão 1 mm) no papel, do mais cheio para o mais vazio, mantendo a coordenada real do mais cheio: a 1:300.000, os 11.224 locais dos registros do GBIF no Itatiaia viram 863, e os círculos sobrepostos caem de 79 % para nenhum.
+- `apply_proportional_symbol_style`: área do símbolo proporcional a um campo numérico, os maiores desenhados primeiro, legenda de círculos aninhados, contorno num tom mais escuro da cor (um contorno branco formava uma mancha clara onde havia mais círculos).
+- `compose_map` com `dense_points`: `"sites"` troca as camadas de pontos de assunto por um símbolo por local, agrupado na escala do próprio mapa (GeoPackage ao lado de `output_path`); `"heatmap"` as desenha como mapa de calor. O padrão continua `"points"`.
+- `compose_map` com `title_placement`: `"caption"` faz a figura de artigo — título, fontes (com DOI), sistema de referência e crédito da ferramenta saem da imagem e voltam em `caption`, prontos para a legenda no texto, como pedem as revistas (a *Evolution*, que a *Biodiversity Informatics* adota: "Figure titles and legends should be included in the main text file"); `"none"` faz o mapa sem título, com os créditos no mapa; `"map"` continua o padrão. A página não reserva as faixas que ficam vazias, e o mapa ganha a altura. `CART001`, `CART007` e `CART008` leem a legenda guardada no layout; na figura de artigo a autoria é a do artigo, e a fonte continua obrigatória. Numa figura de periódico com título na imagem, uma nota sugere a legenda.
+- `add_context_annotations` com `boundary_name`: o nome da divisa na legenda ("State boundary" em vez de "Border — States"); e com `label_within_layer_id`, os nomes das regiões vão na parte de cada uma que fica em volta da área do mapa e fora dela — no centro de Minas Gerais, o nome caía fora do quadro de um mapa do Itatiaia.
+- `compose_map` com `map_crs="auto"`: a projeção sai do recorte também num continente (Lambert azimutal de áreas iguais centrada nos dados) e no mundo (Equal Earth), com a grade em graus e sem rosa dos ventos; o mapa-múndi sai também sem barra de escala e com a grade sem rótulos. Sem `"auto"`, esses mapas continuam em graus, e a nota diz como pedir a projeção.
+- `apply_single_symbol` aceita `size_mm` para pontos.
+- `sigmai.cartography.pointdensity`: a medida de pontos ocultos e de cobertura, em Python puro, e a escolha do símbolo de ponto.
+- Regra `CART077` (aviso): a rampa de cores de um raster contínuo mostra os dados (percentis 2 a 98 dos pixels do quadro usam ao menos 40 % dela).
+- Regra `CART078` (erro): coordenadas cabem no sistema de referência declarado — área de uso do EPSG com 3° de folga, graus declarados como UTM, pontos em 0,0.
+- Regra `CART079` (aviso): o recorte não é aberto por poucos pontos isolados (diagonal acima de 5 vezes a do núcleo, no máximo 0,5 % ou 3 pontos isolados).
+- Regra `CART080` (aviso): o mapa de calor mostra os lugares que têm pontos (no máximo 80 % deles abaixo de 2 % da densidade máxima).
+- Regra `CART081` (aviso): painéis comparáveis usam a mesma régua de cor e de tamanho. A mesma variável em dois painéis — mapa de calor, classes graduadas ou símbolo proporcional — com réguas diferentes reprova; o mapa de calor com o máximo automático estica cada painel até o próprio pico.
+- `apply_proportional_symbol_style` com `min_value` e `max_value`: a mesma régua de tamanhos em mais de uma camada ou painel.
+
+### Alterado
+- O símbolo de ponto da paleta se ajusta ao quadro: de 2,2 mm quase opaco desce até 0,45 mm a 25 % de opacidade, até que no máximo um quarto dos pontos fique oculto e os símbolos cubram no máximo um quarto da área ocupada pelos pontos. Registros repetidos nas mesmas coordenadas ficam para a `CART076`. A composição informa o símbolo escolhido em `styling` e numa nota.
+- Mapa de calor é tratado como um raster: fica embaixo, e os polígonos que o cobririam, de contexto ou também assunto, viram contorno por cima.
+- `apply_raster_style` sem `min`/`max`: valores de preenchimento conhecidos (-32.768, -9.999 e outros) ficam fora da rampa e passam a sem dado na camada (o arquivo não muda); um pico isolado fica fora da rampa. As duas coisas são informadas.
+- Mapa em coordenadas geográficas sai sem barra de escala métrica, que não valia para a folha; fica a escala numérica.
+- Grade em graus: casas decimais conforme o intervalo (eram sempre três, e "90.000" se lia como noventa mil), símbolo de grau, separador decimal da língua do mapa e nenhum rótulo além de ±180° e ±90°, que o quadro de um mapa-múndi alcançava.
+- Contorno da paleta afinado (ou retirado) em polígonos pequenos no papel, que o traço padrão fundia num bloco.
+- `compose_map` recusa `label_field` numa camada com mais de 5.000 feições: o motor descartava quase todos os rótulos (98 % com 20.000 pontos) e a composição levava minutos.
+- Amostra da legenda legível (ao menos 1,6 mm e 70 % de opacidade) para o ponto que o compositor reduziu.
+- `apply_categorized_style` acima de `limit`: ficam as classes com mais feições, e não as primeiras em ordem alfabética; as demais vão para "Outros". `CART070` e `CART072` sugerem `limit=8` quando são classes demais.
+- Grade em graus: latitude só nas laterais e longitude só em cima e embaixo; numa projeção cônica ou azimutal os meridianos curvos também cruzavam as laterais.
+- Rodapé de um mapa numa Lambert azimutal criada pelo compositor (recorte regional fora do Brasil) declara o sistema de referência: a projeção não tem código nem nome, e o rodapé saía sem ele. `CART008` passa a vê-la.
+- Contagens nas mensagens das regras novas com ponto de milhar ("362.210").
+- Relevo e sombreamento com reamostragem bilinear na leitura do dado: o vizinho mais próximo repetia linhas de pixels antes do sombreamento, e as encostas saíam quadriculadas de riscas num mapa a 300 dpi.
+- Figura de periódico (`figure_width_mm`, `journal_column`): barra de escala a partir do zero, sem o segmento à esquerda, que é convenção das folhas topográficas.
+- Preenchimento de contexto da paleta em cinza quase branco, e não mais azul-claro, que fazia os municípios em volta de um parque parecerem mar; o terceiro preenchimento passa a âmbar um pouco mais firme, para os cinco primeiros continuarem distinguíveis nas três simulações de daltonismo.
+- Rótulos quebrados das classes de um raster (cobertura do solo, declividade) caíam na classe vizinha: a legenda esconde "Band 1" reordenando as entradas, e o rótulo era escrito pela posição nova, mas o QGIS o lê pela original. A área urbana saía como "Bare or sparse vegetation".
+- A camada de `count_points_by_site` é dado, e não anotação: com a marca das divisas e nomes, ela saía da linha de crédito, e a fonte do GBIF, com o DOI, sumia do rodapé.
+- `apply_graduated_style` e `apply_raster_style` avisam quando os quantis coincidem e saem menos classes que as pedidas (contagens com muitos zeros).
+- `CART075` indica pontos menores, mapa de calor ou símbolo por local quando quem cobre o assunto são pontos amontoados.
+- A terceira simulação de `CART070` passa a se chamar `tritanomaly`: é a linha de tritanomalia de severidade 1,0 da tabela de Machado et al. (2009), cujo modelo não se destina à tritanopia.
+- Referências das regras: `CART024` passa a citar Snyder (1987), e não o art. 20 do Decreto 89.817/1984, que trata de unidades do SI; `CART006` deixa de citar o art. 15, que pede valores de convergência e declinação, e declara a exigência de indicar o norte como decisão de projeto; `CART064` corrige a justificativa (o erro de escala cresce com a distância ao meridiano central) e declara a faixa de E como decisão de projeto; `CART070` deixa de afirmar que revistas exigem figuras para daltônicos.
+
 ## [1.2.0] — 2026-10-25
 
 ### Adicionado

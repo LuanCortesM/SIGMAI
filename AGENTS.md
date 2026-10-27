@@ -19,10 +19,13 @@ O SIGMAI expõe o QGIS por comandos validados. Estas instruções descrevem como
 - **Nunca sobrescreva arquivo sem `confirm_overwrite` explícito do usuário.**
 - **Não peça o Modo DEV.** Ele existe para o desenvolvedor do plugin depurar código, é ativado à mão na interface e não faz parte de nenhum fluxo de produção de mapas.
 - **Ao falhar, consulte `get_recent_errors`** em vez de tentar variações às cegas.
+- **Milhares de registros de ocorrência:** um mapa de pontos mostra onde há registros, não quantos (`CART076`). Pergunte ao usuário se quer um símbolo por local (`dense_points: "sites"`) ou um mapa de calor (`dense_points: "heatmap"`).
 
 ## Autoria de mapas
 
 O autor do plugin **não** é o autor dos mapas. Pergunte ao usuário o que deve constar em `map_author`, `data_source` e `organization`. Sem fonte declarada o mapa não é citável, e a regra `CART007` reprova.
+
+**Título e créditos:** pergunte onde vão. Numa figura de artigo, as revistas pedem título e fontes na legenda do texto, e não na imagem: use `title_placement: "caption"`, e a legenda volta pronta em `caption`. Há mapas que vão sem título (`"none"`) e relatórios que o querem no mapa (`"map"`, o padrão).
 
 ## Estrutura do projeto
 
@@ -31,7 +34,7 @@ O autor do plugin **não** é o autor dos mapas. Pergunte ao usuário o que deve
 | `sigmai/mcp/` | Servidor MCP; roda como processo separado, sem QGIS |
 | `sigmai/bridge_server.py` | Ponte HTTP local, token, fila de comandos |
 | `sigmai/consent.py` | Modo de acesso, pastas, limites, auditoria |
-| `sigmai/qgis_actions/` | Manipuladores dos 221 comandos habilitados |
+| `sigmai/qgis_actions/` | Manipuladores dos 223 comandos habilitados |
 | `sigmai/cartography/` | Página, escala, layout, regulamento, composição |
 | `sigmai/ui/` | Painel dentro do QGIS |
 | `core/` | Protocolo, esquemas e exemplos |
