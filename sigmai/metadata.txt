@@ -1,7 +1,7 @@
 [general]
 name=SIGMAI
 description=Secure local bridge between AI assistants and QGIS, with cartographic quality control.
-version=1.2.0
+version=1.3.0
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=MACIEL, L. S. C.
@@ -16,7 +16,21 @@ homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=MIT
-changelog=1.2.0
+changelog=1.3.0
+    - Símbolo de ponto ajustado ao quadro: menor e semitransparente quando os pontos cobririam o que está embaixo.
+    - Nova regra CART076 (aviso): pontos que escondem quantos registros há em cada lugar.
+    - Novos comandos count_points_by_site e apply_proportional_symbol_style (um símbolo por local, com área proporcional ao número de registros, locais agrupados na escala do mapa); apply_single_symbol aceita size_mm.
+    - compose_map com dense_points ('sites' ou 'heatmap') e com map_crs='auto' (Lambert azimutal num continente, Equal Earth no mundo, grade em graus).
+    - Figura de artigo: title_placement='caption' tira título e créditos da imagem e devolve a legenda pronta para o texto; 'none' faz o mapa sem título.
+    - Relevo sem riscas (reamostragem bilinear), contexto em cinza, barra de figura a partir do zero, fonte do GBIF preservada no rodapé dos locais.
+    - Nova regra CART081 (painéis comparáveis com a mesma régua de cor e tamanho); símbolo proporcional com min_value e max_value; rótulos de classes de raster na classe certa.
+    - apply_categorized_style acima do limite mantém as classes mais frequentes; rodapé declara a projeção Lambert criada pelo compositor.
+    - Mapa de calor como assunto: o contexto vira contorno por cima, como sobre um raster.
+    - Novas regras CART077 (rampa de raster esticada), CART078 (coordenadas fora do sistema de referência, graus como UTM, ponto em 0,0), CART079 (pontos isolados que abrem o recorte) e CART080 (mapa de calor que esconde lugares com pontos).
+    - Estilo de raster ignora valores de preenchimento e picos isolados; mapa em graus sem barra métrica; contorno fino em polígonos pequenos.
+    - Recusa rotular mais de 5000 feições; amostra de legenda legível para ponto reduzido; aviso quando os quantis coincidem.
+    - Referências das regras CART006, CART024, CART064 e CART070 corrigidas; a terceira simulação de daltonismo passa a se chamar tritanomaly.
+    1.2.0
     - Modo em tons de cinza para figuras de periódico (colour_mode='greyscale'), mantendo as classes dos mapas temáticos; regra CART073.
     - Ordem de desenho cartográfica; polígono que contém outra camada ou cobre um raster é desenhado como contorno por cima.
     - CART021 acusa camada da legenda coberta; novas regras CART074 (números da barra de escala) e CART075 (assunto do mapa à vista).

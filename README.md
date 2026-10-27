@@ -86,7 +86,7 @@ Twenty MCP tools, each with a validated input schema. `sigmai_briefing` is where
 | `sigmai_brief_plugin` | ✓ | | Everything needed to drive another QGIS plugin in one call: state, Processing algorithms with their full contracts, and what is not scriptable |
 | `sigmai_run_command` | ✓ | ✓ | Any catalogued command: vector, raster, Processing, symbology, workflows |
 
-Behind them sit 234 catalogued commands, 221 of them enabled. `sigmai_run_command` reaches all of the enabled ones; the dedicated tools exist because a typed schema produces fewer wrong calls than a free-form escape hatch. The 13 disabled commands (the atlas family, the PostGIS family and `create_map_hierarchy`) are refused by the bridge as if they did not exist and listed in `get_capabilities` with the reason — the catalogue describes what the plugin does, not what it might do one day.
+Behind them sit 236 catalogued commands, 223 of them enabled. `sigmai_run_command` reaches all of the enabled ones; the dedicated tools exist because a typed schema produces fewer wrong calls than a free-form escape hatch. The 13 disabled commands (the atlas family, the PostGIS family and `create_map_hierarchy`) are refused by the bridge as if they did not exist and listed in `get_capabilities` with the reason — the catalogue describes what the plugin does, not what it might do one day.
 
 ## Access control
 
@@ -110,19 +110,23 @@ Independently of the mode: **output folders** restrict where files may be writte
 - builds the legend from **every layer in the map frame**, not just the primary one;
 - places a real north arrow symbol linked to grid north;
 - declares datum, projection, source, authorship and date;
-- reprojects to the appropriate UTM zone when the project is in geographic coordinates, because a metric scale bar over degrees is wrong across most of the sheet;
+- reprojects to the appropriate UTM zone when the project is in geographic coordinates, because a metric scale bar over degrees is wrong across most of the sheet; with `map_crs: "auto"` it also projects continental maps (Lambert azimuthal equal-area centred on the data) and world maps (Equal Earth), with a degree graticule and no north arrow;
 - picks the page orientation — and where the legend and scale bar go, side column or bottom band — from the shape of the data when you ask for `orientation: "auto"` or say nothing about orientation (either choice switches only for a 12 % gain in scale; `arrangement` forces one), and lets you ask for a journal figure by column width (`journal_column`, `figure_width_mm`) instead of by paper size, and in greyscale for print (`colour_mode: "greyscale"`, checked on the exported image by `CART073`);
 - composes two, three or more panels — `second_map` or `panels` — lettered (a), (b), (c) with a shared scale when you ask for one;
+- makes journal figures the way journals ask for them: with `title_placement: "caption"` the title and the credits (sources with their DOI, reference system, tool) leave the image and come back as a caption ready for the manuscript, while scale, north arrow, symbol legend and grid stay on the map; `"none"` makes a map without a title;
 - takes `data_source` per layer and prints each layer's source in the legend, next to the layer it belongs to;
+- sizes the point symbol to how many points fall in the frame — 2.2 mm for dozens, down to 0.45 mm and semi-transparent for a dense cloud — so the points do not cover what lies beneath; occurrence records repeated on the same coordinates are shown with a heatmap or with one proportional symbol per site (`count_points_by_site`, `apply_proportional_symbol_style`), the sites merged at the map's own scale so the circles do not pile up — or in one call, with `dense_points: "sites"` or `"heatmap"`;
 - knows the field-campaign case (`compose_campaign_map`): sites over a track over an area over its context, with a locator inset and a coordinate table.
 
 Then it audits what it produced, stores the **recipe** of the map in the layout and in the exported PNG (parameters, layers with their SHA-256, QGIS and SIGMAI versions), and returns the report. The recipe can be read back (`sigmai_map_recipe`), re-run with changes (`sigmai_recompose_from_recipe`) and turned into a Methods paragraph with the software reference (`sigmai_methods_paragraph`). Every write to the project goes through an undo stack (`sigmai_undo`).
 
 ## The cartographic rulebook
 
-37 rules across ten categories — elements, scale, orientation, provenance, grid, geometry, typography, projection, data, symbology. Each carries its severity, the reason it exists, its reference, and the command that satisfies it. `sigmai_cartographic_rulebook` returns the whole thing as data, so an assistant can read the rules before composing rather than discovering them by failing.
+43 rules across ten categories — elements, scale, orientation, provenance, grid, geometry, typography, projection, data, symbology. Each carries its severity, the reason it exists, its reference, and the command that satisfies it. `sigmai_cartographic_rulebook` returns the whole thing as data, so an assistant can read the rules before composing rather than discovering them by failing.
 
 Five rules came out of the 1.0.3 experiment in which the same request was given to an agent writing raw PyQGIS and to an agent driving SIGMAI, the audit was run on both maps, and the new version was then driven end to end by an emulated assistant: labels the labelling engine could not place (`CART068`), an empty band of the frame that the page shape left unused (`CART069`), colour pairs that a reader with a colour-vision deficiency cannot tell apart, simulated with the Machado, Oliveira & Fernandes (2009) matrices (`CART070`), fonts that fall below the readable size once the figure is printed at column width (`CART071`), and a legend whose content is larger than its box, which QGIS silently clips (`CART072`). The audit also learned to read hand-made layouts — items without an id, headings such as "Data sources", label-only layers — instead of failing them for what it could not see.
+
+`CART076` (1.3.0) came from 362,210 GBIF records of a national park, which sit on 11,742 distinct coordinates, one of them with 54,009 records: as dots, that place looked like a place with a single record, and a map of 10,000 of those records scored A. The rule counts, in millimetres of the frame, how many points add nothing visible to the map, and warns when more than half of them do. It measures proportional circles the same way: one circle per exact coordinate left 79 % of the circles of that park on top of others at 1:300,000, and the densest place looked the emptiest; merged at the map scale, the 11,224 sites become 863 and none is hidden.
 
 Every rule says what it rests on — Brazil's national cartography regulations (Decreto nº 89.817/1984, arts. 12–21), IBGE's SIRGAS2000 resolution, the cartography textbooks of Brewer and Slocum, Snyder's projection manual, the colour-vision model of Machado et al., the figure requirements of journals — or says plainly that a number is a SIGMAI design decision. None of the thresholds was measured with readers, so `tools/threshold_sensitivity.py` re-scores 138 test maps while varying each one and reports which thresholds decide anything and which do not; the tables and a reading of them are in [docs/experiments/2026-09-19_sensibilidade_limiares/](docs/experiments/2026-09-19_sensibilidade_limiares/).
 
@@ -136,7 +140,7 @@ flowchart LR
     B["MCP server<br/>JSON-RPC 2.0 over stdio<br/>sigmai/mcp/"]
     C["Local bridge<br/>127.0.0.1 · bearer token<br/>sigmai/bridge_server.py"]
     D["Consent<br/>mode · folders · limits · audit<br/>sigmai/consent.py"]
-    E["Command registry<br/>221 validated actions<br/>sigmai/qgis_actions/"]
+    E["Command registry<br/>223 validated actions<br/>sigmai/qgis_actions/"]
     F["Cartographic engine<br/>page · scale · rulebook<br/>sigmai/cartography/"]
     G[("QGIS<br/>project, layers, layouts")]
 
@@ -189,7 +193,7 @@ Developed by Luan da Silva Cortes Maciel as a research product associated with H
 @software{maciel_sigmai,
   author  = {Maciel, Luan da Silva Cortes},
   title   = {{SIGMAI}: Secure {GIS}-{AI} Interface},
-  version = {1.2.0},
+  version = {1.3.0},
   doi     = {10.5281/zenodo.20389286},
   url     = {https://github.com/LuanCortesM/SIGMAI},
   license = {MIT}
