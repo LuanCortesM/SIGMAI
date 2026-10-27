@@ -32,6 +32,34 @@ SIGMAI_RAMPS: dict[str, tuple[str, ...]] = {
     "slope": ("#1a9641", "#a6d96a", "#ffffbf", "#fdae61", "#d7191c", "#7f0000"),
     "heat": ("#ffffb2", "#fecc5c", "#fd8d3c", "#f03b20", "#bd0026"),
 }
+#: Rampas comuns do estilo padrão do QGIS (ColorBrewer, 5 classes, e as da
+#: família viridis), para quando o QGIS roda sem a biblioteca de estilos: num
+#: QGIS em Linux sem interface, "Spectral" e "Viridis" eram recusadas, e o
+#: estilo categorizado com mais classes que as cores qualitativas quebrava.
+FALLBACK_RAMPS: dict[str, tuple[str, ...]] = {
+    "spectral": ("#d7191c", "#fdae61", "#ffffbf", "#abdda4", "#2b83ba"),
+    "viridis": ("#440154", "#3b528b", "#21918c", "#5ec962", "#fde725"),
+    "magma": ("#000004", "#3b0f70", "#8c2981", "#de4968", "#fcfdbf"),
+    "inferno": ("#000004", "#420a68", "#932667", "#dd513a", "#fcffa4"),
+    "plasma": ("#0d0887", "#7e03a8", "#cc4778", "#f89540", "#f0f921"),
+    "ylorrd": ("#ffffb2", "#fecc5c", "#fd8d3c", "#f03b20", "#bd0026"),
+    "ylorbr": ("#ffffd4", "#fed98e", "#fe9929", "#d95f0e", "#993404"),
+    "ylgn": ("#ffffcc", "#c2e699", "#78c679", "#31a354", "#006837"),
+    "ylgnbu": ("#ffffcc", "#a1dab4", "#41b6c4", "#2c7fb8", "#253494"),
+    "pubugn": ("#f6eff7", "#bdc9e1", "#67a9cf", "#1c9099", "#016c59"),
+    "blues": ("#eff3ff", "#bdd7e7", "#6baed6", "#3182bd", "#08519c"),
+    "greens": ("#edf8e9", "#bae4b3", "#74c476", "#31a354", "#006d2c"),
+    "reds": ("#fee5d9", "#fcae91", "#fb6a4a", "#de2d26", "#a50f15"),
+    "oranges": ("#feedde", "#fdbe85", "#fd8d3c", "#e6550d", "#a63603"),
+    "purples": ("#f2f0f7", "#cbc9e2", "#9e9ac8", "#756bb1", "#54278f"),
+    "greys": ("#f7f7f7", "#cccccc", "#969696", "#636363", "#252525"),
+    "rdylgn": ("#d7191c", "#fdae61", "#ffffbf", "#a6d96a", "#1a9641"),
+    "rdylbu": ("#d7191c", "#fdae61", "#ffffbf", "#abd9e9", "#2c7bb6"),
+    "rdbu": ("#ca0020", "#f4a582", "#f7f7f7", "#92c5de", "#0571b0"),
+    "brbg": ("#a6611a", "#dfc27d", "#f5f5f5", "#80cdc1", "#018571"),
+    "piyg": ("#d01c8b", "#f1b6da", "#f7f7f7", "#b8e186", "#4dac26"),
+}
+
 #: Cores qualitativas para classes nominais, usadas uma a uma (classes sem
 #: ordem não se interpolam): as sete de Okabe & Ito (2008) e quatro
 #: complementares, escolhidas para que nenhum par se confunda nas três
@@ -281,23 +309,29 @@ def qgis_ramp(name: str, invert: bool = False) -> Any:
     from qgis.core import QgsGradientColorRamp, QgsGradientStop, QgsStyle  # type: ignore
     from qgis.PyQt.QtGui import QColor  # type: ignore
 
+    def gradient(stops: tuple[str, ...]) -> Any:
+        inner = [QgsGradientStop(k / float(len(stops) - 1), QColor(stops[k])) for k in range(1, len(stops) - 1)]
+        return QgsGradientColorRamp(QColor(stops[0]), QColor(stops[-1]), False, inner)
+
     key = ramp_name(name)
     if key in SIGMAI_RAMPS:
-        stops = SIGMAI_RAMPS[key]
-        inner = [QgsGradientStop(k / float(len(stops) - 1), QColor(stops[k])) for k in range(1, len(stops) - 1)]
-        ramp = QgsGradientColorRamp(QColor(stops[0]), QColor(stops[-1]), False, inner)
+        ramp = gradient(SIGMAI_RAMPS[key])
     else:
         style = QgsStyle.defaultStyle()
-        names = list(style.colorRampNames())
+        names = list(style.colorRampNames()) if style is not None else []
         match = next((n for n in names if n.lower() == key.lower()), None)
-        if match is None:
+        if match is not None:
+            ramp = style.colorRamp(match)
+        elif key.lower() in FALLBACK_RAMPS:
+            ramp = gradient(FALLBACK_RAMPS[key.lower()])
+        else:
+            known = sorted(set(names) | {n.capitalize() for n in FALLBACK_RAMPS}, key=str.lower)
             raise ValidationError(
                 "BAD_REQUEST",
                 f"Rampa de cores desconhecida: {name!r}. Use uma do SIGMAI ({', '.join(SIGMAI_RAMPS)}) "
-                f"ou do estilo do QGIS ({', '.join(sorted(names)[:40])}).",
+                f"ou do estilo do QGIS ({', '.join(known[:40])}).",
                 {"color_ramp": name},
             )
-        ramp = style.colorRamp(match)
     if invert:
         try:
             ramp.invert()
