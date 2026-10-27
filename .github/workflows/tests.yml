@@ -46,6 +46,46 @@ jobs:
       - name: Check QGIS enum aliases
         run: python3 tools/check_qt6_compat.py sigmai --mode qgis
 
+  # A suíte inteira dentro de um QGIS de verdade, fora do Windows em que o
+  # autor testa à mão: as imagens oficiais no Linux (duas LTR e duas da série
+  # 4) e o pacote do conda-forge no macOS.
+  qgis-linux:
+    name: Suite inside QGIS ${{ matrix.qgis }} (Linux)
+    runs-on: ubuntu-latest
+    container: qgis/qgis:${{ matrix.qgis }}
+    strategy:
+      fail-fast: false
+      matrix:
+        qgis: ["3.40", "3.44", "4.0", "4.2"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pytest
+        run: apt-get update -qq && apt-get install -y -qq python3-pytest
+      - name: Run the tests with PyQGIS
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python3 -m pytest tests -q -p no:cacheprovider
+
+  qgis-macos:
+    name: Suite inside QGIS (macOS, conda-forge)
+    runs-on: macos-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: qgis
+          create-args: qgis pytest
+          init-shell: bash
+      - name: Run the tests with PyQGIS
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -c "from qgis.core import Qgis; print(Qgis.version())"
+          python -m pytest tests -q -p no:cacheprovider
+
   qt6:
     name: Qt6 / QGIS 4 compatibility
     runs-on: ubuntu-latest
