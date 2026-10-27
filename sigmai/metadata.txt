@@ -30,6 +30,7 @@ changelog=1.3.0
     - Estilo de raster ignora valores de preenchimento e picos isolados; mapa em graus sem barra métrica; contorno fino em polígonos pequenos.
     - Recusa rotular mais de 5000 feições; amostra de legenda legível para ponto reduzido; aviso quando os quantis coincidem.
     - Referências das regras CART006, CART024, CART064 e CART070 corrigidas; a terceira simulação de daltonismo passa a se chamar tritanomaly.
+    - A receita refaz o mapa num projeto vazio: recarrega as camadas com o estilo gravado (data_dir noutro computador) e refaz divisas e nomes.
     1.2.0
     - Modo em tons de cinza para figuras de periódico (colour_mode='greyscale'), mantendo as classes dos mapas temáticos; regra CART073.
     - Ordem de desenho cartográfica; polígono que contém outra camada ou cobre um raster é desenhado como contorno por cima.

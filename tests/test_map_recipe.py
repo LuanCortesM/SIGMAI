@@ -227,11 +227,143 @@ class ReceitaNoQgis(unittest.TestCase):
                                         "overrides": {"output_path": os.path.join(pasta, "mapa3.png")}}, {"dry_run": False})
             self.assertTrue(any("localizadas pelo nome" in n for n in rr["notes"]))
 
-            # Sem a camada, recusa nomeada.
+            # Sem a camada no projeto, a receita a recarrega da fonte gravada.
             QgsProject.instance().removeMapLayer(novo.id())
+            simulado = recompose_from_recipe({"recipe_path": os.path.join(pasta, "mapa.json")}, {"dry_run": True})
+            self.assertTrue(any("seriam recarregadas" in n for n in simulado["notes"]), simulado["notes"])
+            rr = recompose_from_recipe({"recipe_path": os.path.join(pasta, "mapa.json"),
+                                        "overrides": {"output_path": os.path.join(pasta, "mapa4.png")}}, {"dry_run": False})
+            self.assertTrue(any("recarregadas da receita" in n for n in rr["notes"]), rr["notes"])
+            self.assertEqual([c.name() for c in QgsProject.instance().mapLayers().values()], ["Quadrado"])
+
+            # Noutra máquina o caminho gravado não existe: sem data_dir, recusa
+            # nomeada; com ela, o arquivo é achado pelo nome.
+            receita = json.loads(Path(pasta, "mapa.json").read_text(encoding="utf-8"))
+            receita["layers"][0]["source"] = os.path.join(pasta, "sumiu", "quadrado.gpkg")
+            receita["layers"][0]["file"]["path"] = os.path.join(pasta, "sumiu", "quadrado.gpkg")
+            Path(pasta, "outra.json").write_text(json.dumps(receita), encoding="utf-8")
+            QgsProject.instance().removeAllMapLayers()
             with self.assertRaises(ValidationError) as ctx:
-                recompose_from_recipe({"recipe_path": os.path.join(pasta, "mapa.json")}, {"dry_run": True})
+                recompose_from_recipe({"recipe_path": os.path.join(pasta, "outra.json")}, {"dry_run": True})
             self.assertEqual(ctx.exception.code, "LAYER_NOT_FOUND")
+            recompose_from_recipe({"recipe_path": os.path.join(pasta, "outra.json"), "data_dir": pasta,
+                                   "overrides": {"output_path": os.path.join(pasta, "mapa5.png")}}, {"dry_run": False})
+            achada = QgsProject.instance().mapLayersByName("Quadrado")[0]
+            self.assertEqual(Path(achada.source().split("|")[0]).resolve(), Path(pasta, "quadrado.gpkg").resolve())
+            # Achada pelo nome, a camada noutra pasta não é dado "que sumiu".
+            rr = recompose_from_recipe({"recipe_path": os.path.join(pasta, "outra.json"),
+                                        "overrides": {"output_path": os.path.join(pasta, "mapa6.png")}}, {"dry_run": False})
+            self.assertTrue(any("localizadas pelo nome" in n for n in rr["notes"]), rr["notes"])
+            self.assertFalse(any("não existe mais" in n for n in rr["notes"]), rr["notes"])
+
+    def test_mesmo_nome_com_outros_dados_nao_toma_o_lugar(self):
+        """Os locais de count_points_by_site levam o nome dos registros: achada pelo nome, uma camada tomava o lugar da outra."""
+        import shutil
+
+        from qgis.core import QgsProject, QgsVectorLayer
+
+        from sigmai.qgis_actions.cartography_engine import compose_map, recompose_from_recipe
+
+        with pasta_temporaria() as pasta:
+            layer = self._camada(pasta)
+            receita = os.path.join(pasta, "q.json")
+            compose_map({"layer_ids": [layer.id()], "title": "Quadrado", "map_author": "T", "data_source": "teste",
+                         "output_path": os.path.join(pasta, "q.png"), "format": "png", "dpi": 72, "layout_name": "Q",
+                         "recipe_path": receita}, {"dry_run": False})
+            shutil.copy(os.path.join(pasta, "quadrado.gpkg"), os.path.join(pasta, "outro.gpkg"))
+            projeto = QgsProject.instance()
+            projeto.removeMapLayer(layer.id())
+            projeto.addMapLayer(QgsVectorLayer(os.path.join(pasta, "outro.gpkg"), "Quadrado", "ogr"))
+            rr = recompose_from_recipe({"recipe_path": receita, "overrides": {"output_path": os.path.join(pasta, "q2.png")}},
+                                       {"dry_run": False})
+            self.assertTrue(any("recarregadas da receita" in n for n in rr["notes"]), rr["notes"])
+            self.assertEqual(len(projeto.mapLayersByName("Quadrado")), 2)
+
+    def test_receita_refaz_relevo_com_estilo_num_projeto_novo(self):
+        """Recarregado sem o estilo, o relevo sombreado voltava em cinza e sem a reamostragem bilinear."""
+        import numpy
+        from osgeo import gdal, osr
+        from qgis.core import QgsCoordinateReferenceSystem, QgsProject, QgsRasterLayer
+
+        from sigmai.qgis_actions.cartography_engine import compose_map, recompose_from_recipe
+        from sigmai.qgis_actions.raster_style import apply_raster_style
+
+        project = QgsProject.instance()
+        project.clear()
+        project.setCrs(QgsCoordinateReferenceSystem("EPSG:31984"))
+        with pasta_temporaria() as pasta:
+            caminho = os.path.join(pasta, "dem.tif")
+            ds = gdal.GetDriverByName("GTiff").Create(caminho, 40, 40, 1, gdal.GDT_Float32)
+            ds.SetGeoTransform((0, 25, 0, 1000, 0, -25))
+            srs = osr.SpatialReference()
+            srs.ImportFromEPSG(31984)
+            ds.SetProjection(srs.ExportToWkt())
+            y, x = numpy.mgrid[0:40, 0:40]
+            ds.GetRasterBand(1).WriteArray((800 + 300 * numpy.sin(x / 6.0) * numpy.cos(y / 7.0)).astype("float32"))
+            ds = None
+            relevo = QgsRasterLayer(caminho, "Relevo")
+            self.assertTrue(relevo.isValid())
+            project.addMapLayer(relevo)
+            apply_raster_style({"layer_id": relevo.id(), "mode": "hillshade", "blend_mode": "multiply", "opacity": 0.5},
+                               {"dry_run": False})
+            receita = os.path.join(pasta, "relevo.json")
+            compose_map({"layer_ids": [relevo.id()], "title": "Relevo", "map_author": "T", "data_source": {relevo.id(): "DEM"},
+                         "output_path": os.path.join(pasta, "relevo.png"), "format": "png", "dpi": 72,
+                         "layout_name": "Relevo", "recipe_path": receita}, {"dry_run": False})
+            self.assertIn("style_qml", json.loads(Path(receita).read_text(encoding="utf-8"))["layers"][0])
+
+            project.clear()
+            recompose_from_recipe({"recipe_path": receita, "overrides": {"output_path": os.path.join(pasta, "relevo2.png")}},
+                                  {"dry_run": False})
+            novo = project.mapLayersByName("Relevo")[0]
+            self.assertEqual(novo.renderer().type(), "hillshade")
+            self.assertAlmostEqual(novo.renderer().opacity(), 0.5, places=2)
+            self.assertTrue(novo.dataProvider().isProviderResamplingEnabled())
+            self.assertTrue(os.path.exists(os.path.join(pasta, "relevo2.png")))
+
+            # Achada pelo nome com outro estilo (a mesma camada noutro mapa), recebe o da receita.
+            project.removeMapLayer(novo.id())
+            cinza = QgsRasterLayer(caminho, "Relevo")
+            project.addMapLayer(cinza)
+            self.assertNotEqual(cinza.renderer().type(), "hillshade")
+            rr = recompose_from_recipe({"recipe_path": receita, "overrides": {"output_path": os.path.join(pasta, "relevo3.png")}},
+                                       {"dry_run": False})
+            self.assertTrue(any("Estilo da receita reaplicado em: Relevo" in n for n in rr["notes"]), rr["notes"])
+            self.assertEqual(cinza.renderer().type(), "hillshade")
+
+    def test_receita_refaz_divisas_e_nomes_de_add_context_annotations(self):
+        """Divisas e nomes são camadas de memória: a receita guarda o comando que as fez e o roda de novo."""
+        from qgis.core import QgsProject
+
+        from sigmai.qgis_actions.cartography_engine import compose_map, recompose_from_recipe
+        from sigmai.qgis_actions.context_annotations import add_context_annotations
+
+        with pasta_temporaria() as pasta:
+            layer = self._camada(pasta)
+            feito = add_context_annotations({"boundary_layer_id": layer.id(), "label_field": "nome", "dissolve": False,
+                                             "boundary_name": "Divisa do quadrado"}, {"dry_run": False})
+            criadas = [c["id"] for c in feito["created_layers"]]
+            self.assertEqual(len(criadas), 2)
+            receita = os.path.join(pasta, "divisas.json")
+            # Só as derivadas no mapa: a camada de origem entra na receita mesmo assim.
+            compose_map({"layer_ids": criadas, "title": "Divisas", "map_author": "T", "data_source": "teste",
+                         "output_path": os.path.join(pasta, "divisas.png"), "format": "png", "dpi": 72,
+                         "layout_name": "Divisas", "recipe_path": receita}, {"dry_run": False})
+            gravadas = json.loads(Path(receita).read_text(encoding="utf-8"))["layers"]
+            self.assertIn("Quadrado", [c["name"] for c in gravadas])
+            self.assertTrue(all(c.get("derived_by") for c in gravadas if c["name"] != "Quadrado"))
+
+            projeto = QgsProject.instance()
+            projeto.removeAllMapLayers()
+            recompose_from_recipe({"recipe_path": receita, "overrides": {"output_path": os.path.join(pasta, "divisas2.png")}},
+                                  {"dry_run": False})
+            fonte = projeto.mapLayersByName("Quadrado")[0]
+            divisa = projeto.mapLayersByName("Divisa do quadrado")[0]
+            self.assertEqual(divisa.providerType(), "memory")
+            self.assertGreater(divisa.featureCount(), 0)
+            self.assertEqual(divisa.customProperty("sigmai/derived_from"), fonte.id())
+            self.assertEqual(len(projeto.mapLayers()), 3)
+            self.assertTrue(os.path.exists(os.path.join(pasta, "divisas2.png")))
 
     def test_receita_de_mapa_com_raster(self):
         """Raster não tem featureCount: a receita descreve a camada mesmo assim (regressão da bateria 1.1.0)."""

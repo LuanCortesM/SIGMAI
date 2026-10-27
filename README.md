@@ -78,7 +78,7 @@ Twenty MCP tools, each with a validated input schema. `sigmai_briefing` is where
 | `sigmai_campaign_map` | | ✓ | Field-campaign map: sites + track + area + context + inset, with a coordinate table (CSV); a sites spreadsheet loads through `load_vector_layer` (lon/lat, delimiter and decimal mark detected) |
 | `sigmai_export_coordinate_table` | | ✓ | Coordinates of a point layer in the CRS you name, plus lon/lat |
 | `sigmai_map_recipe` | ✓ | | The exact recipe of a composed map (parameters, layers with SHA-256, versions), from the layout or from the PNG/JSON |
-| `sigmai_recompose_from_recipe` | | ✓ | Reproduce a map from its recipe, with overrides; reports which data changed since |
+| `sigmai_recompose_from_recipe` | | ✓ | Reproduce a map from its recipe, with overrides, in an empty project too (layers reloaded with their style; `data_dir` on another computer); reports which data changed since |
 | `sigmai_methods_paragraph` | ✓ | | A Methods paragraph (pt-BR, en, es) describing how the map was made, plus the software reference |
 | `sigmai_undo` | | ✓ | Undo the last write in the project: styles, names, labels, layouts, created layers (files on disk stay) |
 | `sigmai_list_layouts` | ✓ | | Print layouts in the project |
@@ -118,7 +118,7 @@ Independently of the mode: **output folders** restrict where files may be writte
 - sizes the point symbol to how many points fall in the frame — 2.2 mm for dozens, down to 0.45 mm and semi-transparent for a dense cloud — so the points do not cover what lies beneath; occurrence records repeated on the same coordinates are shown with a heatmap or with one proportional symbol per site (`count_points_by_site`, `apply_proportional_symbol_style`), the sites merged at the map's own scale so the circles do not pile up — or in one call, with `dense_points: "sites"` or `"heatmap"`;
 - knows the field-campaign case (`compose_campaign_map`): sites over a track over an area over its context, with a locator inset and a coordinate table.
 
-Then it audits what it produced, stores the **recipe** of the map in the layout and in the exported PNG (parameters, layers with their SHA-256, QGIS and SIGMAI versions), and returns the report. The recipe can be read back (`sigmai_map_recipe`), re-run with changes (`sigmai_recompose_from_recipe`) and turned into a Methods paragraph with the software reference (`sigmai_methods_paragraph`). Every write to the project goes through an undo stack (`sigmai_undo`).
+Then it audits what it produced, stores the **recipe** of the map in the layout and in the exported PNG (parameters, layers with their SHA-256 and style, QGIS and SIGMAI versions), and returns the report. The recipe can be read back (`sigmai_map_recipe`), re-run with changes, in an empty project too (`sigmai_recompose_from_recipe`) and turned into a Methods paragraph with the software reference (`sigmai_methods_paragraph`). Every write to the project goes through an undo stack (`sigmai_undo`).
 
 ## The cartographic rulebook
 
