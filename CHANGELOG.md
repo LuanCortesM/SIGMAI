@@ -38,6 +38,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 - Figura de periódico (`figure_width_mm`, `journal_column`): barra de escala a partir do zero, sem o segmento à esquerda, que é convenção das folhas topográficas.
 - Preenchimento de contexto da paleta em cinza quase branco, e não mais azul-claro, que fazia os municípios em volta de um parque parecerem mar; o terceiro preenchimento passa a âmbar um pouco mais firme, para os cinco primeiros continuarem distinguíveis nas três simulações de daltonismo.
 - Rótulos quebrados das classes de um raster (cobertura do solo, declividade) caíam na classe vizinha: a legenda esconde "Band 1" reordenando as entradas, e o rótulo era escrito pela posição nova, mas o QGIS o lê pela original. A área urbana saía como "Bare or sparse vegetation".
+- Rampas comuns ("Spectral", "Viridis" e as do ColorBrewer) funcionam mesmo sem a biblioteca de estilos do QGIS, que falta num QGIS sem interface em Linux.
+- Exportação em TIFF pelo GDAL quando o Qt da instalação não tem o plugin de TIFF (QGIS 4 das imagens oficiais em Linux), com a resolução nas tags do arquivo.
 - A camada de `count_points_by_site` é dado, e não anotação: com a marca das divisas e nomes, ela saía da linha de crédito, e a fonte do GBIF, com o DOI, sumia do rodapé.
 - `apply_graduated_style` e `apply_raster_style` avisam quando os quantis coincidem e saem menos classes que as pedidas (contagens com muitos zeros).
 - `CART075` indica pontos menores, mapa de calor ou símbolo por local quando quem cobre o assunto são pontos amontoados.

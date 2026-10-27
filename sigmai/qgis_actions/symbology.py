@@ -275,25 +275,11 @@ def _value_counts(layer: Any, field_name: str) -> dict[str, int]:
 
     request = QgsFeatureRequest()
     request.setSubsetOfAttributes([field_name], layer.fields())
-    try:
-        request.setFlags(request.flags() | _no_geometry_flag(QgsFeatureRequest))
-    except Exception:
-        pass
     counts: dict[str, int] = {}
     for feature in layer.getFeatures(request):
         key = _count_key(feature[field_name])
         counts[key] = counts.get(key, 0) + 1
     return counts
-
-
-def _no_geometry_flag(request_class: Any) -> Any:
-    """QgsFeatureRequest.NoGeometry no QGIS 3 e Qgis.FeatureRequestFlag.NoGeometry no 4."""
-    try:
-        from qgis.core import Qgis  # type: ignore
-
-        return Qgis.FeatureRequestFlag.NoGeometry
-    except Exception:
-        return request_class.NoGeometry
 
 
 def apply_categorized_style(params: dict[str, Any], context: dict[str, Any]):

@@ -4907,6 +4907,47 @@ def _assert_render_thread(imports: dict[str, Any]) -> None:
         return
 
 
+def _qt_writes_tiff() -> bool:
+    """O Qt desta instalação grava TIFF? O plugin de imagem é um pacote à parte em várias distribuições Linux."""
+    try:
+        from qgis.PyQt.QtGui import QImageWriter  # type: ignore
+
+        formats = {bytes(f).decode("ascii", "ignore").lower() for f in QImageWriter.supportedImageFormats()}
+        return bool(formats & {"tif", "tiff"})
+    except Exception:
+        return True
+
+
+def _export_tiff_through_gdal(exporter: Any, output_path: Path, dpi: int, imports: dict[str, Any]) -> Any:
+    """TIFF sem o plugin de TIFF do Qt: exporta PNG e converte pelo GDAL, com a resolução nas tags do TIFF.
+
+    No QGIS 4 das imagens oficiais em Linux, a exportação em TIFF devolvia
+    erro de arquivo: o Qt não tinha o plugin de TIFF. As revistas pedem TIFF
+    para figuras, e o GDAL do QGIS sempre grava.
+    """
+    from osgeo import gdal  # type: ignore
+
+    temporary = output_path.with_name(output_path.stem + ".sigmai-tmp.png")
+    settings = imports["QgsLayoutExporter"].ImageExportSettings()
+    settings.dpi = dpi
+    result = exporter.exportToImage(str(temporary), settings)
+    if result != qt_enum(imports["QgsLayoutExporter"], "ExportResult", "Success") or not temporary.exists():
+        return result
+    try:
+        source = gdal.Open(str(temporary))
+        target = gdal.GetDriverByName("GTiff").CreateCopy(str(output_path), source, options=["COMPRESS=LZW"])
+        target.SetMetadata({"TIFFTAG_XRESOLUTION": str(dpi), "TIFFTAG_YRESOLUTION": str(dpi), "TIFFTAG_RESOLUTIONUNIT": "2"})
+        target = None
+        source = None
+    finally:
+        for leftover in (temporary, temporary.with_suffix(".pgw"), temporary.with_name(temporary.name + ".aux.xml")):
+            try:
+                leftover.unlink()
+            except OSError:
+                pass
+    return result
+
+
 def _export(layout: Any, output_path: Path, export_format: str, params: dict[str, Any], imports: dict[str, Any]) -> dict[str, Any]:
     _assert_render_thread(imports)
     exporter = imports["QgsLayoutExporter"](layout)
@@ -4915,7 +4956,9 @@ def _export(layout: Any, output_path: Path, export_format: str, params: dict[str
     # 20000 numa A4 chega a ~990 milhões de pixels). integer=True porque
     # int(1.5) truncaria em silêncio o que o pedido não disse.
     dpi = as_number(params, "dpi", default=300, minimum=50, maximum=1200, integer=True, label="dpi")
-    if export_format in ("png", "tif", "tiff", "jpg", "jpeg"):
+    if export_format in ("tif", "tiff") and not _qt_writes_tiff():
+        result = _export_tiff_through_gdal(exporter, output_path, dpi, imports)
+    elif export_format in ("png", "tif", "tiff", "jpg", "jpeg"):
         settings = imports["QgsLayoutExporter"].ImageExportSettings()
         settings.dpi = dpi
         result = exporter.exportToImage(str(output_path), settings)
