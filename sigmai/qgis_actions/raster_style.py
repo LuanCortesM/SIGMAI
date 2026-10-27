@@ -17,6 +17,7 @@ from typing import Any  # noqa: F401  (usado nas anotações abaixo)
 
 from ..cartography.maptext import maptext, resolve_language
 from ..cartography.qtcompat import QtEnumMissing, qt_enum
+from ..cartography.rulebook import NODATA_SENTINELS as _NODATA_SENTINELS
 from ..cartography.symbology import STYLE_ORIGIN_USER, mark_style_origin
 from ..validators import ValidationError, require_param
 from .common import layer_type_name, project
@@ -191,6 +192,53 @@ def quantile_breaks(values: list[float], classes: int) -> list[float]:
         if edge > merged[-1]:
             merged.append(edge)
     return merged
+
+
+#: Valores de preenchimento tratados como sem dado (ver rulebook.NODATA_SENTINELS).
+NODATA_SENTINELS = _NODATA_SENTINELS
+#: Um extremo conta como pico isolado — e a rampa para no percentil, não
+#: nele — quando está mais longe do percentil 0,5/99,5 do que esta fração da
+#: amplitude entre os dois percentis. Num MDE limpo o máximo fica a ~6 %
+#: dessa amplitude do percentil 99,5; um pixel de 9.000 m, a ~290 %.
+RANGE_OUTLIER_GAP = 0.25
+
+
+def _percentile(ordered: list[float], fraction: float) -> float:
+    if not ordered:
+        raise ValueError("sem valores")
+    index = min(len(ordered) - 1, max(0, int(round(fraction * (len(ordered) - 1)))))
+    return ordered[index]
+
+
+def robust_range(values: list[float], declared_nodata: float | None = None) -> dict[str, Any]:
+    """Mínimo e máximo da rampa: sem valores-sentinela de "sem dado" e sem picos isolados.
+
+    Devolve ``min``, ``max``, ``sentinels`` (valores tratados como sem dado,
+    com a contagem na amostra) e ``clipped`` (lados em que um pico isolado
+    ficou fora da rampa, com o valor do pico). Puro, para teste sem QGIS.
+    """
+    finite = [float(v) for v in values if v is not None and math.isfinite(float(v))]
+    sentinels: dict[float, int] = {}
+    kept: list[float] = []
+    for value in finite:
+        if declared_nodata is not None and value == declared_nodata:
+            continue
+        if any(value == s for s in NODATA_SENTINELS):
+            sentinels[value] = sentinels.get(value, 0) + 1
+        else:
+            kept.append(value)
+    if not kept:
+        raise ValueError("todos os valores amostrados são sem dado")
+    kept.sort()
+    low, high = _percentile(kept, 0.005), _percentile(kept, 0.995)
+    span = max(high - low, 1e-12)
+    minimum, maximum = kept[0], kept[-1]
+    clipped: dict[str, float] = {}
+    if low - minimum > RANGE_OUTLIER_GAP * span:
+        clipped["low"], minimum = minimum, low
+    if maximum - high > RANGE_OUTLIER_GAP * span:
+        clipped["high"], maximum = maximum, high
+    return {"min": minimum, "max": maximum, "sentinels": sorted(sentinels.items()), "clipped": clipped}
 
 
 def validate_breaks(raw: Any) -> list[float | None]:
@@ -391,13 +439,34 @@ def apply_raster_style(params: dict[str, Any], context: dict[str, Any]) -> dict[
     blend = blend_mode_name(params.get("blend_mode"))
     plan: dict[str, Any] = {"layer_id": layer.id(), "mode": mode, "band": band, "opacity": opacity, "blend_mode": blend}
 
+    assumed_nodata: list[float] = []
     if mode in ("pseudocolor", "classes", "greyscale"):
         minimum = params.get("min")
         maximum = params.get("max")
         if minimum is None or maximum is None:
-            stat_min, stat_max = _statistics(layer, band)
-            minimum = stat_min if minimum is None else float(minimum)
-            maximum = stat_max if maximum is None else float(maximum)
+            provider = layer.dataProvider()
+            declared = provider.sourceNoDataValue(band) if provider.sourceHasNoDataValue(band) else None
+            try:
+                found = robust_range(_sample(layer, band), declared)
+            except ValueError:
+                found = None
+            if found is None:
+                stat_min, stat_max = _statistics(layer, band)
+                found = {"min": stat_min, "max": stat_max, "sentinels": [], "clipped": {}}
+            minimum = found["min"] if minimum is None else float(minimum)
+            maximum = found["max"] if maximum is None else float(maximum)
+            assumed_nodata = [value for value, _count in found["sentinels"]]
+            notes = []
+            if assumed_nodata:
+                notes.append(f"O raster não declara valor sem dado, mas tem {', '.join(f'{v:g}' for v in assumed_nodata)} "
+                             "— valor de preenchimento de MDE, não um dado; tratado como sem dado nesta camada (o arquivo não muda).")
+            for side, value in found["clipped"].items():
+                notes.append(f"Pico isolado de {value:g} fora da rampa ({'mínimo' if side == 'low' else 'máximo'} "
+                             f"da rampa em {minimum if side == 'low' else maximum:g}); passe min/max para usá-lo.")
+            if notes:
+                plan["notes"] = notes
+            if assumed_nodata:
+                plan["assumed_nodata"] = assumed_nodata
         minimum, maximum = float(minimum), float(maximum)
         if maximum <= minimum:
             raise ValidationError("BAD_REQUEST", "O raster não tem variação de valores para colorir.", {"min": minimum, "max": maximum})
@@ -416,10 +485,15 @@ def apply_raster_style(params: dict[str, Any], context: dict[str, Any]) -> dict[
             kind = "interpolated"
         else:
             classes = max(2, min(12, classes or 5))
-            breaks = (quantile_breaks(_sample(layer, band), classes) if method == "quantile"
-                      else equal_breaks(minimum, maximum, classes))
+            sample = _sample(layer, band) if method == "quantile" else []
+            breaks = quantile_breaks(sample, classes) if method == "quantile" else equal_breaks(minimum, maximum, classes)
             labels = class_labels(breaks, unit, language)
             kind = "discrete"
+            if method == "quantile" and len(breaks) - 1 < classes:
+                from .symbology import collapsed_classes_warning
+
+                plan.setdefault("notes", []).append(
+                    collapsed_classes_warning(sorted(sample), classes, len(breaks) - 1, method))
         plan.update({"color_ramp": ramp_key, "method": method, "breaks": [round(b, 6) for b in breaks]})
         if method != "continuous":
             plan["labels"] = labels
@@ -525,9 +599,46 @@ def apply_raster_style(params: dict[str, Any], context: dict[str, Any]) -> dict[
         enhancement.setMaximumValue(maximum)
         renderer.setContrastEnhancement(enhancement)
 
+    if assumed_nodata:
+        # "Sem dado" do usuário, na camada: sem isso o bloco de -32.768 saía na
+        # cor mais baixa da rampa. O arquivo de origem não é alterado.
+        from qgis.core import QgsRasterRange  # type: ignore
+
+        layer.dataProvider().setUserNoDataValue(band, [QgsRasterRange(value, value) for value in assumed_nodata])
     renderer.setOpacity(opacity)
     layer.setRenderer(renderer)
     layer.setBlendMode(_blend_mode(blend))
+    if mode in ("pseudocolor", "hillshade"):
+        _smooth_resampling(layer)
     mark_style_origin(layer, STYLE_ORIGIN_USER)
     layer.triggerRepaint()
     return plan
+
+
+def _smooth_resampling(layer: Any) -> None:
+    """Reamostragem bilinear para um raster contínuo (relevo, sombreamento), na leitura do dado.
+
+    O padrão do QGIS é o vizinho mais próximo. Num mapa a 300 dpi, mais fino
+    que os 30 m do Copernicus, o provedor repetia linhas e colunas de pixels
+    antes do sombreamento, que via degraus onde o terreno é liso: a encosta
+    saía quadriculada de riscas. A reamostragem tem de vir no provedor, antes
+    do cálculo; depois dele só suavizaria as riscas já desenhadas. Classes e
+    valores únicos continuam no vizinho mais próximo: interpolar uma classe
+    inventa outra.
+    """
+    try:
+        from qgis.core import Qgis, QgsRasterDataProvider  # type: ignore
+
+        from ..cartography.qtcompat import qt_enum
+
+        provider = layer.dataProvider()
+        try:
+            bilinear = qt_enum(Qgis, "RasterResamplingMethod", "Bilinear")
+        except Exception:
+            bilinear = qt_enum(QgsRasterDataProvider, "ResamplingMethod", "Bilinear")
+        provider.enableProviderResampling(True)
+        provider.setZoomedInResamplingMethod(bilinear)
+        provider.setZoomedOutResamplingMethod(bilinear)
+        provider.setMaxOversampling(2.0)
+    except Exception:
+        pass

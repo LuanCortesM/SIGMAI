@@ -22,6 +22,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from .pointdensity import SATURATION, STACKING_HIDDEN_MAX, STACKING_MIN_POINTS
+
 SEVERITY_ERROR = "error"
 SEVERITY_WARNING = "warning"
 SEVERITY_ADVICE = "advice"
@@ -72,7 +74,7 @@ LEGEND_OVERFLOW_TOLERANCE_MM = 0.5
 #: CART073: croma mínimo (maior canal menos o menor, 0–255) para um pixel
 #: contar como colorido, e fração máxima da tinta que pode tê-lo numa figura
 #: pedida em tons de cinza. 20 deixa passar o ruído de compressão JPEG e pega
-#: o azul quase branco (#D9EAF4, croma 27) que a paleta colorida dá ao
+#: o azul quase branco (#D9EAF4, croma 27) que a paleta colorida dava ao
 #: contexto; 0,5 % tolera um logotipo ou um pixel perdido, não um inserto
 #: contornado de vermelho.
 #: CART021: uma camada ligada ao quadro conta como escondida quando, do que
@@ -90,6 +92,40 @@ COVERED_VISIBLE_SHARE = 0.01
 #: "multiplicar") não contam como cobertura.
 SUBJECT_VISIBLE_MIN = 0.5
 GREYSCALE_CHROMA_MIN = 20
+#: CART077: fração mínima da rampa de um raster contínuo que os pixels do
+#: quadro (percentis 2 a 98) devem usar. Um MDE de 372 a 2.793 m com um bloco
+#: de -32.768 não declarado usava 7 %; com um pico de 9.000 m, 27 %.
+RAMP_USED_MIN = 0.4
+#: Valores que gravadores de raster usam como "sem dado" sem declará-lo: o
+#: Int16 dos MDE (SRTM, Copernicus), o -9999 do ArcGIS e dos ASCII grid, o
+#: menor Float32. Num MDE de 372 a 2.793 m com um bloco de -32.768 não
+#: declarado, a rampa ia de -32.768 a 2.764 m e o relevo inteiro saía de uma
+#: cor só, com nota A. apply_raster_style os trata como sem dado, e CART077
+#: os deixa fora dos percentis.
+NODATA_SENTINELS: tuple[float, ...] = (-32768.0, -32767.0, -9999.0, -99999.0, -3.4028234663852886e38)
+#: CART078: folga, em graus, em volta da área de uso declarada de um sistema
+#: de referência antes de uma coordenada contar como fora dela: meio fuso UTM,
+#: para não acusar dados que só passam da divisa do fuso.
+AREA_OF_USE_MARGIN_DEGREES = 3.0
+#: CART079: o recorte é aberto por pontos isolados quando a diagonal de todos
+#: os pontos passa deste múltiplo da diagonal do núcleo (percentis 1 a 99) e
+#: os isolados são poucos: no máximo ``OUTLIER_MAX_SHARE`` dos pontos ou
+#: ``OUTLIER_MAX_COUNT``, o que for maior. Erro de coordenada é coisa de
+#: poucos registros; com 2 % a regra acusava 300 registros legítimos
+#: espalhados em volta de um foco de 20.000.
+OUTLIER_SPREAD_RATIO = 5.0
+OUTLIER_MAX_SHARE = 0.005
+OUTLIER_MAX_COUNT = 3
+#: CART080: densidade, em fração do máximo da rampa, abaixo da qual o mapa de
+#: calor não pinta (a rampa de apply_heatmap_style começa transparente e só
+#: ganha cor a partir de 15 %), e fração máxima dos lugares com pontos que
+#: podem ficar assim. Calibrado em três mapas: focos de calor do INPE no Piauí
+#: (55 % dos lugares abaixo de 2 %, mapa legítimo, com a cauda de baixa
+#: densidade em amarelo-claro), registros do GBIF no Itatiaia (93 %) e um foco
+#: de 20.000 registros com 300 espalhados (99,6 %). Com 10 % e metade, o mapa
+#: de focos — legítimo — era acusado.
+HEATMAP_VISIBLE_MIN = 0.02
+HEATMAP_FAINT_PLACES_MAX = 0.8
 GREYSCALE_MAX_CHROMATIC_FRACTION = 0.005
 
 
@@ -166,7 +202,18 @@ def _map(observation: dict[str, Any]) -> dict[str, Any]:
 
 
 def _texts(observation: dict[str, Any]) -> list[dict[str, Any]]:
-    return [item for item in _items(observation) if item.get("type") == "label"]
+    """Os rótulos do layout e, numa figura com os créditos na legenda do texto, essa legenda."""
+    texts = [item for item in _items(observation) if item.get("type") == "label"]
+    caption = _caption(observation)
+    if caption.get("text"):
+        texts.append({"type": "label", "role": "caption", "id": "caption", "text": str(caption["text"])})
+    return texts
+
+
+def _caption(observation: dict[str, Any]) -> dict[str, Any]:
+    """Onde ficaram título e créditos (title_placement) e a legenda do texto, quando o compositor a escreveu."""
+    caption = observation.get("caption")
+    return caption if isinstance(caption, dict) else {}
 
 
 def _has_text(observation: dict[str, Any], *needles: str) -> bool:
@@ -182,6 +229,16 @@ def _check_title(observation: dict[str, Any]) -> CheckOutcome:
     title = _item_by_role(observation, "title")
     if title and str(title.get("text", "")).strip():
         return _pass(f"Título presente: {title['text']!r}.")
+    caption = _caption(observation)
+    placement = caption.get("title_placement")
+    if placement == "caption":
+        if str(caption.get("title") or "").strip():
+            return _pass(f"Título na legenda do texto, como pedem as revistas: {caption['title']!r}.")
+        return _skip("Figura com título e créditos na legenda do texto (title_placement='caption'); o título é o "
+                     "que o autor escrever nela.")
+    if placement == "none":
+        return _skip("Mapa sem título por escolha de quem o fez (title_placement='none'); o título fica no "
+                     "documento em que ele entra.")
     return _fail("Nenhum item com papel de título e texto não vazio.")
 
 
@@ -288,12 +345,144 @@ def _check_subject_visible(observation: dict[str, Any]) -> CheckOutcome:
         return _skip("Não foi possível medir a visibilidade do assunto.")
     if float(visible) >= SUBJECT_VISIBLE_MIN:
         return _pass(f"O assunto do mapa está à vista ({float(visible):.0%} do que ele desenha).")
+    crowded = [entry for entry in (map_info.get("point_stacking") or [])
+               if float(entry.get("hidden_fraction") or 0.0) > STACKING_HIDDEN_MAX]
+    remedy = ("Desenhe o contexto por cima como contorno, sem preenchimento, ou com transparência alta, ou "
+              "ponha o assunto acima do contexto.")
+    if crowded:
+        names = ", ".join(repr(entry["layer"]) for entry in crowded)
+        remedy = (f"Quem cobre são os pontos amontoados de {names}: use pontos menores e semitransparentes "
+                  "(compose_map já faz isso com a paleta), ou mostre a contagem com apply_heatmap_style ou "
+                  "com um símbolo por local (apply_proportional_symbol_style).")
     return _fail(
         f"Só {float(visible):.0%} do que o assunto do mapa desenha fica à vista: camadas desenhadas por cima "
-        "o cobrem. Desenhe o contexto por cima como contorno, sem preenchimento, ou com transparência alta, ou "
-        "ponha o assunto acima do contexto.",
+        f"o cobrem. {remedy}",
         subject_visible_fraction=visible,
     )
+
+
+def _check_raster_ramp_used(observation: dict[str, Any]) -> CheckOutcome:
+    """CART077 — a rampa de cores de um raster contínuo mostra os dados."""
+    ramps = _map(observation).get("raster_ramps")
+    if ramps is None:
+        return _skip("Não foi possível medir a rampa dos rasters do quadro.")
+    if not ramps:
+        return _skip("Nenhum raster com rampa contínua no quadro.")
+    worst = min(ramps, key=lambda entry: float(entry.get("used_fraction") or 0.0))
+    used = float(worst.get("used_fraction") or 0.0)
+
+    def num(value: Any) -> str:
+        return f"{float(value):,.6g}".replace(",", ".")
+
+    described = (f"os pixels de {worst['layer']!r} (percentis 2 a 98: {num(worst['p02'])} a {num(worst['p98'])}) "
+                 f"usam {used:.0%} da rampa, que vai de {num(worst['ramp_min'])} a {num(worst['ramp_max'])}")
+    if used >= RAMP_USED_MIN:
+        return _pass(f"A rampa mostra os dados: {described}.", raster_ramps=ramps)
+    return _fail(f"{described[0].upper()}{described[1:]}: o relevo, ou o tema, sai quase de uma cor só. Um extremo "
+                 "estica a rampa — um valor sem dado não declarado (-32.768, -9.999) ou um pico isolado.",
+                 raster_ramps=ramps)
+
+
+def _check_coordinates_plausible(observation: dict[str, Any]) -> CheckOutcome:
+    """CART078 — as coordenadas cabem no sistema de referência declarado."""
+    checks = _map(observation).get("coordinate_checks")
+    if checks is None:
+        return _skip("Não foi possível conferir as coordenadas das camadas.")
+    if not checks:
+        return _skip("Nenhuma camada vetorial no quadro.")
+    problems: list[str] = []
+    for entry in checks:
+        name = repr(entry.get("layer"))
+        if entry.get("degree_like"):
+            problems.append(f"{name} está em {entry.get('crs')}, um sistema em metros, mas todas as coordenadas cabem "
+                            "entre -180 e 180 e -90 e 90: parecem graus (latitude e longitude declaradas como UTM)")
+        null_island = int(entry.get("null_island") or 0)
+        if null_island:
+            problems.append(f"{_num(null_island)} ponto(s) de {name} em 0,0 — a coordenada que planilhas e bancos gravam "
+                            "quando falta a posição")
+        outside = int(entry.get("outside_area_of_use") or 0)
+        if outside and not entry.get("degree_like"):
+            examples = "; ".join(f"{x}, {y}" for x, y in (entry.get("outside_examples") or []))
+            area = entry.get("area_of_use")
+            problems.append(f"{_num(outside)} feição(ões) de {name} fora da área de uso de {entry.get('crs')}"
+                            + (f" (longitude {area[0]} a {area[2]}, latitude {area[1]} a {area[3]})" if area else "")
+                            + (f", por exemplo {examples} (longitude, latitude)" if examples else ""))
+    if not problems:
+        return _pass("As coordenadas cabem nos sistemas de referência das camadas.")
+    return _fail("Coordenadas que não podem estar certas: " + "; ".join(problems) + ".", coordinate_checks=checks)
+
+
+def _check_extent_outliers(observation: dict[str, Any]) -> CheckOutcome:
+    """CART079 — o recorte não é aberto por poucos pontos isolados."""
+    layers = _map(observation).get("extent_outliers")
+    if layers is None:
+        return _skip("Não foi possível medir a dispersão dos pontos.")
+    if not layers:
+        return _skip("Nenhuma camada de pontos com 20 pontos ou mais no quadro.")
+    flagged = [entry for entry in layers
+               if entry.get("spread_ratio") is not None and float(entry["spread_ratio"]) > OUTLIER_SPREAD_RATIO
+               and 0 < int(entry.get("isolated") or 0)
+               <= max(OUTLIER_MAX_COUNT, OUTLIER_MAX_SHARE * int(entry.get("points") or 0))]
+    if not flagged:
+        return _pass("Nenhum ponto isolado abre o recorte.")
+    worst = max(flagged, key=lambda entry: float(entry["spread_ratio"]))
+    return _fail(
+        f"{_num(worst['isolated'])} de {_num(worst['points'])} pontos de {worst['layer']!r} ficam longe dos demais e "
+        f"abrem o recorte {float(worst['spread_ratio']):.0f} vezes além do núcleo dos dados: os outros pontos se "
+        "amontoam num canto do quadro. Costuma ser erro de coordenada (0,0, latitude e longitude trocadas, sinal "
+        "trocado).", extent_outliers=layers)
+
+
+def _check_heatmap_visibility(observation: dict[str, Any]) -> CheckOutcome:
+    """CART080 — o mapa de calor mostra os lugares que têm pontos."""
+    layers = _map(observation).get("heatmap_visibility")
+    if layers is None:
+        return _skip("Não foi possível medir o mapa de calor.")
+    if not layers:
+        return _skip("Nenhum mapa de calor no quadro.")
+    worst = max(layers, key=lambda entry: int(entry.get("faint_places") or 0) / max(1, int(entry.get("places") or 1)))
+    share = int(worst.get("faint_places") or 0) / max(1, int(worst.get("places") or 1))
+    described = (f"{_num(worst['faint_places'])} dos {_num(worst['places'])} lugares com pontos de {worst['layer']!r} "
+                 f"({_num(worst['faint_points'])} pontos) ficam abaixo de {HEATMAP_VISIBLE_MIN * 100:g} % da densidade "
+                 "máxima")
+    if share <= HEATMAP_FAINT_PLACES_MAX:
+        return _pass(f"O mapa de calor mostra os lugares com pontos: {described}.", heatmap_visibility=layers)
+    return _fail(f"{described[0].upper()}{described[1:]} e quase não aparecem: o mapa mostra só os focos.",
+                 heatmap_visibility=layers)
+
+
+def _check_point_stacking(observation: dict[str, Any]) -> CheckOutcome:
+    """CART076 — os pontos do mapa não escondem quantos registros há em cada lugar."""
+    layers = _map(observation).get("point_stacking")
+    if layers is None:
+        return _skip("Não foi possível medir os pontos do quadro.")
+    if not layers:
+        return _skip("Nenhuma camada de pontos com símbolo de tamanho fixo ou proporcional no quadro.")
+    measured = [entry for entry in layers if int(entry.get("points") or 0) >= STACKING_MIN_POINTS]
+    if not measured:
+        return _pass(f"Menos de {STACKING_MIN_POINTS} pontos por camada no quadro: o leitor os conta.")
+    worst = max(measured, key=lambda entry: float(entry.get("hidden_fraction") or 0.0))
+    hidden = float(worst.get("hidden_fraction") or 0.0)
+    if worst.get("proportional"):
+        described = (f"{hidden:.0%} dos {_num(worst['points'])} locais de {worst['layer']!r} caem sobre outros no "
+                     f"papel (até {_num(worst['max_per_cell'])} num lugar do tamanho do menor círculo, "
+                     f"{float(worst['symbol_mm']):g} mm)")
+        if hidden <= STACKING_HIDDEN_MAX:
+            return _pass(f"Os círculos não escondem os locais: {described}.", point_stacking=layers)
+        scale = worst.get("scale")
+        source = worst.get("source_layer_id")
+        remedy = ("count_points_by_site" + (f" sobre {source!r}" if source else "")
+                  + (f" com scale={int(scale)}" if scale else " com scale (o denominador da escala do mapa)")
+                  + f" e min_spacing_mm={float(worst['symbol_mm']):g}")
+        return _fail(f"{described}. Amontoados, os círculos se fundem: o leitor não separa os locais nem compara "
+                     f"os tamanhos, e onde há mais locais o mapa parece ter menos. Agrupe os locais na escala do "
+                     f"mapa: {remedy}.", point_stacking=layers)
+    described = (f"{hidden:.0%} dos {_num(worst['points'])} pontos de {worst['layer']!r} não aparecem: caem sobre "
+                 f"outros (até {_num(worst['max_per_cell'])} num mesmo lugar do tamanho do símbolo, "
+                 f"{float(worst['symbol_mm']):g} mm com opacidade {float(worst['opacity']):g})")
+    if hidden <= STACKING_HIDDEN_MAX:
+        return _pass(f"Os pontos não escondem a contagem: {described}.", point_stacking=layers)
+    return _fail(f"{described}. O mapa mostra onde há pontos, mas não quantos.", point_stacking=layers)
 
 
 def _check_scale_indication(observation: dict[str, Any]) -> CheckOutcome:
@@ -402,6 +591,8 @@ def _check_north_indication(observation: dict[str, Any]) -> CheckOutcome:
         return _pass(f"Indicação de norte presente (tipo: {north.get('kind')}).")
     if grid.get("enabled") and grid.get("annotations"):
         return _skip("Sem rosa dos ventos, mas a grade anotada já orienta o leitor.")
+    if grid.get("enabled") and grid.get("graticule"):
+        return _skip("Sem rosa dos ventos, mas a grade em graus mostra o norte em cada ponto da folha.")
     return _fail("O mapa não tem rosa dos ventos nem grade anotada; nada indica a orientação.")
 
 
@@ -496,6 +687,12 @@ def _check_source_credit(observation: dict[str, Any]) -> CheckOutcome:
     tem_autor = any(marcador in junto for marcador in AUTHOR_MARKERS)
     if tem_fonte and tem_autor:
         return _pass("A linha de crédito declara a fonte dos dados e a autoria do mapa.")
+    if _caption(observation).get("title_placement") == "caption":
+        # Figura de periódico: a autoria é a do artigo; a fonte não pode faltar.
+        if tem_fonte:
+            return _pass("A legenda do texto declara a fonte dos dados; a autoria da figura é a do artigo.")
+        return _fail("A legenda do texto não declara a fonte dos dados (data_source). Sem procedência a figura "
+                     "não é citável, e a licença dos dados costuma exigir a citação.", missing=["data_source"])
 
     faltando = []
     if not tem_fonte:
@@ -569,6 +766,9 @@ def _check_graticule_annotations(observation: dict[str, Any]) -> CheckOutcome:
         return _skip("Grade desabilitada.")
     if grid.get("annotations"):
         return _pass("A grade tem rótulos de coordenadas.")
+    if grid.get("graticule"):
+        return _skip("Grade em graus de um mapa de pequena escala, sem rótulos: as linhas terminam no contorno do "
+                     "globo, não na moldura, e o leitor se localiza pelos continentes.")
     return _fail("A grade não está anotada; linhas sem valores de coordenada não localizam nada.")
 
 
@@ -834,6 +1034,39 @@ def _check_comparison_panels(observation: dict[str, Any]) -> CheckOutcome:
     )
 
 
+def _check_comparable_value_scales(observation: dict[str, Any]) -> CheckOutcome:
+    """CART081 — painéis comparáveis usam a mesma régua de cor e de tamanho."""
+    frames = observation.get("map_frames") or []
+    if len(frames) < 2:
+        return _skip("O layout tem um único quadro de mapa.")
+    by_key: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for frame in frames:
+        for entry in frame.get("value_scales") or []:
+            by_key.setdefault((str(entry.get("kind")), str(entry.get("variable") or "")), []).append(
+                {**entry, "frame": frame.get("item_id")})
+    shared = {key: entries for key, entries in by_key.items() if len({e["frame"] for e in entries}) >= 2}
+    if not shared:
+        return _skip("Nenhuma camada temática aparece em mais de um painel com a mesma variável.")
+    problems: list[str] = []
+    for (kind, _variable), entries in shared.items():
+        names = ", ".join(sorted({repr(e["layer"]) for e in entries}))
+        if kind == "heatmap":
+            if any(float(e.get("maximum") or 0.0) <= 0 for e in entries):
+                problems.append(f"mapas de calor ({names}) com o máximo automático: cada painel vai do seu menor ao "
+                                "seu maior, e o vermelho de um não é o vermelho do outro")
+            elif len({round(float(e["maximum"]), 6) for e in entries}) > 1 or len({e.get("radius") for e in entries}) > 1:
+                problems.append(f"mapas de calor ({names}) com máximos ou raios diferentes")
+        elif kind == "graduated" and len({tuple(e.get("breaks") or []) for e in entries}) > 1:
+            problems.append(f"classes graduadas ({names}) com limites diferentes")
+        elif kind == "proportional" and len({(tuple(e.get("domain") or []), tuple(e.get("sizes") or [])) for e in entries}) > 1:
+            problems.append(f"símbolos proporcionais ({names}) com réguas diferentes: o mesmo tamanho vale números "
+                            "diferentes em cada painel")
+    if not problems:
+        return _pass("Os painéis usam a mesma régua de cor e de tamanho para a mesma variável.")
+    return _fail("Painéis lado a lado convidam a comparar, mas " + "; ".join(problems) + ".",
+                 value_scales=[{"key": list(k), "entries": v} for k, v in shared.items()])
+
+
 def _check_extent_contains_data(observation: dict[str, Any]) -> CheckOutcome:
     map_info = _map(observation)
     extent = map_info.get("extent") or {}
@@ -963,7 +1196,7 @@ def _check_colour_vision(observation: dict[str, Any]) -> CheckOutcome:
     if total_pairs == 0:
         return _skip("Só uma cor por família de símbolo; não há pares para confundir.")
     if not findings:
-        return _pass(f"{total_pairs} par(es) de cores distinguíveis sob protanopia, deuteranopia e tritanopia.")
+        return _pass(f"{total_pairs} par(es) de cores distinguíveis sob protanopia, deuteranopia e tritanomalia.")
     described = "; ".join(
         f"{f['a']} × {f['b']} ({f['colours'][0]}/{f['colours'][1]}: ΔE {f['delta_e_simulated']} sob {f['deficiency']})"
         for f in findings[:6]
@@ -1126,7 +1359,8 @@ RULES: tuple[Rule, ...] = (
          "desenha por cima do que vier abaixo. Numa figura de coluna simples duas entradas com fonte "
          "por camada já não cabiam, e o leitor via '(IBGE, 20' sobre a linha de crédito.",
          "Encurte os nomes das camadas, reduza a fonte da legenda até 6 pt, tire as fontes por camada "
-         "(data_source como texto único) ou use uma página maior; compose_map já faz os dois primeiros.",
+         "(data_source como texto único) ou use uma página maior; compose_map já faz os dois primeiros. "
+         "Se são classes demais, apply_categorized_style com limit=8 reúne as menos frequentes em 'Outros'.",
          "Slocum et al. (2009) — legend design; tolerância de 0,5 mm: decisão de projeto do SIGMAI; verificação: QGIS API QgsLegendRenderer::minimumSize",
          _check_legend_fits_box),
     Rule("CART021", "elementos", SEVERITY_WARNING,
@@ -1146,6 +1380,67 @@ RULES: tuple[Rule, ...] = (
          "o compositor do SIGMAI já faz isso quando o assunto é um raster.",
          "Brewer (2016) — figure-ground and visual hierarchy; Slocum et al. (2009) — visual hierarchy; ao menos metade do que o assunto desenha à vista: decisão de projeto do SIGMAI",
          _check_subject_visible),
+    Rule("CART076", "simbologia", SEVERITY_WARNING,
+         "Os pontos não escondem a contagem", "Point symbols do not hide the count",
+         "Num mapa de pontos o leitor conta pontos. Quando muitos caem no mesmo lugar — registros de "
+         "ocorrência repetidos nas mesmas coordenadas, comuns em dados do GBIF —, um local com milhares "
+         "de registros aparece igual a um local com um só, e a legenda continua dizendo que cada ponto "
+         "é um registro. Num mapa de símbolos proporcionais, o mesmo acontece com os locais: amontoados "
+         "no papel, os círculos se fundem, e onde há mais locais o mapa parece ter menos.",
+         "Mostre a contagem: apply_heatmap_style (densidade) ou um símbolo por local com área "
+         "proporcional ao número de registros (count_points_by_site com scale, o denominador da escala "
+         "do mapa, e apply_proportional_symbol_style). Se os pontos estão só amontoados, e não "
+         "repetidos, pontos menores e semitransparentes bastam; compose_map já os ajusta quando a "
+         "camada usa a paleta.",
+         f"Pontos levados para mm do quadro e contados em células do tamanho do símbolo (do menor "
+         f"círculo, no símbolo proporcional); saturação de {SATURATION * 100:g} % de tinta, mais de "
+         f"{STACKING_HIDDEN_MAX * 100:g} % dos pontos ocultos e mínimo de {STACKING_MIN_POINTS} pontos: "
+         "decisão de projeto do SIGMAI, calibrada em docs/experiments/2026-10-26_pontos_empilhados/",
+         _check_point_stacking),
+    Rule("CART077", "simbologia", SEVERITY_WARNING,
+         "A rampa do raster mostra os dados", "The raster colour ramp shows the data",
+         "Uma rampa esticada por um extremo — o -32.768 que um MDE grava onde não tem dado, sem "
+         "declará-lo, ou um único pixel errado — deixa os valores reais num trecho curto dela: o "
+         "relevo sai de uma cor só, e a legenda anuncia um valor que não existe.",
+         "Refaça com apply_raster_style sem min e max: o SIGMAI ignora os valores de preenchimento "
+         "conhecidos e os picos isolados, e avisa. Ou declare o valor sem dado da camada, ou passe min e "
+         "max que cubram os dados.",
+         f"Percentis 2 e 98 dos pixels do quadro contra os limites da rampa; ao menos {RAMP_USED_MIN * 100:g} % "
+         "da rampa em uso: decisão de projeto do SIGMAI",
+         _check_raster_ramp_used),
+    Rule("CART078", "dados", SEVERITY_ERROR,
+         "Coordenadas cabem no sistema de referência", "Coordinates fit the declared reference system",
+         "Coordenadas fora da área de uso do sistema declarado são erro de dado, não de mapa: graus "
+         "importados como se fossem UTM levam os pontos para perto do polo, e o 0,0 que planilhas gravam "
+         "quando falta a posição põe um registro no Golfo da Guiné. O mapa sai com a escala e o recorte "
+         "errados, e nenhuma outra regra diz por quê.",
+         "Corrija o dado: declare o sistema certo da camada (graus: EPSG:4674 ou EPSG:4326), troque "
+         "latitude e longitude se estiverem invertidas, ou retire os registros sem coordenada (0,0) antes "
+         "de compor.",
+         f"Área de uso do sistema de referência no registro EPSG, com {AREA_OF_USE_MARGIN_DEGREES:g}° de "
+         "folga; coordenadas entre -180 e 180 e -90 e 90 num sistema projetado; ponto em 0,0: decisão de projeto do "
+         "SIGMAI; verificação: QGIS Documentation — QgsCoordinateReferenceSystem.bounds",
+         _check_coordinates_plausible),
+    Rule("CART079", "dados", SEVERITY_WARNING,
+         "Recorte não é aberto por pontos isolados", "Extent is not stretched by isolated points",
+         "Um registro com coordenada errada, longe dos demais, abre o recorte para caber nele: os outros "
+         "pontos se amontoam num canto, e o mapa passa a ser o mapa do erro.",
+         "Confira os pontos isolados (0,0, latitude e longitude trocadas, sinal trocado). Se são erro, "
+         "retire-os ou corrija-os; se são dado, faça um mapa para cada região ou um inserto.",
+         f"Diagonal de todos os pontos acima de {OUTLIER_SPREAD_RATIO:g} vezes a do núcleo (percentis 1 a 99), com "
+         f"no máximo {OUTLIER_MAX_SHARE * 100:g} % (ou {OUTLIER_MAX_COUNT}) de pontos isolados: decisão de "
+         "projeto do SIGMAI",
+         _check_extent_outliers),
+    Rule("CART080", "simbologia", SEVERITY_WARNING,
+         "O mapa de calor mostra os lugares com pontos", "The heatmap shows the places that have points",
+         "A rampa do mapa de calor vai até a densidade do foco mais cheio. Com um foco de milhares de "
+         "registros, os lugares com poucos ficam abaixo do começo da rampa, transparentes: o mapa mostra "
+         "o foco e esconde o resto.",
+         "Passe max_value menor em apply_heatmap_style (o foco satura e o resto aparece) ou mostre um "
+         "símbolo por local (count_points_by_site e apply_proportional_symbol_style).",
+         f"Pontos em células do tamanho do raio; célula abaixo de {HEATMAP_VISIBLE_MIN * 100:g} % do máximo é "
+         f"apagada; no máximo {HEATMAP_FAINT_PLACES_MAX * 100:g} % dos lugares apagados: decisão de projeto do SIGMAI",
+         _check_heatmap_visibility),
     Rule("CART003", "escala", SEVERITY_ERROR,
          "Escala indicada", "Scale indicated",
          "Sem escala não é possível medir nada; a peça deixa de ser mapa e vira ilustração.",
@@ -1180,13 +1475,13 @@ RULES: tuple[Rule, ...] = (
          "Barra de escala sobre mapa em coordenadas geográficas mede uma distância que muda "
          "com a latitude; o número impresso está errado em quase toda a folha.",
          "Reprojete o mapa para um CRS projetado adequado (ex.: UTM da zona) antes de exportar.",
-         "Decreto nº 89.817/1984 (Normas Técnicas da Cartografia Nacional), art. 20 (Sistema Internacional de Unidades); verificação: QGIS Documentation — Scale bar item and map units",
+         "Snyder (1987), Map Projections: A Working Manual (USGS PP 1395) — o comprimento do grau de longitude varia com a latitude (p. 8 e Tabela 4); verificação: QGIS Documentation — Scale bar item and map units",
          _check_scalebar_geographic_crs),
     Rule("CART006", "orientacao", SEVERITY_WARNING,
          "Orientação indicada", "Orientation indicated",
          "Sem rosa dos ventos nem grade anotada, nada garante ao leitor que o norte está para cima.",
          "Chame add_layout_north_arrow ou habilite a grade com anotações.",
-         "Decreto nº 89.817/1984 (Normas Técnicas da Cartografia Nacional), art. 15 (convergência meridiana e declinação magnética); IBGE (1999), seção 2.3.4 (norte verdadeiro e magnético); Brewer (2016) — map elements",
+         "Brewer (2016) — map elements; IBGE (1999), seção 2.3.4 (norte verdadeiro, magnético e de quadrícula); exigir a indicação: decisão de projeto do SIGMAI",
          _check_north_indication),
     Rule("CART025", "orientacao", SEVERITY_WARNING,
          "Rosa dos ventos é símbolo, não texto", "North arrow is a symbol, not text",
@@ -1288,10 +1583,12 @@ RULES: tuple[Rule, ...] = (
          _check_frame_coverage),
     Rule("CART070", "simbologia", SEVERITY_WARNING,
          "Cores distinguíveis por daltônicos", "Colours distinguishable under colour-vision deficiency",
-         "Cerca de 8% dos homens têm deficiência na visão de cores; um par verde/laranja que o autor "
-         "distingue pode ser idêntico para o leitor, e revistas exigem figuras legíveis por daltônicos.",
+         "Cerca de 8% dos homens de ascendência europeia têm deficiência vermelho-verde; um par "
+         "verde/laranja que o autor distingue pode ser idêntico para esse leitor.",
          "Use a paleta de Okabe & Ito (apply_style='all' aplica), ou troque uma das cores do par acusado "
-         "por outra de luminosidade bem diferente; padrões de preenchimento também resolvem.",
+         "por outra de luminosidade bem diferente; padrões de preenchimento também resolvem. Com classes "
+         "demais nenhuma paleta separa todas: apply_categorized_style com limit=8 deixa as oito mais "
+         "frequentes, com cores de Okabe & Ito, e reúne o resto em 'Outros'.",
          "Machado, Oliveira & Fernandes (2009), IEEE TVCG 15(6), severidade 1,0; Robertson (1977), CIE 1976 L*a*b* e ΔE*ab; Okabe & Ito (2008), Color Universal Design; limiar ΔE*ab < 15: decisão de projeto do SIGMAI calibrada nos pares clássicos",
          _check_colour_vision),
     Rule("CART073", "simbologia", SEVERITY_ERROR,
@@ -1327,7 +1624,8 @@ RULES: tuple[Rule, ...] = (
          "CRS projetado para medidas métricas", "Projected CRS for metric measurement",
          "Em coordenadas geográficas, um grau não tem comprimento constante; áreas e "
          "distâncias calculadas sobre graus estão erradas.",
-         "Reprojete para o UTM da zona ou para uma projeção equivalente à finalidade do mapa.",
+         "Reprojete para o UTM da zona ou para uma projeção equivalente à finalidade do mapa; num mapa "
+         "continental ou mundial, map_crs=\"auto\" escolhe uma de áreas iguais.",
          "Snyder (1987), Map Projections: A Working Manual (USGS PP 1395); IBGE (1999), seção 2.3.3.5 (UTM no mapeamento sistemático)",
          _check_projected_crs),
     Rule("CART066", "escala", SEVERITY_ERROR,
@@ -1339,15 +1637,27 @@ RULES: tuple[Rule, ...] = (
          "a própria escala — compose_map faz isso automaticamente.",
          "Brewer (2016), Designing Better Maps — multiple map frames and comparability",
          _check_comparison_panels),
+    Rule("CART081", "simbologia", SEVERITY_WARNING,
+         "Painéis comparáveis usam a mesma régua de cor e tamanho", "Comparison panels share colour and size scales",
+         "Painéis lado a lado convidam o leitor a comparar cor com cor e tamanho com tamanho. Se cada painel "
+         "estica a sua rampa até o próprio máximo — o padrão do mapa de calor, das classes e do símbolo "
+         "proporcional —, a mesma cor ou o mesmo círculo valem números diferentes, e a comparação engana.",
+         "Use a mesma régua nos dois painéis: apply_proportional_symbol_style com min_value e max_value "
+         "comuns, apply_graduated_style com as mesmas classes, apply_heatmap_style com o mesmo max_value e o "
+         "mesmo raio — ou um símbolo por local (count_points_by_site com scale), que se compara melhor que "
+         "densidade.",
+         "Brewer (2016) — multiple map frames and comparability; Slocum et al. (2009) — comparing maps with "
+         "the same classification; mesma variável em dois ou mais painéis: decisão de projeto do SIGMAI",
+         _check_comparable_value_scales),
     Rule("CART064", "projecao", SEVERITY_WARNING,
          "Projeção adequada à extensão", "Projection suits the extent",
-         "Uma zona UTM tem 6° de largura e só mantém o fator de escala dentro de 1/1000 perto do "
-         "meridiano central. Esticada sobre um estado inteiro, a distorção nas bordas passa de meio "
-         "por cento e as coordenadas saem da faixa válida da zona — a barra de escala deixa de valer "
-         "para parte da folha.",
+         "Uma zona UTM tem 6° de largura e foi feita para o erro de escala não passar de cerca de "
+         "1/1000 dentro dela. Esticada sobre um estado inteiro, o erro cresce com a distância ao "
+         "meridiano central e as coordenadas saem da faixa válida da zona — a barra de escala deixa "
+         "de valer para parte da folha.",
          "Escolha uma projeção cônica ou a Policônica do Brasil (EPSG:5880) para recortes estaduais; "
          "compose_map faz isso sozinho quando auto_projected_crs está ligado.",
-         "Snyder (1987), Map Projections: A Working Manual (USGS PP 1395) — Transverse Mercator; IBGE (1999), seção 2.3.3.5 (fusos de 6°); limites de 4,5° de longitude e 12° de latitude: decisão de projeto do SIGMAI",
+         "Snyder (1987), Map Projections: A Working Manual (USGS PP 1395) — Transverse Mercator; IBGE (1999), seção 2.3.3.5 (fusos de 6°); faixa de E de 100.000 a 900.000 m e limites de 4,5° de longitude e 12° de latitude: decisão de projeto do SIGMAI",
          _check_crs_suits_extent),
     Rule("CART061", "dados", SEVERITY_ERROR,
          "A extensão contém os dados", "Extent contains the data",
@@ -1477,6 +1787,16 @@ def rulebook_manifest() -> dict[str, Any]:
             "covered_visible_max": COVERED_VISIBLE_MAX,
             "covered_visible_share": COVERED_VISIBLE_SHARE,
             "subject_visible_min": SUBJECT_VISIBLE_MIN,
+            "point_saturation": SATURATION,
+            "point_stacking_hidden_max": STACKING_HIDDEN_MAX,
+            "point_stacking_min_points": STACKING_MIN_POINTS,
+            "raster_ramp_used_min": RAMP_USED_MIN,
+            "area_of_use_margin_degrees": AREA_OF_USE_MARGIN_DEGREES,
+            "outlier_spread_ratio": OUTLIER_SPREAD_RATIO,
+            "outlier_max_share": OUTLIER_MAX_SHARE,
+            "outlier_max_count": OUTLIER_MAX_COUNT,
+            "heatmap_visible_min": HEATMAP_VISIBLE_MIN,
+            "heatmap_faint_places_max": HEATMAP_FAINT_PLACES_MAX,
             "scalebar_digit_em": _scalebar_constant("SCALEBAR_DIGIT_EM"),
             "scalebar_label_clearance": _scalebar_constant("SCALEBAR_LABEL_CLEARANCE"),
         },

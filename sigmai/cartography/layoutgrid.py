@@ -249,6 +249,8 @@ def solve_layout(
     include_logo: bool = False,
     include_inset: bool = False,
     grid_annotation_gutter_mm: float = 0.0,
+    include_title: bool = True,
+    include_footer: bool = True,
     panels: int = 1,
     scale_bar_under_map: bool = False,
     arrangement: str | None = None,
@@ -268,6 +270,10 @@ def solve_layout(
     compositor). Com ela a faixa inferior tem a altura do conteúdo, entre
     ``SUPPORT_BAND_MIN_MM`` e 30% do corpo, e o que sobra vai para o mapa; sem
     ela a faixa ocupa uma fração fixa do corpo.
+
+    ``include_title`` e ``include_footer`` falsos não reservam as faixas do
+    título (com o subtítulo) e do rodapé: numa figura de periódico os dois vão
+    para a legenda do texto, e o mapa fica com a altura.
 
     ``legend_row`` dá à legenda a largura inteira da faixa, numa linha
     própria, com escala e norte numa linha baixa embaixo: o caminho para uma
@@ -290,27 +296,30 @@ def solve_layout(
     slots: dict[str, Rect] = {}
 
     # --- bandas horizontais: título, subtítulo, rodapé -----------------
-    title_h = max(MIN_TITLE_MM, content_h * float(config["title_fraction"]))
+    title_h = max(MIN_TITLE_MM, content_h * float(config["title_fraction"])) if include_title else 0.0
     subtitle_h = (
         max(MIN_SUBTITLE_MM, content_h * float(config["subtitle_fraction"]))
-        if include_subtitle and float(config["subtitle_fraction"]) > 0
+        if include_title and include_subtitle and float(config["subtitle_fraction"]) > 0
         else 0.0
     )
-    footer_h = max(MIN_FOOTER_MM, content_h * float(config["footer_fraction"]))
+    footer_h = max(MIN_FOOTER_MM, content_h * float(config["footer_fraction"])) if include_footer else 0.0
 
     cursor = content_y
-    slots["title"] = Rect(content_x, cursor, content_w, title_h)
-    cursor += title_h
+    if title_h:
+        slots["title"] = Rect(content_x, cursor, content_w, title_h)
+        cursor += title_h
     if subtitle_h:
         slots["subtitle"] = Rect(content_x, cursor, content_w, subtitle_h)
         cursor += subtitle_h
-    cursor += gutter
+    if title_h:
+        cursor += gutter
 
     footer_y = content_y + content_h - footer_h
-    slots["footer"] = Rect(content_x, footer_y, content_w, footer_h)
+    if footer_h:
+        slots["footer"] = Rect(content_x, footer_y, content_w, footer_h)
 
     body_y = cursor
-    body_h = footer_y - gutter - body_y
+    body_h = footer_y - (gutter if footer_h else 0.0) - body_y
     # ``title_h``/``subtitle_h``/``footer_h`` já são ``max(MIN_*, proporção)``:
     # numa página pequena eles já estão no piso de legibilidade, não há mais
     # nada para "comprimir". Um ``body_h`` insuficiente aqui significa que as
@@ -320,7 +329,7 @@ def solve_layout(
     # ainda estourava mais adiante em scaling.py, então o floor não evitava a
     # falha, só a escondia quando por acaso ninguém reparava no resultado).
     if body_h < MIN_MAP_MM:
-        required = title_h + subtitle_h + footer_h + gutter * 2 + MIN_MAP_MM
+        required = title_h + subtitle_h + footer_h + gutter * ((1 if title_h else 0) + (1 if footer_h else 0)) + MIN_MAP_MM
         raise ValueError(
             f"A página {spec.name} ({spec.width_mm:g}x{spec.height_mm:g} mm) com as margens pedidas "
             f"deixa {content_h:.1f} mm de altura útil; título, rodapé e um mapa mínimo exigem pelo "

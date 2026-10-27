@@ -403,6 +403,7 @@ def scalebar_spec(
     prefer_unit: str | None = None,
     max_width_mm: float | None = None,
     label_font_pt: float | None = None,
+    left_segment: bool = True,
 ) -> ScaleBarSpec:
     """Escolhe unidade, comprimento do segmento e nº de segmentos.
 
@@ -410,6 +411,10 @@ def scalebar_spec(
     número redondo. O SIGMAI 0.1.1 fixava ``units_per_segment`` em 10 km, o que
     produzia barras de 4% do quadro em mapas municipais e barras maiores que o
     mapa em plantas de detalhe.
+
+    ``left_segment`` falso tira o segmento à esquerda do zero, convenção das
+    folhas topográficas que numa figura de periódico só alonga a barra e põe
+    um número a mais ("2,5 0 2,5 5 7,5 10 km" em vez de "0 5 10 km").
     """
     if scale_denominator <= 0:
         raise ValueError("O denominador de escala deve ser positivo.")
@@ -428,7 +433,7 @@ def scalebar_spec(
         # suficientes à direita; ele faz parte da barra e conta no comprimento.
         # Ignorá-lo subestimava a barra em 25% — a barra estourava a faixa
         # reservada e a fração medida na auditoria não batia com a planejada.
-        segments_left = 1 if segments >= 4 else 0
+        segments_left = 1 if left_segment and segments >= 4 else 0
         drawn_segments = segments + segments_left
         try:
             per_segment = nice_number(target_in_unit / drawn_segments, "nearest")
@@ -564,3 +569,18 @@ def graticule_interval(
     if geographic:
         return float(_snap_to_ladder(raw, DEGREE_INTERVALS, "nearest"))
     return float(nice_number(raw, "nearest"))
+
+
+def graticule_decimals(interval: float, geographic: bool = False) -> int:
+    """Casas decimais dos rótulos da grade: as que o intervalo pede.
+
+    Eram sempre três em graus: num mapa-múndi com grade de 30°, "90.000" se
+    lia, em português, como noventa mil. Um intervalo de minutos ou segundos
+    não fecha em decimal e fica com três casas.
+    """
+    if not geographic:
+        return 0
+    for casas in range(4):
+        if abs(round(interval, casas) - interval) < 1e-9:
+            return casas
+    return 3

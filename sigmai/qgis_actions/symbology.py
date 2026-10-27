@@ -5,7 +5,7 @@ from typing import Any
 
 from ..cartography.qtcompat import geometry_type as _geometry_type
 from ..security import ensure_parent_exists, normalize_output_path, reject_existing_path_without_confirmation
-from ..cartography.symbology import STYLE_ORIGIN_USER, mark_style_origin, style_origin
+from ..cartography.symbology import PROPORTIONAL_OUTLINE_SHADE, STYLE_ORIGIN_USER, mark_style_origin, shade, style_origin
 from ..validators import ValidationError, require_param
 from .common import layer_type_name, project
 
@@ -118,11 +118,17 @@ def _symbol_for_layer(
     fill_opacity: float = 1.0,
     stroke_opacity: float = 1.0,
     outline_only: bool = False,
+    marker_size: float | None = None,
 ):
     imports = _imports()
     geometry_type = layer.geometryType()
     if geometry_type == _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Point"):
-        return imports["QgsMarkerSymbol"].createSimple({"color": fill, "outline_color": stroke, "outline_width": str(stroke_width)})
+        properties = {"color": fill, "outline_color": stroke, "outline_width": str(stroke_width)}
+        if marker_size is not None:
+            properties["size"] = str(marker_size)
+        if stroke_width <= 0:
+            properties["outline_style"] = "no"
+        return imports["QgsMarkerSymbol"].createSimple(properties)
     if geometry_type == _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Line"):
         return imports["QgsLineSymbol"].createSimple({"color": stroke, "line_width": str(stroke_width)})
     style = "no" if outline_only else "solid"
@@ -148,11 +154,19 @@ def apply_single_symbol(params: dict[str, Any], context: dict[str, Any]):
     stroke_opacity = _opacity_param(params, "stroke_opacity", 1.0)
     fill_style = str(params.get("fill_style", "solid")).strip().lower()
     outline_only = bool(params.get("outline_only", False)) or fill_style in {"no", "none", "transparent", "outline_only"}
+    # Diâmetro do ponto, em mm: sem ele o assistente não tinha como seguir o
+    # conselho de CART076 ("pontos menores e semitransparentes").
+    size = params.get("size_mm")
+    if size is not None:
+        size = float(size)
+        if not 0.1 <= size <= 30:
+            raise ValidationError("BAD_REQUEST", "size_mm vai de 0,1 a 30.", {"size_mm": size})
     if context.get("dry_run"):
         return {
             "dry_run": True,
             "layer_id": layer.id(),
             "style_type": "single_symbol",
+            "size_mm": size,
             "fill_color": fill,
             "stroke_color": stroke,
             "fill_opacity": fill_opacity,
@@ -160,7 +174,7 @@ def apply_single_symbol(params: dict[str, Any], context: dict[str, Any]):
             "outline_only": outline_only,
         }
     imports = _imports()
-    symbol = _symbol_for_layer(layer, fill, stroke, stroke_width, fill_opacity, stroke_opacity, outline_only)
+    symbol = _symbol_for_layer(layer, fill, stroke, stroke_width, fill_opacity, stroke_opacity, outline_only, size)
     layer.setRenderer(imports["QgsSingleSymbolRenderer"](symbol))
     mark_style_origin(layer, STYLE_ORIGIN_USER)
     _set_opacity(layer, opacity if layer.geometryType() != _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Polygon") else 1.0)
@@ -172,6 +186,7 @@ def apply_single_symbol(params: dict[str, Any], context: dict[str, Any]):
         "fill_color": fill,
         "stroke_color": stroke,
         "stroke_width": stroke_width,
+        "size_mm": size,
         "opacity": opacity,
         "fill_opacity": fill_opacity,
         "stroke_opacity": stroke_opacity,
@@ -250,6 +265,37 @@ def _class_symbol(layer: Any, colour: str) -> Any:
     return _symbol_for_layer(layer, colour, "#4D4D4D" if count > 200 else "#1E2A32", 0.1 if count > 200 else 0.26)
 
 
+def _count_key(value: Any) -> str:
+    return str(value)
+
+
+def _value_counts(layer: Any, field_name: str) -> dict[str, int]:
+    """Quantas feições têm cada valor do campo (chave: o valor como texto)."""
+    from qgis.core import QgsFeatureRequest  # type: ignore
+
+    request = QgsFeatureRequest()
+    request.setSubsetOfAttributes([field_name], layer.fields())
+    try:
+        request.setFlags(request.flags() | _no_geometry_flag(QgsFeatureRequest))
+    except Exception:
+        pass
+    counts: dict[str, int] = {}
+    for feature in layer.getFeatures(request):
+        key = _count_key(feature[field_name])
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def _no_geometry_flag(request_class: Any) -> Any:
+    """QgsFeatureRequest.NoGeometry no QGIS 3 e Qgis.FeatureRequestFlag.NoGeometry no 4."""
+    try:
+        from qgis.core import Qgis  # type: ignore
+
+        return Qgis.FeatureRequestFlag.NoGeometry
+    except Exception:
+        return request_class.NoGeometry
+
+
 def apply_categorized_style(params: dict[str, Any], context: dict[str, Any]):
     layer = _layer(require_param(params, "layer_id", str))
     field_name = require_param(params, "field_name", str)
@@ -259,8 +305,18 @@ def apply_categorized_style(params: dict[str, Any], context: dict[str, Any]):
     every = sorted(layer.uniqueValues(layer.fields().indexOf(field_name)), key=_sort_key)
     null_values = [value for value in every if value is None or str(value) in ("", "NULL")]
     values = [value for value in every if value not in null_values]
-    overflow = values[limit:]
-    values = values[:limit]
+    overflow: list[Any] = []
+    overflow_features = 0
+    if len(values) > limit:
+        # Ficam as classes com mais feições, não as primeiras da ordem
+        # alfabética: com 120 classes e limit 12, "Outros" levava as de Z, por
+        # maiores que fossem.
+        counts = _value_counts(layer, field_name)
+        ranked = sorted(values, key=lambda value: (-counts.get(_count_key(value), 0), _sort_key(value)))
+        kept = set(map(_count_key, ranked[:limit]))
+        overflow = [value for value in values if _count_key(value) not in kept]
+        overflow_features = sum(counts.get(_count_key(value), 0) for value in overflow)
+        values = [value for value in values if _count_key(value) in kept]
     from ..cartography.maptext import resolve_language
     from .raster_style import ramp_name
 
@@ -269,8 +325,9 @@ def apply_categorized_style(params: dict[str, Any], context: dict[str, Any]):
     names = {str(k): str(v) for k, v in (params.get("labels") or {}).items()} if isinstance(params.get("labels"), dict) else {}
     warnings = []
     if overflow:
-        warnings.append(f"{len(overflow)} valor(es) além do limite de {limit} foram reunidos na categoria '{other_text}'; "
-                        "aumente limit ou agrupe as classes num campo próprio.")
+        warnings.append(f"Os {len(overflow)} valor(es) menos frequentes ({overflow_features} feição(ões)) passaram do "
+                        f"limite de {limit} classes e foram reunidos na categoria '{other_text}'; ficaram as {limit} "
+                        "classes com mais feições. Aumente limit ou agrupe as classes num campo próprio.")
     colours = categorized_colours(len(values), params.get("palette"), ramp_name(params.get("color_ramp") or ""), values)
     if context.get("dry_run"):
         return {"dry_run": True, "layer_id": layer.id(), "field_name": field_name, "category_count": len(values),
@@ -287,7 +344,7 @@ def apply_categorized_style(params: dict[str, Any], context: dict[str, Any]):
         text = (f"{other_text} / {no_data_text[0].lower()}{no_data_text[1:]}" if null_values and overflow
                 else other_text if overflow else names.get("NULL", no_data_text))
         # Cinza que nenhuma das cores qualitativas confunde (o #D9D9D9 de
-        # antes ficava a ΔE 13,6 do verde-claro sob tritanopia).
+        # antes ficava a ΔE 13,6 do verde-claro sob tritanomalia).
         symbol = _class_symbol(layer, "#BDBDBD")
         categories.append(imports["QgsRendererCategory"]("", symbol, text))
     layer.setRenderer(imports["QgsCategorizedSymbolRenderer"](field_name, categories))
@@ -348,15 +405,37 @@ def apply_graduated_style(params: dict[str, Any], context: dict[str, Any]):
               "method": method, "breaks": [round(value, 6) for value in breaks], "labels": labels}
     from ..cartography.vision import confusable_pairs
 
+    warnings = []
+    collapsed = collapsed_classes_warning(sorted(values), classes, len(ranges), method)
+    if collapsed:
+        warnings.append(collapsed)
     clashes = confusable_pairs([(labels[index], colour) for index, colour in enumerate(colors)])
     if clashes:
         # A auditoria acusaria depois (CART070); avisar aqui deixa o assistente
         # trocar a rampa ou o número de classes antes de compor.
         pares = "; ".join(f"{c['a']} × {c['b']}" for c in clashes[:3])
-        result["warnings"] = [f"Com esta rampa e {len(ranges)} classes há classes vizinhas que um leitor daltônico não "
-                              f"distingue ({pares}). Use menos classes ou uma rampa de um matiz só (Blues, Greens, "
-                              "Purples, Greys, Viridis)."]
+        warnings.append(f"Com esta rampa e {len(ranges)} classes há classes vizinhas que um leitor daltônico não "
+                        f"distingue ({pares}). Use menos classes ou uma rampa de um matiz só (Blues, Greens, "
+                        "Purples, Greys, Viridis).")
+    if warnings:
+        result["warnings"] = warnings
     return result
+
+
+def collapsed_classes_warning(ordered: list[float], requested: int, obtained: int, method: str) -> str:
+    """Aviso quando os limites de classe coincidem e saem menos classes que as pedidas.
+
+    Contagens com muitos zeros — registros por município, por exemplo — fazem
+    os quantis coincidirem: 5 classes pedidas, 1 entregue, e o mapa sai de uma
+    cor só sem que nada dissesse por quê. Puro, para teste sem QGIS.
+    """
+    if obtained >= requested or not ordered:
+        return ""
+    mode = max(set(ordered), key=ordered.count)
+    share = ordered.count(mode) / len(ordered)
+    return (f"Pedidas {requested} classes por {method}, saíram {obtained}: {share:.0%} dos valores são {mode:g}, e os "
+            "limites coincidem. Use method='jenks' ou 'pretty', ou classes explícitas, ou deixe o valor repetido "
+            "numa classe só e classifique o resto.")
 
 
 def _graduated_colours(count: int, ramp_key: str, invert: bool) -> list[str]:
@@ -436,6 +515,112 @@ def apply_heatmap_style(params: dict[str, Any], context: dict[str, Any]):
     layer.setRenderer(renderer)
     mark_style_origin(layer, STYLE_ORIGIN_USER)
     _set_opacity(layer, float(params.get("opacity", 1.0)))
+    layer.triggerRepaint()
+    return plan
+
+
+def _legend_classes(minimum: float, maximum: float) -> list[float]:
+    """Valores da legenda de tamanhos: potências de 10 entre o mínimo e o máximo, mais o máximo."""
+    values: list[float] = []
+    step = 1.0
+    while step < maximum:
+        if step >= minimum:
+            values.append(step)
+        step *= 10.0
+    if len(values) > 3:  # círculos aninhados: mais de quatro não se leem
+        values = [values[0], values[len(values) // 2], values[-1]]
+    return values + [maximum] if not values or values[-1] != maximum else values
+
+
+def apply_proportional_symbol_style(params: dict[str, Any], context: dict[str, Any]):
+    """Símbolo de ponto com área proporcional a um campo numérico, com legenda de tamanhos.
+
+    Feito para os locais de count_points_by_site (um ponto por local, com o
+    número de registros), mas serve a qualquer contagem ou medida por ponto.
+    A área, e não o diâmetro, é proporcional ao valor; os maiores são
+    desenhados primeiro, para que os pequenos fiquem à vista por cima. Para
+    que os círculos não se amontoem, os locais de count_points_by_site devem
+    ser agrupados na escala do mapa (parâmetro ``scale``); CART076 mede.
+    """
+    layer = _layer(require_param(params, "layer_id", str))
+    imports = _imports()
+    if layer.geometryType() != _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Point"):
+        raise ValidationError("POINT_LAYER_REQUIRED", "O símbolo proporcional precisa de uma camada de pontos.", {"layer_id": layer.id()})
+    field_name = require_param(params, "field_name", str)
+    if not _field_exists(layer, field_name):
+        raise ValidationError("FIELD_NOT_FOUND", "Field not found.", {"field_name": field_name})
+    values = []
+    for feature in layer.getFeatures():
+        try:
+            values.append(float(feature[field_name]))
+        except Exception:
+            continue
+    values = [v for v in values if v == v and v >= 0]
+    if not values:
+        raise ValidationError("NO_NUMERIC_VALUES", "O campo não tem valores numéricos não negativos.", {"field_name": field_name})
+    # min_value/max_value fixam a régua: dois painéis comparáveis (registros
+    # antes e depois de 2015) precisam do mesmo tamanho para o mesmo número,
+    # e cada camada, sozinha, iria do seu menor ao seu maior valor.
+    try:
+        minimum = float(params["min_value"]) if params.get("min_value") is not None else min(values)
+        maximum = float(params["max_value"]) if params.get("max_value") is not None else max(values)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("BAD_REQUEST", "min_value e max_value precisam ser números.", {}) from exc
+    if not 0 <= minimum <= maximum:
+        raise ValidationError("BAD_REQUEST", "Use 0 <= min_value <= max_value.", {"min_value": minimum, "max_value": maximum})
+    outside = sum(1 for v in values if v < minimum or v > maximum)
+    min_size = float(params.get("min_size_mm", 1.0))
+    max_size = float(params.get("max_size_mm", 8.0))
+    if not 0 < min_size < max_size <= 30:
+        raise ValidationError("BAD_REQUEST", "Use 0 < min_size_mm < max_size_mm <= 30.", {"min_size_mm": min_size, "max_size_mm": max_size})
+    colour = str(params.get("color") or "#0072B2")
+    opacity = _opacity_param(params, "opacity", 0.75)
+    outline = str(params.get("outline_color") or shade(colour, PROPORTIONAL_OUTLINE_SHADE))
+    outline_width = float(params.get("outline_width_mm", 0.2))
+    classes = params.get("legend_classes") or _legend_classes(minimum, maximum)
+    try:
+        classes = sorted({float(c) for c in classes if minimum <= float(c) <= maximum})
+    except Exception as exc:
+        raise ValidationError("BAD_REQUEST", "legend_classes precisa ser uma lista de números.", {}) from exc
+    title = str(params.get("legend_title") or field_name)
+    from ..cartography.maptext import resolve_language
+
+    language, _known = resolve_language(str(params.get("map_language") or "pt-BR"))
+    plan = {"layer_id": layer.id(), "style_type": "proportional_symbol", "field_name": field_name,
+            "min": minimum, "max": maximum, "min_size_mm": min_size, "max_size_mm": max_size,
+            "scaling": "area", "legend_classes": classes, "legend_title": title, "color": colour, "opacity": opacity}
+    if outside:
+        plan["warnings"] = [f"{outside} feição(ões) fora de min_value/max_value: saem no menor ou no maior símbolo."]
+    if context.get("dry_run"):
+        return {"dry_run": True, **plan}
+    from qgis.core import (QgsDataDefinedSizeLegend, QgsFeatureRequest, QgsProperty,  # type: ignore
+                           QgsSizeScaleTransformer)
+
+    symbol = imports["QgsMarkerSymbol"].createSimple({
+        "name": "circle", "color": colour, "outline_color": outline,
+        "outline_width": str(outline_width), "size": str(min_size)})
+    symbol.setOpacity(opacity)
+    scale_type = getattr(getattr(QgsSizeScaleTransformer, "ScaleType", QgsSizeScaleTransformer), "Area")
+    transformer = QgsSizeScaleTransformer(scale_type, minimum, maximum if maximum > minimum else minimum + 1.0,
+                                          min_size, max_size, 0.0, 0.5)
+    size = QgsProperty.fromField(field_name)
+    size.setTransformer(transformer)
+    symbol.setDataDefinedSize(size)
+    renderer = imports["QgsSingleSymbolRenderer"](symbol)
+    renderer.setOrderBy(QgsFeatureRequest.OrderBy([QgsFeatureRequest.OrderByClause(field_name, False)]))
+    renderer.setOrderByEnabled(True)
+
+    def label(value: float) -> str:
+        text = f"{value:,.0f}" if float(value).is_integer() else f"{value:,.2f}"
+        return text.replace(",", ".") if language.startswith("pt") or language in ("es", "de", "it") else text
+
+    legend = QgsDataDefinedSizeLegend()
+    legend.setLegendType(getattr(getattr(QgsDataDefinedSizeLegend, "LegendType", QgsDataDefinedSizeLegend), "LegendCollapsed"))
+    legend.setClasses([QgsDataDefinedSizeLegend.SizeClass(value, label(value)) for value in classes])
+    legend.setTitle(title)
+    renderer.setDataDefinedSizeLegend(legend)
+    layer.setRenderer(renderer)
+    mark_style_origin(layer, STYLE_ORIGIN_USER)
     layer.triggerRepaint()
     return plan
 

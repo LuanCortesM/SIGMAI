@@ -12,7 +12,11 @@ onde falta dado. Tudo isso vem de camadas que já estão no projeto.
   da união delas, com ``dissolve=true`` — estilizada como divisa;
 * uma camada de PONTOS só-de-rótulo (``QgsNullSymbolRenderer``), um ponto
   por feição no polo de inacessibilidade, rotulada por ``label_field`` ou
-  por ``label_text`` (um texto único, para a união);
+  por ``label_text`` (um texto único, para a união). Com
+  ``label_within_layer_id`` o polo é o da parte da feição que fica em volta
+  daquela camada (com ``label_within_margin_percent``, 25 % por padrão) e
+  fora dela: num mapa de localização, os nomes dos estados caem no quadro,
+  em volta da área, e não sobre ela;
 * rótulos avulsos (``extra_labels``: texto + coordenada + CRS) para nomear o
   que não está na base — o estado vizinho, o oceano.
 
@@ -235,6 +239,50 @@ def _persist(imports: dict[str, Any], layer: Any, gpkg: Path, table: str) -> Any
     return persisted
 
 
+def _label_window(imports: dict[str, Any], params: dict[str, Any], crs: Any) -> Any:
+    """A janela dos nomes: a extensão de ``label_within_layer_id`` (no CRS da origem), com a margem pedida; None sem ela."""
+    layer_id = str(params.get("label_within_layer_id") or "").strip()
+    if not layer_id:
+        return None
+    other = project().mapLayer(layer_id)
+    if other is None:
+        matches = project().mapLayersByName(layer_id)
+        other = matches[0] if matches else None
+    if other is None:
+        raise ValidationError("LAYER_NOT_FOUND", f"label_within_layer_id não corresponde a nenhuma camada: {layer_id!r}.",
+                              {"label_within_layer_id": layer_id})
+    try:
+        margin = max(0.0, float(params.get("label_within_margin_percent", 25.0))) / 100.0
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("BAD_REQUEST", "label_within_margin_percent precisa ser um número.", {}) from exc
+    from qgis.core import QgsCoordinateTransform, QgsRectangle  # type: ignore
+
+    extent = other.extent()
+    if other.crs() != crs:
+        extent = QgsCoordinateTransform(other.crs(), crs, project()).transformBoundingBox(extent)
+    dx, dy = extent.width() * margin, extent.height() * margin
+    return QgsRectangle(extent.xMinimum() - dx, extent.yMinimum() - dy, extent.xMaximum() + dx, extent.yMaximum() + dy)
+
+
+def _label_area(imports: dict[str, Any], params: dict[str, Any], crs: Any) -> Any:
+    """A geometria de ``label_within_layer_id`` (unida, no CRS da origem), que os nomes evitam; None se não houver."""
+    other = project().mapLayer(str(params.get("label_within_layer_id") or "").strip())
+    if other is None or not hasattr(other, "getFeatures"):
+        return None
+    try:
+        from qgis.core import QgsCoordinateTransform  # type: ignore
+
+        geometries = [imports["QgsGeometry"](f.geometry()) for f in other.getFeatures() if f.hasGeometry()]
+        if not geometries:
+            return None
+        union = imports["QgsGeometry"].unaryUnion(geometries)
+        if other.crs() != crs:
+            union.transform(QgsCoordinateTransform(other.crs(), crs, project()))
+        return union
+    except Exception:
+        return None
+
+
 def add_context_annotations(params: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
     """Divisa como linha + nomes de região a partir de uma camada de polígonos."""
     imports = _imports()
@@ -277,9 +325,12 @@ def add_context_annotations(params: dict[str, Any], context: dict[str, Any]) -> 
     # (o mesmo map_language do compose_map), e não fica em português num mapa
     # em inglês. Sem map_language, português, como antes.
     language = str(params.get("map_language") or "pt-BR")
+    # boundary_name dá o nome da divisa na legenda ("State boundary"); sem ele,
+    # "Divisa — <camada>", que num mapa em inglês saía "Border — States".
+    boundary_name = str(params.get("boundary_name") or "").strip()
     plan = {
         "source_layer": {"id": source.id(), "name": source.name(), "features": int(source.featureCount())},
-        "boundary_layer": f"{maptext(language, 'camada_divisa')} — {source.name()}" if include_boundary else None,
+        "boundary_layer": (boundary_name or f"{maptext(language, 'camada_divisa')} — {source.name()}") if include_boundary else None,
         "label_layer": (f"{maptext(language, 'camada_nomes')} — {source.name()}" if (label_field or label_text) else None),
         "extra_labels": len(extra_labels),
         "persisted_to": str(gpkg) if gpkg else None,
@@ -332,11 +383,25 @@ def add_context_annotations(params: dict[str, Any], context: dict[str, Any]) -> 
     if label_field or label_text:
         fmt = _text_format(imports, label_size, label_colour, letter_spacing, bold=True)
         point_layer = _label_only_layer(imports, plan["label_layer"], crs, fmt, uppercase)
+        window = _label_window(imports, params, crs)
+        around = _label_area(imports, params, crs) if window is not None else None
         features = []
         for geometry, feature in parts:
             text = label_text if label_text else str(feature[label_field] if feature is not None else "")
             if not text or text == "NULL":
                 continue
+            if window is not None:
+                # O nome vai na parte da feição que aparece em volta da área do
+                # mapa: no centro de Minas Gerais ele caía fora do quadro.
+                geometry = geometry.intersection(imports["QgsGeometry"].fromRect(window))
+                if geometry is None or geometry.isEmpty():
+                    continue
+                if around is not None:
+                    # Em volta da área, e não sobre ela: o centro da parte
+                    # fluminense em volta do Itatiaia caía dentro do parque.
+                    outside = geometry.difference(around)
+                    if outside is not None and not outside.isEmpty():
+                        geometry = outside
             try:
                 pole, _distance = geometry.poleOfInaccessibility(max(geometry.boundingBox().width(), geometry.boundingBox().height()) / 200.0)
                 point = pole.asPoint()

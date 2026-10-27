@@ -334,6 +334,13 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
         "municípios) vira contorno destacado por cima. Dentro de cada classe vale a ordem da lista, a primeira por cima."
     )},
     "title": {**_S, "description": "Título do mapa."},
+    "title_placement": {"type": "string", "enum": ["map", "caption", "none"], "description": (
+        "Onde vão o título e os créditos. 'map' (padrão): os dois no mapa, como num relatório ou laudo. "
+        "'caption': figura de artigo — título, fontes (com DOI), sistema de referência e ferramenta saem da "
+        "imagem e voltam em 'caption', pronta para a legenda no texto, que é o que as revistas pedem; escala, "
+        "norte, legenda de símbolos e grade ficam no mapa. 'none': mapa sem título, créditos no mapa. Num "
+        "pedido de figura para revista, pergunte ao usuário onde vai o título; quase sempre é 'caption'."
+    )},
     "subtitle": _S,
     "map_language": {**_S, "description": (
         "Língua dos textos que o PRÓPRIO compositor escreve na moldura — 'Fonte:'/"
@@ -368,7 +375,19 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
     "margin_mm": {"description": "Margens da página em mm: um número, ou um objeto {top, right, bottom, left}, ou uma lista [topo, direita, base, esquerda].",
                   "anyOf": [{"type": "number"}, {"type": "object"}, {"type": "array"}]},
     "template": {"type": "string", "enum": ["cientifico", "publicacao", "relatorio_ambiental", "minimalista"]},
-    "map_crs": {**_S, "description": "CRS do mapa, ex.: EPSG:31983. Se omitido e o projeto for geográfico, o SIGMAI escolhe UTM ou Policônica conforme a extensão."},
+    "map_crs": {**_S, "description": (
+        "CRS do mapa, ex.: EPSG:31983. Se omitido e o projeto for geográfico, o SIGMAI escolhe UTM ou Policônica "
+        "conforme a extensão; num continente ou no mundo, o mapa fica em graus. 'auto' escolhe pelo recorte também "
+        "nesses casos: Lambert azimutal de áreas iguais num continente e Equal Earth num mapa-múndi, com a grade em "
+        "graus e sem rosa dos ventos (no mapa-múndi, sem barra de escala)."
+    )},
+    "dense_points": {"type": "string", "enum": ["points", "heatmap", "sites"], "description": (
+        "Pontos demais no mesmo lugar (registros do GBIF, por exemplo; CART076 avisa). Padrão 'points': mapa de "
+        "pontos, com o símbolo ajustado ao quadro. 'heatmap' desenha as camadas de pontos de assunto como mapa de "
+        "calor; 'sites' as troca por um símbolo por local, com área proporcional ao número de registros, agrupando "
+        "os locais na escala do mapa (grava um GeoPackage ao lado de output_path). Muda o que o mapa diz: use "
+        "quando o usuário quer mostrar quantos registros há em cada lugar."
+    )},
     "auto_projected_crs": {**_B, "description": "Padrão true: projeto em coordenadas geográficas é reprojetado para o UTM/Policônica adequado, para que escala e barra sejam métricas. false mantém o CRS do projeto."},
     "margin_percent": {**_N, "description": "Folga em torno dos dados, em porcentagem da extensão (0 a 100). Padrão 5."},
     "round_scale": {**_B, "description": "Padrão true: fecha a escala na série cartográfica (1:250.000 em vez de 1:257.090)."},
@@ -667,7 +686,13 @@ TOOLS: list[dict[str, Any]] = [
                                                         "properties": {"text": _S, "x": _N, "y": _N, "crs": _S, "lon": _N, "lat": _N},
                                                         "required": ["text"], "additionalProperties": False},
                              "description": "Rótulos avulsos: {text, x, y, crs?} (crs padrão: o da camada) ou {text, lon, lat} em graus (EPSG:4326)."},
+            "label_within_layer_id": {**_S, "description": (
+                "Camada da área do mapa (o parque, a bacia): cada nome vai na parte da região que fica em volta "
+                "dela e fora dela, e não no centro da região, que num estado grande cai fora do quadro."
+            )},
+            "label_within_margin_percent": {**_N, "description": "Folga em volta de label_within_layer_id, em % da extensão (padrão 25)."},
             "include_boundary": _B,
+            "boundary_name": {**_S, "description": "Nome da divisa na legenda (ex.: 'State boundary'); padrão 'Divisa — <camada>'."},
             "boundary_color": _S, "boundary_width_mm": _N,
             "boundary_style": {"type": "string", "enum": ["solid", "dash", "dot", "dash dot"]},
             "label_font_size": _N, "label_color": _S, "letter_spacing": _N, "uppercase": _B,
@@ -884,6 +909,13 @@ Ordem de trabalho que evita a maioria dos erros:
 4. Leia o campo `audit` da resposta. Ele traz nota, problemas e o comando que
    corrige cada um. Se a nota não for A, corrija e refaça em vez de entregar.
 5. Errou? sigmai_undo. Vai citar? sigmai_methods_paragraph e sigmai_map_recipe.
+6. Milhares de registros de ocorrência? Um mapa de pontos mostra onde, não
+   quantos (CART076). dense_points='sites' ou 'heatmap' em sigmai_compose_map
+   mostra a contagem; pergunte ao usuário qual das duas ele quer.
+7. Figura de artigo? As revistas pedem título e fontes na legenda do texto, e
+   não na imagem: title_placement='caption' devolve a legenda pronta em
+   'caption'. Pergunte; há mapas que vão sem título ('none') e relatórios que
+   o querem no mapa ('map', o padrão).
 
 Sobre o modo de acesso: em "Somente leitura" (padrão) nenhuma ação de escrita
 executa — simule com dry_run, mostre o resultado e peça ao usuário que libere no
