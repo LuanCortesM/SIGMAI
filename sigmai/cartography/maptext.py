@@ -56,6 +56,10 @@ _PT_BR: dict[str, str] = {
     # agrupamento é dado por língua a partir do Unicode CLDR (número
     # "group" de cada locale), a mesma fonte que Qt/QLocale e ICU usam.
     "separador_milhar": ".",
+    # Separador decimal dos rótulos da grade em graus ("-22,5°"), do mesmo
+    # CLDR (símbolo "decimal" do sistema latn).
+    "separador_decimal": ",",
+    "registros_por_local": "Registros por local",
     # Nomes das camadas que add_context_annotations cria ("Divisa — Piauí"):
     # entram na legenda, então seguem a língua do mapa.
     "camada_divisa": "Divisa",
@@ -85,6 +89,8 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_b": "Panel B",
         "titulo_padrao": "Map",
         "separador_milhar": ",",
+        "separador_decimal": ".",
+        "registros_por_local": "Records per site",
     },
     "es": {
         "camada_divisa": "Límite",
@@ -100,6 +106,8 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_b": "Panel B",
         "titulo_padrao": "Mapa",
         "separador_milhar": ".",
+        "separador_decimal": ",",
+        "registros_por_local": "Registros por sitio",
     },
     "fr": {
         "camada_divisa": "Limite",
@@ -115,6 +123,8 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_b": "Panneau B",
         "titulo_padrao": "Carte",
         "separador_milhar": "\u202f",
+        "separador_decimal": ",",
+        "registros_por_local": "Enregistrements par site",
     },
     "de": {
         "camada_divisa": "Grenze",
@@ -130,6 +140,8 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_b": "Kartenfeld B",
         "titulo_padrao": "Karte",
         "separador_milhar": ".",
+        "separador_decimal": ",",
+        "registros_por_local": "Datensätze pro Fundort",
     },
     "it": {
         "camada_divisa": "Confine",
@@ -145,6 +157,8 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_b": "Pannello B",
         "titulo_padrao": "Mappa",
         "separador_milhar": ".",
+        "separador_decimal": ",",
+        "registros_por_local": "Record per sito",
     },
     "ja": {
         "camada_divisa": "境界",
@@ -160,6 +174,8 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_b": "パネルB",
         "titulo_padrao": "地図",
         "separador_milhar": ",",
+        "separador_decimal": ".",
+        "registros_por_local": "地点あたりの記録数",
         "norte_reserva": "北",
     },
     "zh-Hans": {
@@ -176,6 +192,8 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_b": "图B",
         "titulo_padrao": "地图",
         "separador_milhar": ",",
+        "separador_decimal": ".",
+        "registros_por_local": "每个地点的记录数",
         "norte_reserva": "北",
     },
     "zh-Hant": {
@@ -192,6 +210,8 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_b": "圖B",
         "titulo_padrao": "地圖",
         "separador_milhar": ",",
+        "separador_decimal": ".",
+        "registros_por_local": "每個地點的記錄數",
         "norte_reserva": "北",
     },
     "ko": {
@@ -208,6 +228,8 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_b": "패널 B",
         "titulo_padrao": "지도",
         "separador_milhar": ",",
+        "separador_decimal": ".",
+        "registros_por_local": "지점별 기록 수",
     },
     "ru": {
         "camada_divisa": "Граница",
@@ -223,6 +245,8 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_b": "Панель Б",
         "titulo_padrao": "Карта",
         "separador_milhar": "\u00a0",
+        "separador_decimal": ",",
+        "registros_por_local": "Записей на точку",
         "norte_reserva": "С",
     },
     # Árabe e hebraico: só o CONTEÚDO destes textos é traduzido aqui. A
@@ -248,6 +272,8 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         # grade); o CLDR dá "," para o sistema numérico latn em árabe — o
         # "٬" (U+066C) só acompanha os algarismos arábico-índicos.
         "separador_milhar": ",",
+        "separador_decimal": ".",
+        "registros_por_local": "السجلات لكل موقع",
         "norte_reserva": "ش",
     },
     "he": {
@@ -264,6 +290,8 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_b": "פאנל ב",
         "titulo_padrao": "מפה",
         "separador_milhar": ",",
+        "separador_decimal": ".",
+        "registros_por_local": "רשומות לכל אתר",
         "norte_reserva": "צ",
     },
     "el": {
@@ -280,6 +308,8 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_b": "Πλαίσιο Β",
         "titulo_padrao": "Χάρτης",
         "separador_milhar": ".",
+        "separador_decimal": ",",
+        "registros_por_local": "Καταγραφές ανά θέση",
         "norte_reserva": "Β",
     },
     "th": {
@@ -296,6 +326,8 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "painel_b": "แผง B",
         "titulo_padrao": "แผนที่",
         "separador_milhar": ",",
+        "separador_decimal": ".",
+        "registros_por_local": "จำนวนบันทึกต่อจุด",
     },
 }
 

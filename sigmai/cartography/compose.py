@@ -20,6 +20,7 @@ Substitui ``generate_professional_map``. As diferenças que importam:
 from __future__ import annotations
 
 import datetime as _datetime
+import json
 import math
 import os
 import platform
@@ -39,6 +40,7 @@ from .scaling import (
     SCALEBAR_DIGIT_EM,
     SCALEBAR_MIN_FRACTION,
     fit_extent_to_frame,
+    graticule_decimals,
     graticule_interval,
     scalebar_spec,
 )
@@ -74,7 +76,7 @@ KNOWN_PARAMETERS = frozenset({
     # camadas e assunto
     "layer_ids", "layers", "layer_id", "subject_layer_id",
     # texto
-    "title", "subtitle", "legend_title", "data_source", "map_author",
+    "title", "subtitle", "title_placement", "legend_title", "data_source", "map_author",
     "map_author_email", "organization", "production_date", "notes_text",
     # língua dos textos que o compositor escreve sozinho na moldura (título
     # padrão, "Fonte:"/"Elaboração:", "Legenda", "Painel A/B", crédito da
@@ -85,6 +87,8 @@ KNOWN_PARAMETERS = frozenset({
     "page", "orientation", "margin_mm", "template", "layout_template", "layout_name", "arrangement",
     # geografia
     "map_crs", "auto_projected_crs", "margin_percent", "round_scale", "scale",
+    # pontos demais: mapa de calor ou um símbolo por local, quando pedido
+    "dense_points",
     # elementos
     "include_legend", "include_scale_bar", "include_scale_text", "include_north_arrow",
     "include_grid", "include_logo", "include_inset", "grid_style", "logo_path",
@@ -380,10 +384,11 @@ def _map_units_per_metre(crs: Any, extent: Any, imports: dict[str, Any]) -> floa
 #:
 #: Uma zona UTM tem 6° de largura e o fator de escala só fica dentro de 1/1000
 #: até cerca de 3° do meridiano central. Um recorte que ultrapasse ~4,5° de
-#: longitude já projeta terreno a mais de 300 km do meridiano, onde a distorção
-#: passa de meio por cento e as coordenadas saem da faixa válida da zona — foi o
-#: que aconteceu ao mapear o Piauí inteiro em UTM 23S, com eastings de
-#: 1.250.000 numa zona que vai até 834.000.
+#: longitude já projeta terreno a mais de 300 km do meridiano: o erro de escala
+#: cresce com o quadrado dessa distância (Snyder 1987, Transversa de Mercator) e
+#: as coordenadas saem da faixa válida da zona — foi o que aconteceu ao mapear o
+#: Piauí inteiro em UTM 23S, com eastings de 1.250.000 numa zona que vai até
+#: 834.000.
 #: Ganho mínimo de escala (razão entre os fatores de ajuste) para trocar a
 #: orientação da página ou o arranjo dos itens de apoio. Abaixo disso a troca
 #: não paga a mudança de leitura da folha. Parâmetro declarado, não medido:
@@ -393,6 +398,11 @@ LAYOUT_SWITCH_GAIN = 1.12
 UTM_MAX_LONGITUDE_SPAN_DEGREES = 4.5
 UTM_MAX_LATITUDE_SPAN_DEGREES = 12.0
 REGIONAL_MAX_SPAN_DEGREES = 40.0
+#: Com map_crs="auto", um recorte a partir desta largura em longitude é um
+#: mapa-múndi: vai para a Equal Earth (Šavrič, Patterson e Jenny, 2019), de
+#: áreas iguais, sem barra de escala nem rosa dos ventos — a escala e o norte
+#: mudam de um ponto a outro da folha, e a grade em graus orienta o leitor.
+WORLD_MIN_LONGITUDE_SPAN_DEGREES = 180.0
 
 #: Caixa aproximada do território brasileiro, para escolher a Policônica.
 #: Área de uso oficial do EPSG:5880 (SIRGAS 2000 / Policônica do Brasil) no
@@ -440,7 +450,7 @@ def _scalebar_needs_full_width(
     overhang = max(10.0, plan.fonts["legend"] * 1.6)
     probe = scalebar_spec(
         fitted.scale_denominator, frame.width, max_width_mm=max(12.0, slot.width - overhang),
-        label_font_pt=_scalebar_font_pt(plan),
+        label_font_pt=_scalebar_font_pt(plan), left_segment=plan.template != "publicacao",
     )
     return (
         probe.bar_width_mm < SCALEBAR_MIN_LENGTH_MM
@@ -510,6 +520,19 @@ def _resolve_layer_ids(spec: dict[str, Any], imports: dict[str, Any], label: str
     return layers
 
 
+def _small_scale_span(layers: list[Any], params: dict[str, Any], imports: dict[str, Any]) -> tuple[bool, bool]:
+    """(continental ou maior, mapa-múndi) para o recorte em graus das camadas de assunto, antes da página."""
+    subject_raw = params.get("subject_layer_id")
+    subject_ids = [str(v).strip() for v in (subject_raw if isinstance(subject_raw, list) else [subject_raw or ""])]
+    subject = [layer for layer in layers if layer.id() in subject_ids or layer.name() in subject_ids] or layers
+    try:
+        extent = _combined_extent(subject, imports["QgsCoordinateReferenceSystem"]("EPSG:4326"), imports)
+        width, height = float(extent.width()), float(extent.height())
+    except Exception:
+        return False, False
+    return max(width, height) > REGIONAL_MAX_SPAN_DEGREES, width >= WORLD_MIN_LONGITUDE_SPAN_DEGREES
+
+
 def _subject_subset(layers: list[Any], subject: str) -> list[Any]:
     """As camadas que definem o recorte: a de assunto, se houver, senão todas."""
     subject = str(subject or "").strip()
@@ -519,8 +542,14 @@ def _subject_subset(layers: list[Any], subject: str) -> list[Any]:
     return chosen or layers
 
 
-def _suggest_projected_crs(extent: Any, source_crs: Any, imports: dict[str, Any]) -> tuple[Any, str]:
-    """Escolhe um UTM adequado para uma extensão em coordenadas geográficas."""
+def _suggest_projected_crs(extent: Any, source_crs: Any, imports: dict[str, Any],
+                           editorial: bool = False) -> tuple[Any, str]:
+    """Escolhe um UTM adequado para uma extensão em coordenadas geográficas.
+
+    ``editorial`` (map_crs="auto") estende a escolha a recortes continentais e
+    mundiais, que sem ele ficam em coordenadas geográficas (ver
+    ``_suggest_regional_crs``).
+    """
     centre_lon = (extent.xMinimum() + extent.xMaximum()) / 2.0
     centre_lat = (extent.yMinimum() + extent.yMaximum()) / 2.0
     span = max(extent.width(), extent.height())
@@ -529,7 +558,7 @@ def _suggest_projected_crs(extent: Any, source_crs: Any, imports: dict[str, Any]
     # é o afastamento do meridiano central que gera distorção. Um recorte alto
     # e estreito continua servido pelo UTM; um largo, não.
     if extent.width() > UTM_MAX_LONGITUDE_SPAN_DEGREES or extent.height() > UTM_MAX_LATITUDE_SPAN_DEGREES:
-        return _suggest_regional_crs(extent, centre_lon, centre_lat, span, imports)
+        return _suggest_regional_crs(extent, centre_lon, centre_lat, span, imports, editorial)
 
     zone = int((centre_lon + 180.0) / 6.0) + 1
     zone = max(1, min(60, zone))
@@ -553,13 +582,23 @@ def _suggest_projected_crs(extent: Any, source_crs: Any, imports: dict[str, Any]
 
 
 def _suggest_regional_crs(
-    extent: Any, centre_lon: float, centre_lat: float, span: float, imports: dict[str, Any]
+    extent: Any, centre_lon: float, centre_lat: float, span: float, imports: dict[str, Any],
+    editorial: bool = False,
 ) -> tuple[Any, str]:
     """Projeção para extensões grandes demais para uma zona UTM."""
     if span > REGIONAL_MAX_SPAN_DEGREES:
         # Escala continental: qualquer projeção plana distorce muito, e a
-        # escolha passa a ser editorial. O compositor não decide por conta.
-        return None, ""
+        # escolha passa a ser editorial. O compositor não decide por conta;
+        # com map_crs="auto", quem pediu aceitou uma projeção de áreas iguais,
+        # a convenção de mapas temáticos nessa escala (Snyder 1987).
+        if not editorial:
+            return None, ""
+        if extent.width() >= WORLD_MIN_LONGITUDE_SPAN_DEGREES:
+            for definition in ("EPSG:8857", "PROJ:+proj=eqearth +lon_0=0 +datum=WGS84 +units=m +no_defs"):
+                world = _crs_from_definition(definition, imports)
+                if world is not None:
+                    return world, "Equal Earth, de áreas iguais (EPSG:8857)"
+            return None, ""
 
     west, south, east, north = BRAZIL_BOUNDS
     inside_brazil = (
@@ -578,21 +617,31 @@ def _suggest_regional_crs(
         f"+proj=laea +lat_0={centre_lat:.4f} +lon_0={centre_lon:.4f} "
         "+x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
     )
-    laea = imports["QgsCoordinateReferenceSystem"]()
-    try:
-        laea.createFromProj(proj)
-    except Exception:
-        try:
-            laea.createFromProj4(proj)
-        except Exception:
-            return None, ""
-    if laea.isValid():
+    laea = _crs_from_definition("PROJ:" + proj, imports)
+    if laea is not None:
         return laea, (
             f"Lambert Azimutal de Áreas Iguais centrada em "
             f"{abs(centre_lat):.2f}°{'S' if centre_lat < 0 else 'N'}, "
             f"{abs(centre_lon):.2f}°{'W' if centre_lon < 0 else 'E'}"
         )
     return None, ""
+
+
+def _crs_from_definition(definition: str, imports: dict[str, Any]) -> Any:
+    """CRS de um código ("EPSG:8857") ou de uma cadeia PROJ ("PROJ:+proj=..."); None se inválido."""
+    if definition.startswith("PROJ:"):
+        crs = imports["QgsCoordinateReferenceSystem"]()
+        proj = definition[len("PROJ:"):]
+        try:
+            crs.createFromProj(proj)
+        except Exception:
+            try:
+                crs.createFromProj4(proj)
+            except Exception:
+                return None
+    else:
+        crs = imports["QgsCoordinateReferenceSystem"](definition)
+    return crs if crs.isValid() else None
 
 
 def _find_north_arrow_svg(imports: dict[str, Any]) -> str:
@@ -654,8 +703,38 @@ _CRS_LABEL_TRANSLATIONS: dict[str, tuple[tuple[str, str], ...]] = {
 }
 
 
+#: Nome da Lambert Azimutal de Áreas Iguais no rodapé, por língua do mapa.
+_LAEA_NAMES = {
+    "pt-BR": "Lambert Azimutal de Áreas Iguais", "es": "Lambert Azimutal de Áreas Iguales",
+    "fr": "Lambert azimutale équivalente", "it": "Lambert azimutale equivalente",
+    "de": "Lambertsche flächentreue Azimutalprojektion",
+}
+
+
+def _custom_crs_label(crs: Any, map_language: str = "pt-BR") -> str:
+    """Rótulo de um CRS sem código nem nome, como a LAEA centrada que o compositor cria.
+
+    Sem isto o rodapé de um mapa regional fora do Brasil saía sem sistema de
+    referência: a LAEA criada de uma cadeia PROJ não tem descrição nem código.
+    """
+    proj = str(_quiet(crs.toProj) or "")
+    if "+proj=laea" not in proj:
+        return proj
+    centre = {}
+    for key in ("lat_0", "lon_0"):
+        match = re.search(rf"\+{key}=(-?[\d.]+)", proj)
+        centre[key] = float(match.group(1)) if match else 0.0
+    separator = maptext(map_language, "separador_decimal")
+
+    def coordinate(value: float, positive: str, negative: str) -> str:
+        return f"{abs(value):.2f}".replace(".", separator) + "°" + (positive if value >= 0 else negative)
+
+    name = _LAEA_NAMES.get(map_language, "Lambert Azimuthal Equal Area")
+    return f"WGS 84 / {name}, {coordinate(centre['lat_0'], 'N', 'S')} {coordinate(centre['lon_0'], 'E', 'W')}"
+
+
 def _localised_crs_label(crs: Any, map_language: str = "pt-BR") -> str:
-    description = str(crs.description() or crs.authid() or "")
+    description = str(crs.description() or crs.authid() or "") or _custom_crs_label(crs, map_language)
     for source, target in _CRS_LABEL_TRANSLATIONS.get(map_language, ()):
         description = description.replace(source, target)
     authid = str(crs.authid() or "")
@@ -879,13 +958,55 @@ def _layer_metadata_source(layer: Any) -> str:
     return ""
 
 
-def _credit_line(params: dict[str, Any], crs_label: str, date_label: str, map_language: str = "pt-BR",
-                 basemap_credits: list[str] | None = None, source_text: str | None = None) -> str:
-    # as_text: data_source/map_author/organization nulos viravam o texto
-    # "None" na linha de crédito (str(None) == "None"), porque None é
-    # truthy... não, mas str(None).strip() == "None" é não-vazio e passava no
-    # "if source:" abaixo mesmo sem o usuário ter pedido nada.
-    pieces = []
+#: Propriedade do layout com onde ficaram título e créditos (title_placement)
+#: e, na legenda do texto, o que vai nela: a auditoria a lê, inclusive ao
+#: auditar de novo um layout já salvo.
+CAPTION_PROPERTY = "sigmai/caption"
+#: Onde vão o título e os créditos do mapa.
+TITLE_PLACEMENTS = ("map", "caption", "none")
+
+
+def _resolve_title_placement(params: dict[str, Any]) -> str:
+    """``title_placement``: "map" (padrão), "caption" (figura de periódico) ou "none" (sem título)."""
+    raw = as_text(params, "title_placement", default="map", label="title_placement").strip().lower() or "map"
+    aliases = {"mapa": "map", "legenda": "caption", "texto": "caption", "text": "caption", "sem": "none",
+               "sem_titulo": "none", "no_title": "none", "untitled": "none"}
+    value = aliases.get(raw, raw)
+    if value not in TITLE_PLACEMENTS:
+        raise CompositionError(
+            f"title_placement={raw!r} não existe. Use 'map' (título e créditos no mapa), 'caption' (os dois na "
+            "legenda do texto, como pedem as revistas) ou 'none' (mapa sem título, créditos no mapa)."
+        )
+    return value
+
+
+def _caption_text(params: dict[str, Any], title: str, subtitle: str, crs_label: str, map_language: str = "pt-BR",
+                  basemap_credits: list[str] | None = None, source_text: str | None = None) -> str:
+    """A legenda do texto de uma figura de periódico: título, fontes, autoria se houver, sistema e ferramenta.
+
+    As revistas pedem título e legenda no texto, e não no arquivo da imagem
+    (Evolution, que a Biodiversity Informatics adota: "Figure titles and
+    legends should be included in the main text file"). As fontes vão junto,
+    com o DOI quando houver: é a citação que a licença dos dados pede.
+    """
+    pieces = [f"{text.strip().rstrip('.')}." for text in (title, subtitle) if text and text.strip()]
+    sources = _source_parts(params, basemap_credits, source_text)
+    if sources:
+        pieces.append(f"{maptext(map_language, 'fonte')}{'; '.join(sources)}.")
+    author = as_text(params, "map_author", default="", label="map_author").strip()
+    if author:
+        pieces.append(f"{maptext(map_language, 'elaboracao')}{author}.")
+    organization = as_text(params, "organization", default="", label="organization").strip()
+    if organization:
+        pieces.append(f"{organization.rstrip('.')}.")
+    if crs_label:
+        pieces.append(f"{crs_label}.")
+    pieces.append(f"{maptext(map_language, 'credito_ferramenta')}.")
+    return " ".join(pieces)
+
+
+def _source_parts(params: dict[str, Any], basemap_credits: list[str] | None, source_text: str | None) -> list[str]:
+    """A fonte declarada e os créditos de mapa de base que ela ainda não diz."""
     if source_text is not None:
         source = source_text.strip()
     else:
@@ -899,6 +1020,17 @@ def _credit_line(params: dict[str, Any], crs_label: str, date_label: str, map_la
         nucleo = credito.split(" (")[0].strip().casefold()
         if nucleo and not any(nucleo in parte.casefold() for parte in partes_fonte):
             partes_fonte.append(credito)
+    return partes_fonte
+
+
+def _credit_line(params: dict[str, Any], crs_label: str, date_label: str, map_language: str = "pt-BR",
+                 basemap_credits: list[str] | None = None, source_text: str | None = None) -> str:
+    # as_text: data_source/map_author/organization nulos viravam o texto
+    # "None" na linha de crédito (str(None) == "None"), porque None é
+    # truthy... não, mas str(None).strip() == "None" é não-vazio e passava no
+    # "if source:" abaixo mesmo sem o usuário ter pedido nada.
+    pieces = []
+    partes_fonte = _source_parts(params, basemap_credits, source_text)
     if partes_fonte:
         pieces.append(f"{maptext(map_language, 'fonte')}{'; '.join(partes_fonte)}")
     author = as_text(params, "map_author", default="", label="map_author").strip()
@@ -955,9 +1087,133 @@ def compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, An
     ``CompositionError``.
     """
     try:
-        return _compose_map(params, context)
+        mode = as_text(params, "dense_points", default="points", label="dense_points").strip().lower() or "points"
+        if mode == "points":
+            return _compose_map({k: v for k, v in params.items() if k != "dense_points"}, context)
+        return _compose_dense_points(params, context, mode)
     except ParameterError as exc:
         raise CompositionError(str(exc)) from exc
+
+
+def _thousands(value: Any) -> str:
+    """Inteiro com ponto de milhar, para as notas (em português)."""
+    return f"{int(value):,}".replace(",", ".")
+
+
+#: Formas de dense_points além do mapa de pontos (o padrão, "points").
+DENSE_POINT_MODES = ("points", "heatmap", "sites")
+#: Diferença de escala a partir da qual os locais são agrupados de novo: o
+#: símbolo proporcional tem legenda maior que a do ponto, e o quadro encolhe.
+DENSE_SITES_RESCALE = 0.05
+
+
+def _compose_dense_points(params: dict[str, Any], context: dict[str, Any], mode: str) -> dict[str, Any]:
+    """compose_map com dense_points: as camadas de pontos do mapa viram mapa de calor ou um símbolo por local.
+
+    É uma opção, não o padrão: trocar pontos por locais ou por densidade muda
+    o que o mapa diz, e a escolha é de quem faz o mapa (CART076 avisa e diz
+    como). Com "sites" o compositor faz numa chamada o que o aviso pede em
+    três: simula o mapa para saber a escala, agrupa os locais nela
+    (count_points_by_site com scale) e aplica apply_proportional_symbol_style.
+    Os locais vão para um GeoPackage ao lado de output_path; a camada de
+    registros sai do mapa, não do projeto.
+    """
+    if mode not in DENSE_POINT_MODES:
+        raise CompositionError(f"dense_points={mode!r} não existe. Aceitos: {', '.join(DENSE_POINT_MODES)}.")
+    from ..qgis_actions.gis_tools import count_points_by_site
+    from ..qgis_actions.symbology import apply_heatmap_style, apply_proportional_symbol_style
+    from .pointdensity import STACKING_MIN_POINTS
+
+    imports = _imports()
+    project = imports["QgsProject"].instance()
+    base = {k: v for k, v in params.items() if k != "dense_points"}
+    language, _known = resolve_language(str(base.get("map_language") or "pt-BR"))
+    points = [layer for layer in _resolve_layers(base, imports)
+              if _quiet(lambda layer=layer: int(layer.geometryType())) == 0
+              and int(_quiet(layer.featureCount) or 0) >= STACKING_MIN_POINTS]
+    # Só as de assunto, quando alguma é: pontos de contexto (sedes de
+    # município, por exemplo) continuam pontos.
+    wanted = base.get("subject_layer_id")
+    wanted = {str(v).strip() for v in (wanted if isinstance(wanted, list) else [wanted]) if v}
+    points = [layer for layer in points if layer.id() in wanted or layer.name() in wanted] or points
+    if not points:
+        result = _compose_map(base, context)
+        result.setdefault("notes", []).append(f"dense_points={mode!r}: nenhuma camada de pontos com {STACKING_MIN_POINTS} "
+                                              "pontos ou mais; o mapa saiu como pedido.")
+        return result
+    names = ", ".join(repr(layer.name()) for layer in points)
+    if context.get("dry_run"):
+        result = _compose_map(base, context)
+        result.setdefault("notes", []).append(
+            f"dense_points={mode!r}: {names} " + ("viraria(m) mapa de calor." if mode == "heatmap" else
+                                                  "viraria(m) um símbolo por local, agrupado na escala do mapa, "
+                                                  "num GeoPackage ao lado de output_path."))
+        return result
+    if mode == "heatmap":
+        for layer in points:
+            apply_heatmap_style({"layer_id": layer.id(), "map_language": language}, {"dry_run": False})
+        result = _compose_map(base, context)
+        result.setdefault("notes", []).append(f"dense_points='heatmap': {names} desenhada(s) como mapa de calor.")
+        return result
+
+    output = _resolve_output_path(base)
+    if output is None:
+        raise CompositionError("dense_points='sites' grava os locais num GeoPackage ao lado do mapa: passe output_path.")
+    derived: dict[str, Any] = {}
+    overwrite, _note = as_flag(base, "confirm_overwrite", False)
+
+    def aggregate(scale: int) -> dict[str, Any]:
+        summaries = {}
+        for layer in points:
+            previous = derived.get(layer.id())
+            if previous is not None:
+                project.removeMapLayer(previous.id())
+            stem = re.sub(r"[^0-9A-Za-z_-]+", "_", layer.name()).strip("_") or "pontos"
+            target = output.with_name(f"{output.stem}_{stem}_sites.gpkg")
+            summary = count_points_by_site({
+                "layer_id": layer.id(), "output_path": str(target), "scale": scale,
+                "layer_name": layer.name(), "confirm_overwrite": previous is not None or overwrite,
+            }, {"dry_run": False})
+            sites = project.mapLayer(summary["layer_id"])
+            apply_proportional_symbol_style({"layer_id": sites.id(), "field_name": "records", "map_language": language,
+                                             "legend_title": maptext(language, "registros_por_local")}, {"dry_run": False})
+            derived[layer.id()] = sites
+            summaries[layer.id()] = summary
+        return summaries
+
+    def swapped() -> dict[str, Any]:
+        # Toda referência à camada de registros passa aos locais: a lista de
+        # camadas, o assunto, a camada rotulada e a fonte por camada.
+        def swap(value: Any) -> Any:
+            if isinstance(value, list):
+                return [swap(v) for v in value]
+            if isinstance(value, dict):
+                return {swap(k): v for k, v in value.items()}
+            for layer in points:
+                if value in (layer.id(), layer.name()) and layer.id() in derived:
+                    return derived[layer.id()].id()
+            return value
+        changed = {key: swap(base[key]) for key in ("layer_ids", "subject_layer_id", "label_layer_id", "data_source")
+                   if key in base}
+        return {**base, **changed}
+
+    scale = int(_compose_map(base, {"dry_run": True})["scale_denominator"])
+    summaries = aggregate(scale)
+    final_scale = int(_compose_map(swapped(), {"dry_run": True})["scale_denominator"])
+    if abs(final_scale - scale) > DENSE_SITES_RESCALE * scale:
+        scale = final_scale
+        summaries = aggregate(scale)
+    result = _compose_map(swapped(), context)
+    for layer in points:
+        summary = summaries[layer.id()]
+        result.setdefault("notes", []).append(
+            f"dense_points='sites': os {_thousands(summary['records'])} pontos de {layer.name()!r} viraram "
+            f"{_thousands(summary['sites'])} locais, agrupados a {float(summary['min_spacing_mm']):g} mm na escala "
+            f"{_format_scale(scale)} (até {_thousands(summary['max_records_per_site'])} num local), em "
+            f"{summary['output_path']}.")
+    result["derived_layers"] = [{"source_layer_id": source, "layer_id": layer.id(), "name": layer.name(),
+                                 "output_path": summaries[source]["output_path"]} for source, layer in derived.items()]
+    return result
 
 
 def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
@@ -988,7 +1244,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # só as do primeiro deixava o painel b) com a cor aleatória que o QGIS
     # sorteou, ao lado de um painel a) com a paleta segura.
     # O assunto primeiro: a sequência de preenchimentos reserva a primeira
-    # posição (laranja firme) ao assunto e a segunda (azul quase branco) ao
+    # posição (laranja firme) ao assunto e a segunda (cinza quase branco) ao
     # contexto, mas era distribuída na ordem de layer_ids — pedido com o
     # contexto antes, o assunto saía com a cor mais apagada do mapa.
     wanted_subject = params.get("subject_layer_id")
@@ -1092,10 +1348,20 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
             flag_notes.append(note)
         return value
 
+    # map_crs="auto": a projeção sai do recorte em graus. Num recorte
+    # continental ou mundial (``_small_scale_span``) a rosa dos ventos não vale
+    # para a folha inteira, e num mapa-múndi a barra de escala também não: os
+    # dois saem por padrão, e a grade em graus orienta o leitor.
+    editorial_projection = _resolve_map_crs_text(params).lower() == "auto"
+    small_scale, world_map = (_small_scale_span(layers, params, imports) if editorial_projection else (False, False))
+    title_placement = _resolve_title_placement(params)
+    # Com os créditos na legenda do texto, a fonte de cada camada sai também da
+    # legenda do mapa: ficaria dita duas vezes, e a caixa cresce à toa.
+    legend_sources = {} if title_placement == "caption" else layer_sources
     include_legend = _flag("include_legend", True)
-    include_scale_bar = _flag("include_scale_bar", True)
+    include_scale_bar = _flag("include_scale_bar", not world_map)
     include_scale_text = _flag("include_scale_text", True)
-    include_north = _flag("include_north_arrow", True)
+    include_north = _flag("include_north_arrow", not small_scale)
     include_grid = _flag("include_grid", True)
     include_subtitle = bool(subtitle_value)
     include_logo = _flag("include_logo", False)
@@ -1125,6 +1391,8 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         include_inset=include_inset,
         grid_annotation_gutter_mm=annotation_gutter,
         panels=1 + len(extra_specs),
+        include_title=title_placement == "map",
+        include_footer=title_placement != "caption",
     )
     # solve_layout (layoutgrid.py) recusa página/margens combinadas que não
     # sobram espaço com um ValueError — mesmo tratamento que resolve_page
@@ -1139,7 +1407,11 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # --- sistema de referência ------------------------------------------
     notes: list[str] = list(plan.notes) + styling_notes + flag_notes + source_notes
     requested_crs = _resolve_map_crs_text(params)
-    if requested_crs:
+    if editorial_projection:
+        # O recorte é medido em graus, e a projeção escolhida mais abaixo.
+        map_crs = project.crs() if project.crs().isValid() and project.crs().isGeographic() else \
+            imports["QgsCoordinateReferenceSystem"]("EPSG:4326")
+    elif requested_crs:
         map_crs = imports["QgsCoordinateReferenceSystem"](requested_crs)
         if not map_crs.isValid():
             raise CompositionError(
@@ -1233,7 +1505,8 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     auto_projected_crs, auto_projected_note = as_flag(params, "auto_projected_crs", True)
     if auto_projected_note:
         notes.append(auto_projected_note)
-    if map_crs.isGeographic() and auto_projected_crs:
+    graticule: tuple[Any, float, float] | None = None
+    if map_crs.isGeographic() and (auto_projected_crs or editorial_projection):
         # A projeção é escolhida pelo recorte que vai ao papel, não pelo recorte
         # cru dos dados: o quadro alarga a extensão para casar com sua proporção,
         # e um segundo painel pode cobrir uma área muito maior que o primeiro.
@@ -1252,20 +1525,32 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
                 decision_extent.combineExtentWith(
                     _aspect_expanded(panel_extent, frame_n.width, frame_n.height, imports)
                 )
-        projected, label = _suggest_projected_crs(decision_extent, map_crs, imports)
+        projected, label = _suggest_projected_crs(decision_extent, map_crs, imports, editorial=editorial_projection)
         if projected is not None and label:
+            if max(decision_extent.width(), decision_extent.height()) > REGIONAL_MAX_SPAN_DEGREES:
+                # Grade em graus sobre o mapa projetado: em metros, os rótulos
+                # de um continente seriam números de oito dígitos sem sentido.
+                graticule = (map_crs, decision_extent.width(), decision_extent.height())
             map_crs = projected
             map_crs_label = label
             extent = _combined_extent(extent_layers, map_crs, imports)
-            notes.append(
-                f"O projeto está em coordenadas geográficas; o mapa foi reprojetado para {label} "
-                "para que escala, barra e medidas sejam métricas. Passe auto_projected_crs=false para desligar."
-            )
+            if editorial_projection:
+                notes.append(f"map_crs=\"auto\": o mapa foi projetado em {label}, escolhida pelo recorte"
+                             + (", com a grade em graus." if graticule else "."))
+            else:
+                notes.append(
+                    f"O projeto está em coordenadas geográficas; o mapa foi reprojetado para {label} "
+                    "para que escala, barra e medidas sejam métricas. Passe auto_projected_crs=false para desligar."
+                )
+            if small_scale and not include_north:
+                notes.append("Sem rosa dos ventos: num mapa desta extensão o norte muda de direção pela folha, e a "
+                             "grade em graus orienta o leitor.")
         elif map_crs.isGeographic():
             notes.append(
                 "A extensão é grande demais para uma projeção regional automática; o mapa continua em "
                 "coordenadas geográficas. A escala é aproximada e a barra de escala não é confiável — "
-                "escolha uma projeção adequada com map_crs."
+                "escolha uma projeção com map_crs, ou passe map_crs=\"auto\" para uma de áreas iguais "
+                "(Equal Earth num mapa-múndi, Lambert azimutal num continente)."
             )
 
     # margin_percent: "cinco" ou null estouravam ValueError cru dentro de
@@ -1352,10 +1637,10 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # cabe em colunas, se lá ela couber.
     if plan.arrangement == "coluna_lateral" and include_legend and not params.get("arrangement"):
         column_need = _legend_need_mm(_legend_entries(layers, extra_specs, params, imports), plan, params, imports,
-                                      map_language, layer_sources)
+                                      map_language, legend_sources)
         if column_need is not None and column_need > plan.slots["legend"].height + 1.0:
             chosen_band = _fit_band(layout_request, _legend_entries(layers, extra_specs, params, imports), params, imports,
-                                    map_language, layer_sources, figure_shape)
+                                    map_language, legend_sources, figure_shape)
             if chosen_band is not None and chosen_band[2]:
                 plan = chosen_band[0]
                 _refresh_figure_note(notes, page, plan.page)
@@ -1369,7 +1654,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # Faixa inferior na altura da legenda que vai recebê-la; o que sobra vai
     # para o mapa. Depois da orientação e do arranjo, que só ganham com isso.
     if plan.arrangement == "faixa_inferior" and include_legend and not extra_specs:
-        chosen_band = _fit_band(layout_request, layers, params, imports, map_language, layer_sources, figure_shape)
+        chosen_band = _fit_band(layout_request, layers, params, imports, map_language, legend_sources, figure_shape)
         if chosen_band is not None:
             plan = chosen_band[0]
             _refresh_figure_note(notes, page, plan.page)
@@ -1538,6 +1823,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
             "map_crs": _crs_identifier(map_crs, map_crs_label),
             "extent": fitted.to_dict(),
             "scale": _format_scale(fitted.scale_denominator),
+            "scale_denominator": fitted.scale_denominator,
             "layers": [{"id": layer.id(), "name": layer.name()} for layer in layers],
             # O que a composição faria à simbologia, sem tê-la feito: quais
             # camadas seriam reestilizadas e com que cor. Nenhum layer.setRenderer
@@ -1650,9 +1936,14 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     map_item.setFrameEnabled(True)
     _verify_placement(map_item, frame, "main_map", notes)
     created["main_map"] = "map"
+    # Com o quadro na escala final já se sabe quantos pontos caem em cada
+    # milímetro: o símbolo de ponto da paleta se ajusta antes da legenda,
+    # que copia a amostra do símbolo.
+    _adapt_point_symbols(map_item, drawn_layers, styling, notes, colour_mode)
+    _adapt_polygon_strokes(map_item, drawn_layers, styling, notes)
 
     if include_grid:
-        _apply_grid(map_item, fitted, map_crs, plan, imports, notes, grid_style_value)
+        _apply_grid(map_item, fitted, map_crs, plan, imports, notes, grid_style_value, map_language, graticule)
         created["grid"] = "grid"
 
     # Rótulos das feições, quando pedidos
@@ -1676,11 +1967,12 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # propósito a quem lê. Traduzir o padrão mantém a regra satisfeita e o
     # mapa monolíngue; omitir o item trocaria "sem título" por "reprovado".
     title_text = title_value or maptext(map_language, "titulo_padrao")
-    _add_label(
-        layout, "title", title_text, plan.slots["title"], plan.fonts["title"], imports, mm,
-        bold=True, align="center", notes=notes, fit=True,
-    )
-    created["title"] = "label"
+    if "title" in plan.slots:
+        _add_label(
+            layout, "title", title_text, plan.slots["title"], plan.fonts["title"], imports, mm,
+            bold=True, align="center", notes=notes, fit=True,
+        )
+        created["title"] = "label"
     if include_subtitle and "subtitle" in plan.slots:
         _add_label(
             layout, "subtitle", subtitle_value, plan.slots["subtitle"], plan.fonts["subtitle"], imports, mm,
@@ -1698,7 +1990,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
                 if all(layer.id() != existing.id() for existing in legend_layers):
                     legend_layers.append(layer)
         _add_legend(layout, map_item, legend_layers, plan, params, imports, mm, map_language,
-                    layer_sources=layer_sources, notes=notes)
+                    layer_sources=legend_sources, notes=notes)
         created["legend"] = "legend"
 
     # Barra de escala dimensionada
@@ -1717,7 +2009,15 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         frame.width,
         max_width_mm=max(12.0, bar_slot_width - label_overhang_mm),
         label_font_pt=_scalebar_font_pt(plan),
+        left_segment=plan.template != "publicacao",
     )
+    # Em coordenadas geográficas o metro por grau muda com a latitude: uma barra
+    # métrica não vale para a folha (CART024). O compositor a desenhava mesmo
+    # assim num mapa-múndi, e a própria auditoria reprovava o que ele fez.
+    if include_scale_bar and map_crs.isGeographic():
+        include_scale_bar = False
+        notes.append("Mapa em coordenadas geográficas: a barra de escala métrica não vale para a folha inteira e não "
+                     "foi desenhada; fica a escala numérica, aproximada. Para uma barra, passe map_crs com uma projeção.")
     if include_scale_bar and "scale_bar" in plan.slots and not (comparison_plan or {}).get("per_panel_scale"):
         _add_scalebar(layout, map_item, bar_spec, plan, imports, mm, page, map_language)
         created["scale_bar"] = "scalebar"
@@ -1753,13 +2053,28 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         as_text(params, "production_date", default="", label="production_date").strip()
         or _datetime.date.today().strftime("%d/%m/%Y")
     )
-    _add_label(
-        layout, "source", _credit_line(params, crs_label, date_label, map_language,
-                                       _basemap_attributions(layers), source_text=source_text),
-        plan.slots["footer"], plan.fonts["footer"], imports, mm,
-        align=("right" if map_language_rtl else "left"),
-    )
-    created["source"] = "label"
+    caption: dict[str, Any] = {"title_placement": title_placement}
+    if "footer" in plan.slots:
+        _add_label(
+            layout, "source", _credit_line(params, crs_label, date_label, map_language,
+                                           _basemap_attributions(layers), source_text=source_text),
+            plan.slots["footer"], plan.fonts["footer"], imports, mm,
+            align=("right" if map_language_rtl else "left"),
+        )
+        created["source"] = "label"
+    if title_placement == "caption":
+        caption.update(title=title_value, text=_caption_text(
+            params, title_value, subtitle_value if include_subtitle else "", crs_label, map_language,
+            _basemap_attributions(layers), source_text=source_text))
+        notes.append("Título e créditos foram para a legenda do texto (title_placement='caption'); ela está em "
+                     "'caption'. A revista costuma pedir também um texto alternativo ('Alt text:') sob a legenda, "
+                     "que descreve o que o mapa mostra: esse fica com você.")
+    elif title_placement == "none":
+        notes.append("Mapa sem título (title_placement='none'): o título fica no documento em que ele entra.")
+    elif print_width_mm is not None:
+        notes.append("Figura de periódico com título e créditos na imagem. A maioria das revistas pede os dois na "
+                     "legenda do texto, e não no arquivo da figura: passe title_placement='caption' para isso.")
+    _try(lambda: layout.setCustomProperty(CAPTION_PROPERTY, json.dumps(caption, ensure_ascii=False)))
 
     if include_logo and "logo" in plan.slots:
         logo_path = as_text(params, "logo_path", default="", label="logo_path").strip()
@@ -1849,6 +2164,9 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         "notes": notes,
         "audit": audit,
     }
+    if caption.get("text"):
+        result["caption"] = caption["text"]
+    result["title_placement"] = title_placement
 
     # --- receita reproduzível -------------------------------------------
     # Gravada no layout (sobrevive no .qgz), nos metadados do PNG e, se
@@ -2199,6 +2517,11 @@ def audit_layout(
         subject_layer_ids=subject_layer_ids,
     )
     observation["colour_mode"] = colour_mode or None
+    try:
+        stored = str(layout.customProperty(CAPTION_PROPERTY, "") or "")
+        observation["caption"] = json.loads(stored) if stored else None
+    except Exception:
+        observation["caption"] = None
     if raster_path and colour_mode == "greyscale":  # só CART073 usa, e só para figura pedida em cinza
         observation["output"]["chromatic_fraction"] = measure_chromatic_fraction(raster_path)
 
@@ -2600,11 +2923,14 @@ def _hiding_polygon_ids(layers: list[Any], subject: set[str], already: set[str],
             unions[layer.id()] = union
     found: set[str] = set()
 
-    # 1. sobre um raster temático
+    # 1. sobre um raster temático ou um mapa de calor. O mapa de calor é uma
+    # superfície como o raster: o parque preenchido, assunto junto com ele,
+    # era desenhado por cima e escondia a densidade.
     from qgis.core import QgsGeometry  # type: ignore
 
-    thematic = [layer for layer in layers if not hasattr(layer, "geometryType") and not _is_basemap_raster(layer)
-                and not _is_overlay_raster(layer)]
+    thematic = [layer for layer in layers
+                if (not hasattr(layer, "geometryType") and not _is_basemap_raster(layer) and not _is_overlay_raster(layer))
+                or _is_density_surface(layer)]
     for raster in thematic:
         extent = wgs_extent(raster)
         if extent is None:
@@ -2672,13 +2998,19 @@ def _is_thematic(layer: Any) -> bool:
 
 
 def _polygons_over_raster_subject(layers: list[Any], subject: set[str], imports: dict[str, Any]) -> set[str]:
-    """Polígonos de contexto num mapa cujo assunto é um raster: vão por cima como contorno."""
+    """Polígonos de contexto num mapa cujo assunto é um raster ou um mapa de calor: vão por cima como contorno.
+
+    Um mapa de calor é uma superfície: a rampa começa transparente, e um
+    preenchimento de contexto embaixo dela tinge a densidade baixa — o amarelo
+    sumia no laranja do parque, e só os focos apareciam.
+    """
     from .qtcompat import geometry_type
 
     def is_subject(layer: Any) -> bool:
         return layer.id() in subject or layer.name() in subject
 
-    if not any(is_subject(layer) and not hasattr(layer, "geometryType") for layer in layers):
+    if not any(is_subject(layer) and (not hasattr(layer, "geometryType") or _is_density_surface(layer))
+               for layer in layers):
         return set()
     try:
         from qgis.core import QgsWkbTypes  # type: ignore
@@ -2733,6 +3065,10 @@ def _cartographic_draw_order(layers: list[Any], subject: set[str], outlined: set
             # embaixo: fica acima dos rasters opacos, senão o modelo de
             # elevação colorido — o assunto, que sobe na pilha — o cobre.
             return 4.5 if _is_overlay_raster(layer) else 5
+        if _is_density_surface(layer):
+            # Mapa de calor: uma superfície, como um raster — embaixo dos
+            # contornos, que senão somem onde a densidade é alta.
+            return 4.5
         try:
             geometry = layer.geometryType()
             for rank, name in ((1, "Point"), (2, "Line")):
@@ -2749,6 +3085,171 @@ def _cartographic_draw_order(layers: list[Any], subject: set[str], outlined: set
     return sorted(layers, key=lambda layer: (kind(layer), not is_subject(layer), position[layer.id()]))
 
 
+def _adapt_point_symbols(map_item: Any, layers: list[Any], styling: list[dict[str, Any]], notes: list[str],
+                         colour_mode: str = "colour") -> None:
+    """Símbolo de ponto ajustado à quantidade e à repetição dos pontos no quadro.
+
+    O padrão da paleta (2,2 mm, quase opaco, com contorno) serve a dezenas de
+    pontos. Com milhares ele cobria o que está embaixo: 362.210 registros do
+    GBIF no PARNA do Itatiaia deixavam 29 % do parque à vista (CART075), e
+    1.000 pontos espalhados no mesmo parque já cobriam 71 % dele.
+    ``pointdensity.choose_point_symbol`` escolhe o passo. Só o símbolo da
+    paleta do SIGMAI muda — o desta composição e o de uma composição anterior,
+    que é refeito para os pontos de agora (o dado ou o recorte podem ter
+    mudado); o símbolo que o usuário ou o assistente escolheu fica como está,
+    e CART076 o avalia.
+    """
+    from qgis.core import QgsMarkerSymbol, QgsSingleSymbolRenderer  # type: ignore
+
+    from .inspector import frame_points_mm
+    from .pointdensity import STACKING_HIDDEN_MAX, choose_point_symbol
+    from .symbology import (GEOMETRY_DEFAULTS, GREY_GEOMETRY_DEFAULTS, STYLE_ORIGIN_PALETTE, mark_style_origin,
+                            style_origin)
+
+    palette = {entry.get("layer"): entry for entry in styling
+               if (entry.get("action") == "estilizada" and entry.get("geometry") == "Point")
+               or (entry.get("action") == "preservada" and entry.get("style_origin") == STYLE_ORIGIN_PALETTE)}
+    default = (GREY_GEOMETRY_DEFAULTS if colour_mode == "greyscale" else GEOMETRY_DEFAULTS)["Point"]
+    for layer in layers:
+        entry = palette.get(layer.name())
+        try:
+            if (entry is None or style_origin(layer) != STYLE_ORIGIN_PALETTE or int(layer.geometryType()) != 0
+                    or str(layer.renderer().type()) != "singleSymbol"):
+                continue
+            current = layer.renderer().symbol()
+            colour = current.color().name()
+        except Exception:
+            continue
+        points = frame_points_mm(map_item, layer)
+        if not points:
+            continue
+        choice = choose_point_symbol(points)
+        entry["point_symbol"] = {key: choice[key] for key in
+                                 ("size_mm", "opacity", "outline", "points", "hidden_fraction", "ink_coverage", "reached")}
+        # No primeiro passo vale o ponto padrão da paleta (2,4 mm e opaco em
+        # cinza): só se refaz o que uma composição anterior tinha reduzido.
+        reduced_before = float(current.size()) < float(default["size"]) - 1e-6
+        if int(choice["step"]) == 0:
+            target = (float(default["size"]), float(default["opacity"]), True) if reduced_before else None
+        else:
+            target = (float(choice["size_mm"]), float(choice["opacity"]), bool(choice["outline"]))
+            if abs(float(current.size()) - target[0]) <= 1e-6 and abs(float(current.opacity()) - target[1]) <= 1e-6:
+                target = None
+        if target is not None:
+            properties = {"name": "circle", "color": colour, "size": str(target[0])}
+            properties.update({"outline_color": default["stroke"], "outline_width": str(default["stroke_width"])}
+                              if target[2] else {"outline_style": "no"})
+            symbol = QgsMarkerSymbol.createSimple(properties)
+            symbol.setOpacity(target[1])
+            layer.setRenderer(QgsSingleSymbolRenderer(symbol))
+            mark_style_origin(layer, STYLE_ORIGIN_PALETTE)
+            layer.triggerRepaint()
+        count = f"{int(choice['points']):,}".replace(",", ".")
+        if int(choice["step"]) > 0:
+            notes.append(
+                f"Os {count} pontos de {layer.name()!r} saíram com {float(choice['size_mm']):g} mm "
+                f"e opacidade {float(choice['opacity']):g}: com o símbolo padrão eles cobririam "
+                f"{float(choice['tried'][0]['ink_coverage']):.0%} da área que ocupam. Para outro símbolo, estilize a camada antes "
+                "(apply_single_symbol): o estilo do usuário é mantido."
+            )
+        if float(choice["hidden_fraction"]) > STACKING_HIDDEN_MAX:
+            notes.append(
+                f"{float(choice['hidden_fraction']):.0%} dos pontos de {layer.name()!r} caem sobre outros — registros "
+                "repetidos nas mesmas coordenadas, que nenhum tamanho de símbolo separa. Para mostrar quantos há em "
+                "cada lugar, use apply_heatmap_style, ou um símbolo por local: count_points_by_site com "
+                f"scale={int(round(float(map_item.scale())))} (a escala deste mapa) e apply_proportional_symbol_style."
+            )
+
+
+#: Polígonos da paleta cujo tamanho típico no papel (mediana do maior lado da
+#: caixa de cada feição) fica abaixo disto têm o contorno afinado: 20 mil
+#: imóveis de 150 m a 1:250.000 têm 0,6 mm, e o traço padrão de 0,35 mm de
+#: cada lado os fundia num bloco sólido.
+POLYGON_STROKE_FULL_FROM_MM = 4.0
+#: Abaixo disto o contorno sai: não há onde desenhá-lo.
+POLYGON_STROKE_NONE_BELOW_MM = 0.5
+#: Traço mínimo, quando há contorno.
+POLYGON_STROKE_MIN_MM = 0.05
+
+
+def _adapt_polygon_strokes(map_item: Any, layers: list[Any], styling: list[dict[str, Any]], notes: list[str]) -> None:
+    """Contorno da paleta afinado para polígonos pequenos no papel.
+
+    Mesmo princípio de ``_adapt_point_symbols``: o traço padrão serve a
+    polígonos de centímetros; em polígonos de milímetros ele é a maior parte
+    da tinta. O traço vai de ``POLYGON_STROKE_MIN_MM`` ao padrão, em
+    proporção ao tamanho típico até ``POLYGON_STROKE_FULL_FROM_MM``. Só a
+    paleta do SIGMAI muda, e não os contornos destacados (polígono sem
+    preenchimento sobre outra camada), em que o traço é o símbolo inteiro.
+    """
+    from qgis.core import QgsCoordinateTransform, QgsFeatureRequest, QgsProject  # type: ignore
+
+    from .symbology import GEOMETRY_DEFAULTS, STYLE_ORIGIN_PALETTE, style_origin
+
+    palette = {entry.get("layer") for entry in styling
+               if (entry.get("action") == "estilizada" and entry.get("geometry") == "Polygon" and not entry.get("outline"))
+               or (entry.get("action") == "preservada" and entry.get("style_origin") == STYLE_ORIGIN_PALETTE)}
+    scale = float(map_item.scale() or 0.0)
+    if scale <= 0:
+        return
+    metres = "Meters" in str(map_item.crs().mapUnits()) or int(map_item.crs().mapUnits()) == 0
+    if not metres:
+        return
+    default = float(GEOMETRY_DEFAULTS["Polygon"]["stroke_width"])
+    for layer in layers:
+        try:
+            if (layer.name() not in palette or style_origin(layer) != STYLE_ORIGIN_PALETTE
+                    or int(layer.geometryType()) != 2 or str(layer.renderer().type()) != "singleSymbol"):
+                continue
+            symbol = layer.renderer().symbol()
+            fill = symbol.symbolLayer(0)
+            if fill.color().alpha() == 0:
+                continue
+        except Exception:
+            continue
+        count = int(layer.featureCount() or 0)
+        if count < 50:
+            continue
+        step = max(1, count // 3000)
+        transform = QgsCoordinateTransform(layer.crs(), map_item.crs(), QgsProject.instance())
+        sizes: list[float] = []
+        for index, feature in enumerate(layer.getFeatures(QgsFeatureRequest().setNoAttributes())):
+            if index % step:
+                continue
+            geometry = feature.geometry()
+            if geometry is None or geometry.isEmpty():
+                continue
+            try:
+                box = transform.transformBoundingBox(geometry.boundingBox())
+            except Exception:
+                continue
+            sizes.append(max(box.width(), box.height()) / scale * 1000.0)
+        if not sizes:
+            continue
+        sizes.sort()
+        typical = sizes[len(sizes) // 2]
+        if typical >= POLYGON_STROKE_FULL_FROM_MM:
+            continue
+        if typical < POLYGON_STROKE_NONE_BELOW_MM:
+            width = 0.0
+        else:
+            width = max(POLYGON_STROKE_MIN_MM, round(default * typical / POLYGON_STROKE_FULL_FROM_MM, 2))
+        if abs(float(fill.strokeWidth()) - width) < 1e-6:
+            continue
+        fill.setStrokeWidth(width)
+        if width == 0.0:
+            from qgis.PyQt.QtCore import Qt  # type: ignore
+
+            from .qtcompat import qt_enum
+
+            fill.setStrokeStyle(qt_enum(Qt, "PenStyle", "NoPen"))
+        layer.triggerRepaint()
+        notes.append(
+            f"Os polígonos de {layer.name()!r} têm cerca de {typical:.1f} mm no papel: o contorno passou de "
+            f"{default:g} mm para {'nenhum' if width == 0.0 else f'{width:g} mm'}, que senão engolia o preenchimento."
+        )
+
+
 def _is_legendless(layer: Any) -> bool:
     """Sem entrada na legenda: camada só de rótulo, relevo sombreado ou mapa de base.
 
@@ -2760,6 +3261,14 @@ def _is_legendless(layer: Any) -> bool:
         return True
     try:
         return str(layer.renderer().type()) == "hillshade"
+    except Exception:
+        return False
+
+
+def _is_density_surface(layer: Any) -> bool:
+    """Camada de pontos desenhada como mapa de calor."""
+    try:
+        return hasattr(layer, "geometryType") and str(layer.renderer().type()) == "heatmapRenderer"
     except Exception:
         return False
 
@@ -2835,6 +3344,27 @@ def _wrap_legend_label(
     return LEGEND_WRAP.join(lines)
 
 
+def _original_legend_index(node: Any, position: int) -> int:
+    """Índice de uma entrada da legenda na lista original da camada, que é o que o rótulo do usuário usa.
+
+    Num raster o SIGMAI reordena as entradas para esconder "Band 1 (Palette)";
+    ``layerOriginalLegendNodes`` já vem reordenada, mas o QGIS aplica o rótulo
+    do usuário pela posição de antes da ordem. Escrito pela posição da lista,
+    cada rótulo quebrado caía na classe anterior: a área urbana saía como
+    "Bare or sparse vegetation", e "Permanent water bodies" aparecia duas vezes.
+    """
+    try:
+        from qgis.core import QgsMapLayerLegendUtils  # type: ignore
+
+        if QgsMapLayerLegendUtils.hasLegendNodeOrder(node):
+            order = list(QgsMapLayerLegendUtils.legendNodeOrder(node))
+            if 0 <= position < len(order):
+                return int(order[position])
+    except Exception:
+        pass
+    return position
+
+
 def _wrap_class_labels(model: Any, node: Any, layout: Any, imports: dict[str, Any], plan: LayoutPlan,
                        columns: int = 1) -> bool:
     """Quebra os rótulos de classe compridos na largura da coluna.
@@ -2853,7 +3383,7 @@ def _wrap_class_labels(model: Any, node: Any, layout: Any, imports: dict[str, An
                 continue
             wrapped = _wrap_legend_label(layout, imports, text, "", plan, columns)
             if wrapped != text:
-                QgsMapLayerLegendUtils.setLegendNodeUserLabel(node, index, wrapped)
+                QgsMapLayerLegendUtils.setLegendNodeUserLabel(node, _original_legend_index(node, index), wrapped)
                 changed = True
         if changed:
             model.refreshLayerLegend(node)
@@ -2914,7 +3444,7 @@ def _rewrap_legend(legend: Any, layout: Any, imports: dict[str, Any], plan: Layo
                 original = str(item.data(0) or "").replace(LEGEND_WRAP, " ")
                 if original and original != "NULL":
                     QgsMapLayerLegendUtils.setLegendNodeUserLabel(
-                        node, index, _wrap_legend_label(layout, imports, original, "", plan, columns))
+                        node, _original_legend_index(node, index), _wrap_legend_label(layout, imports, original, "", plan, columns))
             model.refreshLayerLegend(node)
         except Exception:
             continue
@@ -3219,6 +3749,39 @@ def _legend_need_mm(
         return None
 
 
+#: Amostra de ponto da legenda: no mínimo este diâmetro e esta opacidade.
+#: O símbolo de uma nuvem densa (0,45 mm a 25 %) é textura no mapa e, na
+#: legenda, um pontinho que ninguém lê.
+LEGEND_POINT_MIN_MM = 1.6
+LEGEND_POINT_MIN_OPACITY = 0.7
+
+
+def _legible_point_sample(model: Any, node: Any, layer: Any) -> None:
+    """Amostra legível na legenda para o ponto da paleta reduzido pelo compositor.
+
+    O símbolo da camada não muda; só a amostra da entrada da legenda, pelo
+    símbolo próprio da entrada (o mesmo recurso que o QGIS oferece à mão).
+    """
+    try:
+        from qgis.core import QgsMapLayerLegendUtils  # type: ignore
+
+        from .symbology import STYLE_ORIGIN_PALETTE, style_origin
+
+        if (style_origin(layer) != STYLE_ORIGIN_PALETTE or int(layer.geometryType()) != 0
+                or str(layer.renderer().type()) != "singleSymbol"):
+            return
+        symbol = layer.renderer().symbol()
+        if symbol.size() >= LEGEND_POINT_MIN_MM and symbol.opacity() >= LEGEND_POINT_MIN_OPACITY:
+            return
+        sample = symbol.clone()
+        sample.setSize(max(float(symbol.size()), LEGEND_POINT_MIN_MM))
+        sample.setOpacity(max(float(symbol.opacity()), LEGEND_POINT_MIN_OPACITY))
+        QgsMapLayerLegendUtils.setLegendNodeCustomSymbol(node, 0, sample)
+        model.refreshLayerLegend(node)
+    except Exception:
+        pass
+
+
 def _add_legend(
     layout: Any, map_item: Any, layers: list[Any], plan: LayoutPlan,
     params: dict[str, Any], imports: dict[str, Any], mm: Any, map_language: str = "pt-BR",
@@ -3251,6 +3814,8 @@ def _add_legend(
             source = (layer_sources or {}).get(layer.id(), "")
             if node is not None and not hasattr(layer, "geometryType"):
                 _tidy_raster_legend(legend.model(), node, layer, imports, map_language)
+            if node is not None:
+                _legible_point_sample(legend.model(), node, layer)
             if node is not None:
                 try:
                     # A fonte vai numa segunda linha, e o nome comprido é
@@ -3587,6 +4152,11 @@ def _field_has_values(layer: Any, field: str) -> bool:
         return True
 
 
+#: Mais feições do que isto numa camada rotulada por compose_map: recusa. O
+#: mapa de campanha já recusava rotular sozinho mais de 60 pontos.
+MAX_LABELLED_FEATURES = 5000
+
+
 def _apply_labels(
     layers: list[Any], params: dict[str, Any], field: str, plan: LayoutPlan,
     imports: dict[str, Any], notes: list[str],
@@ -3658,6 +4228,17 @@ def _apply_labels(
         raise CompositionError(
             f"O campo {field!r} existe em {target.name()!r} mas está vazio em todas as feições; "
             f"rotular por ele produziria um mapa sem nenhum rótulo.{sugestao}"
+        )
+    # Rótulos demais: o motor descarta os que colidem e o mapa sai com um
+    # subconjunto arbitrário rotulado. Com 20.000 pontos, 98 % ficaram sem
+    # rótulo e a composição levou 93 s; com 362.210 seria quase meia hora.
+    count = int(target.featureCount() or 0)
+    if count > MAX_LABELLED_FEATURES:
+        raise CompositionError(
+            f"Rotular {count} feições de {target.name()!r} não cabe numa folha: o motor de rótulos descarta as que "
+            "colidem e o mapa sai com um subconjunto arbitrário rotulado. Rotule uma camada com no máximo "
+            f"{MAX_LABELLED_FEATURES} feições — filtre antes com extract_by_expression (as maiores, as de um "
+            "tipo) — ou omita label_field."
         )
 
     settings = QgsPalLayerSettings()
@@ -3847,7 +4428,7 @@ def _build_comparison_map(
     # grid_style já validado por compose_map; reaproveitado aqui em vez de ler
     # params.get("grid_style", "solid") de novo, que caía no padrão em
     # silêncio para um valor desconhecido.
-    _apply_grid(second, fitted, map_crs, plan, imports, [], grid_style)
+    _apply_grid(second, fitted, map_crs, plan, imports, [], grid_style, map_language)
     _verify_placement(second, frame, second.id(), notes)
 
     # Sem panel_title os painéis recebem rótulos simétricos ("Painel A"/
@@ -4146,7 +4727,9 @@ def _layer_extent_in_crs(layer: Any, target_crs: Any, imports: dict[str, Any]) -
     return rect
 
 
-def _apply_grid(map_item: Any, fitted: Any, map_crs: Any, plan: LayoutPlan, imports: dict[str, Any], notes: list[str], style: str = "solid") -> None:
+def _apply_grid(map_item: Any, fitted: Any, map_crs: Any, plan: LayoutPlan, imports: dict[str, Any], notes: list[str],
+                style: str = "solid", map_language: str = "pt-BR",
+                graticule: tuple[Any, float, float] | None = None) -> None:
     """Configura a grade de coordenadas de forma que ela realmente apareça.
 
     Três decisões separam esta implementação da anterior:
@@ -4157,16 +4740,28 @@ def _apply_grid(map_item: Any, fitted: Any, map_crs: Any, plan: LayoutPlan, impo
        feições e são cortados pela moldura;
     3. os rótulos laterais são verticais, para que sete dígitos de coordenada
        UTM consumam a altura da linha e não onze milímetros de largura.
+
+    ``graticule`` (CRS geográfico, largura e altura do recorte em graus) põe
+    uma grade em graus sobre um mapa projetado: é o caso de map_crs="auto"
+    num continente ou no mundo.
     """
     grid_class = imports["QgsLayoutItemMapGrid"]
     grid = map_item.grid()
-    geographic = bool(map_crs.isGeographic())
+    geographic = bool(map_crs.isGeographic()) or graticule is not None
+    span_x, span_y = (graticule[1], graticule[2]) if graticule else (fitted.width, fitted.height)
     interval = max(
-        graticule_interval(fitted.width, 4, geographic=geographic),
-        graticule_interval(fitted.height, 3, geographic=geographic),
+        graticule_interval(span_x, 4, geographic=geographic),
+        graticule_interval(span_y, 3, geographic=geographic),
     )
 
     grid.setEnabled(True)
+    if graticule is not None:
+        _try(lambda: grid.setCrs(graticule[0]))
+    # Num mapa-múndi de áreas iguais os paralelos terminam no contorno do globo,
+    # não na moldura: o QGIS punha o rótulo na ponta de cada pedaço de linha, e
+    # "0°" e "30°" se repetiam dentro do mapa. Fica a grade sem rótulos nem
+    # moldura zebrada, como nos atlas: ela mostra o norte em cada ponto.
+    world = graticule is not None and graticule[1] >= WORLD_MIN_LONGITUDE_SPAN_DEGREES
     _try(lambda: grid.setUnits(qt_enum(grid_class, "GridUnit", "MapUnit")))
     grid.setIntervalX(interval)
     grid.setIntervalY(interval)
@@ -4180,13 +4775,23 @@ def _apply_grid(map_item: Any, fitted: Any, map_crs: Any, plan: LayoutPlan, impo
     _try(lambda: grid.setGridLineColor(imports["QColor"](150, 150, 150, 130)))
     _try(lambda: grid.setGridLineWidth(0.08))
 
-    _try(lambda: grid.setFrameStyle(qt_enum(grid_class, "FrameStyle", "Zebra")))
+    _try(lambda: grid.setFrameStyle(qt_enum(grid_class, "FrameStyle", "NoFrame" if world else "Zebra")))
     _try(lambda: grid.setFrameWidth(0.9))
     _try(lambda: grid.setFramePenSize(0.15))
 
-    grid.setAnnotationEnabled(True)
+    grid.setAnnotationEnabled(not world)
+    if world:
+        notes.append(f"Mapa-múndi: grade em graus de {interval:g}° sem rótulos — as linhas terminam no contorno do "
+                     "globo, não na moldura, e os rótulos se repetiriam dentro do mapa.")
+        return
     font_pt = max(6.0, float(plan.fonts["footer"]) - 0.5)
-    _try(lambda: grid.setAnnotationPrecision(3 if geographic else 0))
+    decimals = graticule_decimals(interval, geographic)
+    _try(lambda: grid.setAnnotationPrecision(decimals))
+    if geographic:
+        def _apply_degree_labels() -> None:
+            grid.setAnnotationFormat(qt_enum(grid_class, "AnnotationFormat", "CustomFormat"))
+            grid.setAnnotationExpression(_degree_label_expression(decimals, maptext(map_language, "separador_decimal")))
+        _try(_apply_degree_labels)
     _try(lambda: grid.setAnnotationFontColor(imports["QColor"]("#1F1F1F")))
     _try(lambda: grid.setAnnotationFrameDistance(0.8))
 
@@ -4212,6 +4817,14 @@ def _apply_grid(map_item: Any, fitted: Any, map_crs: Any, plan: LayoutPlan, impo
     # ordem dos dígitos aos olhos do leitor.
     vertical = _quiet(lambda: qt_enum(grid_class, "AnnotationDirection", "Vertical"))
     show_all = _quiet(lambda: qt_enum(grid_class, "DisplayMode", "ShowAll"))
+    # Em graus, latitude só nas laterais e longitude só em cima e embaixo: numa
+    # projeção cônica ou azimutal os meridianos curvos também cruzam as
+    # laterais, e a lateral misturava "0°" de longitude com "-30°" de latitude.
+    display_by_side = {}
+    if geographic:
+        latitude_only = _quiet(lambda: qt_enum(grid_class, "DisplayMode", "LatitudeOnly"))
+        longitude_only = _quiet(lambda: qt_enum(grid_class, "DisplayMode", "LongitudeOnly"))
+        display_by_side = {"Left": latitude_only, "Right": latitude_only, "Top": longitude_only, "Bottom": longitude_only}
 
     for side_name, direction in (("Left", vertical), ("Right", vertical), ("Top", horizontal), ("Bottom", horizontal)):
         side = _quiet(lambda name=side_name: qt_enum(grid_class, "BorderSide", name))
@@ -4221,8 +4834,9 @@ def _apply_grid(map_item: Any, fitted: Any, map_crs: Any, plan: LayoutPlan, impo
             _try(lambda s=side: grid.setAnnotationPosition(outside, s))
         if direction is not None:
             _try(lambda s=side, d=direction: grid.setAnnotationDirection(d, s))
-        if show_all is not None:
-            _try(lambda s=side: grid.setAnnotationDisplay(show_all, s))
+        display = display_by_side.get(side_name) or show_all
+        if display is not None:
+            _try(lambda s=side, d=display: grid.setAnnotationDisplay(d, s))
 
     if geographic:
         interval_text = f"{interval:g} grau(s)"
@@ -4232,6 +4846,19 @@ def _apply_grid(map_item: Any, fitted: Any, map_crs: Any, plan: LayoutPlan, impo
         interval_text = f"{interval:,.10g} m".replace(",", ".")
     notes.append(
         f"Grade de coordenadas com intervalo de {interval_text}, rótulos fora do quadro."
+    )
+
+
+def _degree_label_expression(decimals: int, decimal_separator: str) -> str:
+    """Rótulo da grade em graus: "-22,5°" na língua do mapa, vazio fora de ±180/±90.
+
+    O quadro de um mapa-múndi se alarga para a proporção da folha e passa do
+    antimeridiano: a grade rotulava longitudes de -210 e 210, que não existem.
+    """
+    separator = decimal_separator.replace("'", "''")
+    return (
+        "if((@grid_axis = 'x' and abs(@grid_number) > 180.000001) or (@grid_axis = 'y' and abs(@grid_number) > 90.000001), "
+        f"'', replace(format_number(@grid_number, {int(decimals)}, 'en'), '.', '{separator}') || '°')"
     )
 
 

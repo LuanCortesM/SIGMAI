@@ -387,3 +387,155 @@ def count_points_in_polygon(params: dict[str, Any], context: dict[str, Any]):
         return {"dry_run": True, "algorithm": "native:countpointsinpolygon", "parameters": {"POLYGONS": polygons.id(), "POINTS": points.id(), "FIELD": field_name, "OUTPUT": output}}
     result = _processing_run("native:countpointsinpolygon", parameters)
     return {"algorithm": "native:countpointsinpolygon", "result": _serialize_processing_result(result)}
+
+
+#: Marca da camada de locais: o id da camada de registros de que ela saiu. Não
+#: é a marca de anotação (DERIVED_FROM_PROPERTY, das divisas e nomes): com
+#: ela os locais saíam da linha de crédito como desenho, e a fonte do GBIF,
+#: com o DOI que a licença manda citar, sumia do rodapé.
+SITES_OF_PROPERTY = "sigmai/sites_of"
+
+#: Casas decimais com que coordenadas viram o mesmo local em count_points_by_site:
+#: em graus, 5 casas são cerca de 1 m no equador; em metros, 0 casas é 1 m.
+SITE_DECIMALS_GEOGRAPHIC = 5
+SITE_DECIMALS_PROJECTED = 0
+
+
+def _scale_denominator(value: Any) -> float | None:
+    """300000 de 300000, "300000" ou "1:300.000" (o que compose_map escreve); None se vazio."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        raise ValueError("scale não é verdadeiro/falso")
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip()
+    if text.startswith("1:"):
+        text = "".join(ch for ch in text[2:] if ch.isdigit())
+    return float(text)
+
+
+def _metres_per_unit(crs: Any, latitudes: list[float]) -> tuple[float, float]:
+    """Metros por unidade da camada, em x e em y: 1 num sistema métrico; em graus, na latitude média dos dados."""
+    if crs.isGeographic():
+        import math
+
+        latitude = math.radians(sum(latitudes) / len(latitudes)) if latitudes else 0.0
+        return 111_320.0 * max(0.05, math.cos(latitude)), 110_574.0
+    try:
+        from qgis.core import Qgis, QgsUnitTypes  # type: ignore
+
+        from ..cartography.qtcompat import distance_unit
+
+        factor = float(QgsUnitTypes.fromUnitToUnitFactor(crs.mapUnits(), distance_unit(Qgis, QgsUnitTypes, "Meters")))
+        if factor > 0:
+            return factor, factor
+    except Exception:
+        pass
+    return 1.0, 1.0
+
+
+def count_points_by_site(params: dict[str, Any], context: dict[str, Any]):
+    """Um ponto por local, com quantos pontos da camada caem nele.
+
+    Dados de ocorrência repetem coordenadas: os 362.210 registros do GBIF no
+    PARNA do Itatiaia estão em 11.742 coordenadas distintas, e uma delas tem
+    54.009. Num mapa de pontos esse local aparece igual a um com um registro
+    só (CART076). Os locais, com a contagem, vão para
+    apply_proportional_symbol_style. Grava um GeoPackage novo e não altera a
+    camada de origem. A camada nova é dado, e não anotação: tem a sua fonte
+    em data_source e guarda em ``SITES_OF_PROPERTY`` o id dos registros.
+
+    Com ``scale`` (o denominador da escala do mapa, que sigmai_plan_map
+    informa), os locais a menos de ``min_spacing_mm`` no papel viram um só
+    (``pointdensity.merge_sites``): sem isso, a 1:300.000, os 11.224 locais a
+    1 m do Itatiaia se amontoavam, e 79 % dos círculos caíam sobre outros.
+    """
+    layer = _vector_layer(require_param(params, "layer_id", str))
+    imports = qgis_imports()
+    from qgis.core import QgsFeature, QgsFeatureRequest, QgsGeometry, QgsPointXY, QgsVectorLayer  # type: ignore
+
+    from ..cartography.qtcompat import geometry_type
+
+    imports.update(QgsFeature=QgsFeature, QgsFeatureRequest=QgsFeatureRequest, QgsGeometry=QgsGeometry,
+                   QgsPointXY=QgsPointXY, QgsVectorLayer=QgsVectorLayer)
+
+    if layer.geometryType() != geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Point"):
+        raise ValidationError("POINT_LAYER_REQUIRED", "count_points_by_site precisa de uma camada de pontos.", {"layer_id": layer.id()})
+    output_path = _check_output(require_param(params, "output_path", str), bool(params.get("confirm_overwrite")))
+    if Path(output_path).suffix.lower() != ".gpkg":
+        raise ValidationError("BAD_REQUEST", "output_path precisa terminar em .gpkg.", {"output_path": output_path})
+    geographic = bool(layer.crs().isGeographic())
+    default = SITE_DECIMALS_GEOGRAPHIC if geographic else SITE_DECIMALS_PROJECTED
+    decimals = int(params.get("decimals", default))
+    if not -3 <= decimals <= 9:
+        raise ValidationError("BAD_REQUEST", "decimals vai de -3 a 9.", {"decimals": decimals})
+    count_field = str(params.get("count_field") or "records").strip()
+    if not count_field.replace("_", "").isalnum():
+        raise ValidationError("BAD_REQUEST", "count_field aceita letras, números e _.", {"count_field": count_field})
+    layer_name = str(params.get("layer_name") or f"{layer.name()} (sites)").strip()
+    from ..cartography.pointdensity import SITE_SPACING_MM, merge_sites
+
+    try:
+        scale = _scale_denominator(params.get("scale"))
+        spacing = float(params.get("min_spacing_mm", SITE_SPACING_MM))
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("BAD_REQUEST", "scale e min_spacing_mm precisam ser números.",
+                              {"scale": params.get("scale"), "min_spacing_mm": params.get("min_spacing_mm")}) from exc
+    if scale is not None and not 1 <= scale <= 1e9:
+        raise ValidationError("BAD_REQUEST", "scale é o denominador da escala do mapa (300000 para 1:300.000).", {"scale": scale})
+    if not 0 < spacing <= 20:
+        raise ValidationError("BAD_REQUEST", "min_spacing_mm vai de 0 a 20.", {"min_spacing_mm": spacing})
+
+    request = imports["QgsFeatureRequest"]().setNoAttributes()
+    counts: dict[tuple[float, float], int] = {}
+    for feature in layer.getFeatures(request):
+        geometry = feature.geometry()
+        if geometry is None or geometry.isEmpty():
+            continue
+        for point in (geometry.asMultiPoint() if geometry.isMultipart() else [geometry.asPoint()]):
+            key = (round(point.x(), decimals), round(point.y(), decimals))
+            counts[key] = counts.get(key, 0) + 1
+    if not counts:
+        raise ValidationError("EMPTY_LAYER", "A camada não tem pontos.", {"layer_id": layer.id()})
+    distinct = len(counts)
+    if scale is not None:
+        x_metres, y_metres = _metres_per_unit(layer.crs(), [key[1] for key in counts])
+        merged = merge_sites([(x, y, n) for (x, y), n in counts.items()], spacing * scale / 1000.0, x_metres, y_metres)
+        counts = {(x, y): n for x, y, n in merged}
+    summary = {"source_layer_id": layer.id(), "output_path": output_path, "decimals": decimals,
+               "count_field": count_field, "records": sum(counts.values()), "sites": len(counts),
+               "max_records_per_site": max(counts.values()), "distinct_coordinates": distinct}
+    if scale is not None:
+        summary.update(scale=int(scale), min_spacing_mm=spacing)
+    else:
+        summary["note"] = ("Sem scale, cada coordenada é um local. Para um mapa, passe scale (o denominador da escala, "
+                           "que sigmai_plan_map informa): locais a menos de 1 mm no papel se sobrepõem.")
+    if context.get("dry_run"):
+        return {"dry_run": True, **summary, "changes": ["Grava um GeoPackage novo com um ponto por local e o adiciona ao projeto."]}
+
+    sites = imports["QgsVectorLayer"](f"Point?crs={crs_authid(layer.crs())}&field={count_field}:integer", layer_name, "memory")
+    features = []
+    for (x, y), count in sorted(counts.items(), key=lambda item: (-item[1], item[0])):
+        feature = imports["QgsFeature"](sites.fields())
+        feature.setGeometry(imports["QgsGeometry"].fromPointXY(imports["QgsPointXY"](x, y)))
+        feature.setAttribute(count_field, count)
+        features.append(feature)
+    sites.dataProvider().addFeatures(features)
+    sites.updateExtents()
+    from qgis.core import QgsVectorFileWriter  # type: ignore
+
+    options = QgsVectorFileWriter.SaveVectorOptions()
+    options.driverName = "GPKG"
+    options.layerName = "sites"
+    options.fileEncoding = "UTF-8"
+    result = QgsVectorFileWriter.writeAsVectorFormatV3(sites, output_path, project().transformContext(), options)
+    error_code = result[0] if isinstance(result, tuple) else result
+    if error_code != qt_enum(QgsVectorFileWriter, "WriterError", "NoError"):
+        raise ValidationError("WRITE_FAILED", "Não foi possível gravar os locais.", {"result": str(result), "path": output_path})
+    persisted = imports["QgsVectorLayer"](f"{output_path}|layername=sites", layer_name, "ogr")
+    if not persisted.isValid():
+        raise ValidationError("WRITE_FAILED", "O GeoPackage gravado não pôde ser lido de volta.", {"path": output_path})
+    persisted.setCustomProperty(SITES_OF_PROPERTY, str(layer.id()))
+    project().addMapLayer(persisted)
+    return {**summary, "layer_id": persisted.id(), "name": persisted.name()}

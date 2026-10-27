@@ -8,10 +8,13 @@ casos de teste de regressão cartográfica.
 
 from __future__ import annotations
 
+import math
+
 from pathlib import Path
 from typing import Any
 
 from .pagespec import PageSpec
+from .rulebook import AREA_OF_USE_MARGIN_DEGREES, HEATMAP_VISIBLE_MIN, NODATA_SENTINELS
 
 #: Papéis atribuídos por identificador de item. O compositor do SIGMAI nomeia
 #: seus itens; layouts feitos à mão pelo usuário são classificados pelo tipo.
@@ -150,6 +153,7 @@ def observe_layout(
                 "scale": round(float(_safe(item.scale, 0.0) or 0.0), 1),
                 "visible_layer_names": _visible_layer_names(item),
                 "label_only_layer_names": _label_only_layer_names(_safe(item.layers, []) or []),
+                "value_scales": _value_scales(item),
             }
             if label_results and item_id in label_results:
                 frame_entry["labels"] = label_results[item_id]
@@ -408,7 +412,9 @@ def _observe_map(
 
     info: dict[str, Any] = {
         "item_id": _safe(map_item.id, "") or "",
-        "crs": _safe(crs.authid, "") if crs is not None else "",
+        # Uma projeção criada de uma cadeia PROJ (a LAEA centrada do
+        # compositor) não tem código nem nome: sem a cadeia, CART008 não a via.
+        "crs": (_safe(crs.authid, "") or _safe(crs.description, "") or _safe(crs.toProj, "")) if crs is not None else "",
         "crs_description": _safe(crs.description, "") if crs is not None else "",
         "crs_is_geographic": _safe(crs.isGeographic, None) if crs is not None else None,
         "scale": round(float(_safe(map_item.scale, 0.0) or 0.0), 1),
@@ -424,6 +430,11 @@ def _observe_map(
         "subject_layer_ids": list(subject_layer_ids or []),
         "subject_visible_fraction": subject_visible,
         "layer_colours": _layer_colours(layers),
+        "point_stacking": _point_stacking(map_item, layers),
+        "raster_ramps": _raster_ramps(map_item, layers),
+        "coordinate_checks": _coordinate_checks(map_item, layers),
+        "extent_outliers": _extent_outliers(map_item, layers),
+        "heatmap_visibility": _heatmap_visibility(map_item, layers),
         "polygon_coverage": _polygon_coverage(map_item, layers),
         "data_ink_grid": stack.get("ink_grid") if stack is not None else None,
     }
@@ -434,6 +445,9 @@ def _observe_map(
             "interval_x": float(_safe(grid.intervalX, 0.0) or 0.0),
             "interval_y": float(_safe(grid.intervalY, 0.0) or 0.0),
             "annotations": bool(_safe(grid.annotationEnabled, False)),
+            # Grade em graus sobre um mapa projetado (map_crs="auto" num
+            # continente ou no mundo): os meridianos mostram o norte.
+            "graticule": bool(_graticule_over_projection(grid, crs)),
         }
     else:
         info["grid"] = {"enabled": False, "interval_x": 0.0, "interval_y": 0.0, "annotations": False}
@@ -574,6 +588,423 @@ def _symbol_appearance(symbol: Any, family: str) -> tuple[str, str]:
     except Exception:
         pass
     return family, colour
+
+
+#: Fator de cada unidade de símbolo para milímetros no papel (CART076).
+_SIZE_UNIT_MM = {"Millimeters": 1.0, "Points": 25.4 / 72.0, "Pixels": 25.4 / 96.0, "Inches": 25.4}
+#: Valor numérico de cada unidade, igual no QGIS 3 (QgsUnitTypes.RenderUnit) e
+#: no 4 (Qgis.RenderUnit). No 4, str() da unidade dá "0", não o nome.
+_SIZE_UNIT_BY_VALUE = {0: "Millimeters", 1: "MapUnits", 2: "Pixels", 3: "Percentage", 4: "Points", 5: "Inches"}
+
+
+def _marker_size_mm(symbol: Any, scale: float, map_units_metres: bool) -> float | None:
+    """Diâmetro do símbolo de ponto no papel, em mm; None se varia por feição ou a unidade não se converte."""
+    try:
+        if symbol.dataDefinedSize().isActive():
+            return None  # tamanho por feição: ver _proportional_min_size_mm
+    except Exception:
+        pass
+    try:
+        return _size_mm(float(symbol.size()), symbol.sizeUnit(), scale, map_units_metres)
+    except Exception:
+        return None
+
+
+def _proportional_min_size_mm(symbol: Any, scale: float, map_units_metres: bool) -> float | None:
+    """Menor círculo de um símbolo proporcional (tamanho por campo, com transformador), em mm; senão None."""
+    try:
+        size = symbol.dataDefinedSize()
+        if not size.isActive():
+            return None
+        transformer = size.transformer()
+        minimum = float(transformer.minSize()) if transformer is not None and hasattr(transformer, "minSize") else 0.0
+        if not minimum > 0:
+            return None
+        return _size_mm(minimum, symbol.sizeUnit(), scale, map_units_metres)
+    except Exception:
+        return None
+
+
+def _size_mm(size: float, raw_unit: Any, scale: float, map_units_metres: bool) -> float | None:
+    """Um tamanho de símbolo na unidade ``raw_unit`` levado a mm no papel; None se não se converte."""
+    try:
+        unit = getattr(raw_unit, "name", None) or _SIZE_UNIT_BY_VALUE.get(int(raw_unit), str(raw_unit))
+    except Exception:
+        return None
+    for name, factor in _SIZE_UNIT_MM.items():
+        if name in unit:
+            return size * factor
+    if "MapUnit" in unit and map_units_metres and scale > 0:
+        return size / scale * 1000.0
+    return None
+
+
+def _graticule_over_projection(grid: Any, map_crs: Any) -> bool:
+    try:
+        grid_crs = grid.crs()
+        return bool(grid_crs.isValid() and grid_crs.isGeographic() and map_crs is not None and not map_crs.isGeographic())
+    except Exception:
+        return False
+
+
+def _sites_of(layer: Any) -> str:
+    """Id da camada de registros de que count_points_by_site tirou estes locais, ou ""."""
+    try:
+        from ..qgis_actions.gis_tools import SITES_OF_PROPERTY
+
+        return str(layer.customProperty(SITES_OF_PROPERTY, "") or "")
+    except Exception:
+        return ""
+
+
+def _point_stacking(map_item: Any, layers: Any) -> list[dict[str, Any]] | None:
+    """Quantos pontos de cada camada de pontos o quadro deixa de mostrar (CART076).
+
+    Camadas desenhadas com símbolos de tamanho fixo (único, categorizado,
+    graduado) e com símbolo proporcional (único, com o tamanho por campo): o
+    círculo proporcional mostra quantos há em cada local, mas só se os locais
+    não caírem uns sobre os outros. Mapa de calor e agrupamento mostram a
+    contagem de outro jeito e ficam de fora. Os pontos dentro da extensão do
+    quadro são levados para mm do quadro e medidos por ``pointdensity.stacking``
+    com o menor símbolo e a menor opacidade da camada — a leitura mais
+    favorável ao mapa.
+    """
+    try:
+        from qgis.core import QgsProject  # type: ignore
+
+        from .pointdensity import stacking
+
+        crs = map_item.crs()
+        if not crs.isValid():
+            crs = QgsProject.instance().crs()
+        scale = float(map_item.scale())
+        metres = "Meters" in str(crs.mapUnits())
+        out: list[dict[str, Any]] = []
+        for layer in _frame_layers(map_item, layers):
+            try:
+                if int(layer.geometryType()) != 0:
+                    continue
+                renderer = layer.renderer()
+                rtype = str(renderer.type()) if renderer is not None else ""
+            except Exception:
+                continue
+            items: list[Any] = []  # cópias donas dos símbolos: vivas enquanto forem lidos (ver _layer_colours)
+            if rtype == "singleSymbol":
+                symbols = [renderer.symbol()] if renderer.symbol() is not None else []
+            elif rtype == "categorizedSymbol":
+                items = list(renderer.categories())
+                symbols = [c.symbol() for c in items if c.symbol() is not None and c.renderState()]
+            elif rtype == "graduatedSymbol":
+                items = list(renderer.ranges())
+                symbols = [r.symbol() for r in items if r.symbol() is not None and r.renderState()]
+            else:
+                continue
+            sizes = [_marker_size_mm(symbol, scale, metres) for symbol in symbols]
+            proportional = rtype == "singleSymbol" and len(symbols) == 1 and sizes == [None]
+            if proportional:
+                sizes = [_proportional_min_size_mm(symbols[0], scale, metres)]
+            if not sizes or any(size is None or size <= 0 for size in sizes):
+                continue
+            opacities = []
+            for symbol in symbols:
+                try:
+                    opacities.append(float(symbol.opacity()) * float(symbol.color().alphaF()))
+                except Exception:
+                    opacities.append(1.0)
+            opacity = min(opacities) * float(_safe(layer.opacity, 1.0) or 1.0)
+            points = frame_points_mm(map_item, layer)
+            if points is None:
+                continue
+            found = stacking(points, min(sizes), opacity)
+            entry = {"layer": str(layer.name()), "layer_id": str(layer.id()),
+                     "symbol_mm": round(min(sizes), 2), "opacity": round(opacity, 2), **found}
+            if proportional:
+                entry.update(proportional=True, scale=int(round(scale)) if scale > 0 else None,
+                             source_layer_id=_sites_of(layer))
+            out.append(entry)
+        return out
+    except Exception:
+        return None
+
+
+def frame_points_mm(map_item: Any, layer: Any) -> list[tuple[float, float]] | None:
+    """Os pontos da camada dentro da extensão do quadro, em mm a partir do canto superior esquerdo."""
+    try:
+        from qgis.core import QgsCoordinateTransform, QgsFeatureRequest, QgsProject  # type: ignore
+
+        extent = map_item.extent()
+        width_mm, height_mm = float(map_item.rect().width()), float(map_item.rect().height())
+        if extent.width() <= 0 or extent.height() <= 0 or width_mm <= 0 or height_mm <= 0:
+            return None
+        crs = map_item.crs()
+        if not crs.isValid():
+            crs = QgsProject.instance().crs()
+        transform = QgsCoordinateTransform(layer.crs(), crs, QgsProject.instance())
+        try:
+            request_rect = transform.transformBoundingBox(extent, _reverse_direction())
+            request = QgsFeatureRequest().setFilterRect(request_rect).setNoAttributes()
+        except Exception:
+            request = QgsFeatureRequest().setNoAttributes()
+        x0, y1 = extent.xMinimum(), extent.yMaximum()
+        sx, sy = width_mm / extent.width(), height_mm / extent.height()
+        points: list[tuple[float, float]] = []
+        for feature in layer.getFeatures(request):
+            geometry = feature.geometry()
+            if geometry is None or geometry.isEmpty():
+                continue
+            parts = geometry.asMultiPoint() if geometry.isMultipart() else [geometry.asPoint()]
+            for part in parts:
+                p = transform.transform(part)
+                if extent.contains(p):
+                    points.append(((p.x() - x0) * sx, (y1 - p.y()) * sy))
+        return points
+    except Exception:
+        return None
+
+
+def _reverse_direction() -> Any:
+    from qgis.core import Qgis  # type: ignore
+
+    from .qtcompat import qt_enum
+
+    return qt_enum(Qgis, "TransformDirection", "Reverse")
+
+
+def _raster_ramps(map_item: Any, layers: Any) -> list[dict[str, Any]] | None:
+    """Quanto da rampa de cores de cada raster os pixels do quadro usam (CART077).
+
+    Só rampas contínuas (pseudocor interpolada) e cinza esticado: em classes
+    os limites são escolha de quem classificou. Os pixels do quadro (até
+    200 × 200, sem os "sem dado" do arquivo nem os do usuário) dão os
+    percentis 2 e 98; a fração usada é a amplitude entre eles sobre a da
+    rampa. Um -32.768 não declarado esticava a rampa e deixava 7 % dela em uso;
+    os valores de preenchimento de ``NODATA_SENTINELS`` ficam fora dos
+    percentis, senão a própria sobra parecia usar a rampa.
+    """
+    try:
+        from qgis.core import QgsCoordinateTransform, QgsProject  # type: ignore
+
+        out: list[dict[str, Any]] = []
+        for layer in _frame_layers(map_item, layers):
+            if hasattr(layer, "geometryType"):
+                continue
+            renderer = _safe(layer.renderer)
+            kind = str(_safe(renderer.type, "")) if renderer is not None else ""
+            if kind == "singlebandpseudocolor":
+                shader = renderer.shader().rasterShaderFunction()
+                if int(shader.colorRampType()) != 0:  # 0 = interpolada nas duas versões do QGIS
+                    continue
+                low, high = float(renderer.classificationMin()), float(renderer.classificationMax())
+                band = int(renderer.band() if hasattr(renderer, "band") else renderer.inputBand())
+            elif kind == "singlebandgray":
+                enhancement = renderer.contrastEnhancement()
+                if enhancement is None:
+                    continue
+                low, high = float(enhancement.minimumValue()), float(enhancement.maximumValue())
+                band = int(renderer.inputBand() if hasattr(renderer, "inputBand") else renderer.grayBand())
+            else:
+                continue
+            if not (high > low):
+                continue
+            provider = layer.dataProvider()
+            transform = QgsCoordinateTransform(map_item.crs(), layer.crs(), QgsProject.instance())
+            rect = transform.transformBoundingBox(map_item.extent()).intersect(layer.extent())
+            if rect.isEmpty():
+                continue
+            block = provider.block(band, rect, 200, 200)
+            ranges = list(_safe(lambda: provider.userNoDataValues(band), []) or [])
+            values: list[float] = []
+            for row in range(block.height()):
+                for col in range(block.width()):
+                    if block.isNoData(row, col):
+                        continue
+                    value = float(block.value(row, col))
+                    if (not math.isfinite(value) or any(r.contains(value) for r in ranges)
+                            or value in NODATA_SENTINELS):
+                        continue
+                    values.append(value)
+            if len(values) < 50:
+                continue
+            values.sort()
+            p02 = values[int(0.02 * (len(values) - 1))]
+            p98 = values[int(0.98 * (len(values) - 1))]
+            out.append({"layer": str(layer.name()), "renderer": kind, "ramp_min": low, "ramp_max": high,
+                        "p02": p02, "p98": p98, "data_min": values[0], "data_max": values[-1],
+                        "used_fraction": round(max(0.0, min(1.0, (p98 - p02) / (high - low))), 4)})
+        return out
+    except Exception:
+        return None
+
+
+def _wgs84_points(layer: Any, limit: int = 2_000_000) -> list[tuple[float, float]] | None:
+    """Os vértices de ponto da camada em graus (WGS 84); None se a camada não é de pontos ou é grande demais."""
+    try:
+        from qgis.core import QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsFeatureRequest, QgsProject  # type: ignore
+
+        if int(layer.geometryType()) != 0 or int(layer.featureCount()) > limit:
+            return None
+        transform = QgsCoordinateTransform(layer.crs(), QgsCoordinateReferenceSystem("EPSG:4326"), QgsProject.instance())
+        out: list[tuple[float, float]] = []
+        for feature in layer.getFeatures(QgsFeatureRequest().setNoAttributes()):
+            geometry = feature.geometry()
+            if geometry is None or geometry.isEmpty():
+                continue
+            for part in (geometry.asMultiPoint() if geometry.isMultipart() else [geometry.asPoint()]):
+                try:
+                    q = transform.transform(part)
+                    out.append((q.x(), q.y()))
+                except Exception:
+                    out.append((float("nan"), float("nan")))
+        return out
+    except Exception:
+        return None
+
+
+def _coordinate_checks(map_item: Any, layers: Any) -> list[dict[str, Any]] | None:
+    """Coordenadas que não podem estar certas (CART078).
+
+    Para cada camada vetorial do quadro: quantas feições caem fora da área de
+    uso do seu sistema de referência (com ``AREA_OF_USE_MARGIN_DEGREES`` de
+    folga), se uma camada em sistema projetado tem só números de graus (lat/lon
+    declarados como UTM), e quantos pontos estão em 0,0 — a "ilha nula", o
+    valor que planilhas e bancos gravam quando falta a coordenada.
+    """
+    try:
+        from qgis.core import QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject  # type: ignore
+
+        wgs84 = QgsCoordinateReferenceSystem("EPSG:4326")
+        out: list[dict[str, Any]] = []
+        for layer in _frame_layers(map_item, layers):
+            if not hasattr(layer, "geometryType") or _is_label_only_layer(layer):
+                continue
+            crs = layer.crs()
+            if not crs.isValid():
+                continue
+            extent = layer.extent()
+            if extent is None or extent.isNull():
+                continue
+            entry: dict[str, Any] = {"layer": str(layer.name()), "crs": crs.authid() or crs.description(),
+                                     "features": int(_safe(layer.featureCount, 0) or 0)}
+            entry["degree_like"] = bool(
+                not crs.isGeographic() and -180.0 <= extent.xMinimum() and extent.xMaximum() <= 180.0
+                and -90.0 <= extent.yMinimum() and extent.yMaximum() <= 90.0)
+            bounds = _safe(crs.bounds)
+            usable = bounds is not None and not bounds.isEmpty() and not (bounds.width() >= 359.0 and bounds.height() >= 179.0)
+            if usable:
+                margin = AREA_OF_USE_MARGIN_DEGREES
+                w, s, e, n = (bounds.xMinimum() - margin, bounds.yMinimum() - margin,
+                              bounds.xMaximum() + margin, bounds.yMaximum() + margin)
+                entry["area_of_use"] = [round(bounds.xMinimum(), 2), round(bounds.yMinimum(), 2),
+                                        round(bounds.xMaximum(), 2), round(bounds.yMaximum(), 2)]
+            points = _wgs84_points(layer)
+            if points is not None:
+                entry["null_island"] = sum(1 for x, y in points if abs(x) < 1e-6 and abs(y) < 1e-6)
+                if usable:
+                    outside = [(x, y) for x, y in points if not (w <= x <= e and s <= y <= n)]
+                    entry["outside_area_of_use"] = len(outside)
+                    entry["outside_examples"] = [[round(x, 4), round(y, 4)] for x, y in outside[:3]]
+            elif usable:
+                try:
+                    box = QgsCoordinateTransform(crs, wgs84, QgsProject.instance()).transformBoundingBox(extent)
+                    inside = not (box.xMaximum() < w or box.xMinimum() > e or box.yMaximum() < s or box.yMinimum() > n)
+                except Exception:
+                    inside = False
+                entry["outside_area_of_use"] = 0 if inside else entry["features"]
+            out.append(entry)
+        return out
+    except Exception:
+        return None
+
+
+def _extent_outliers(map_item: Any, layers: Any) -> list[dict[str, Any]] | None:
+    """Pontos isolados que abrem o recorte (CART079).
+
+    Para cada camada de pontos com 20 pontos ou mais: a caixa dos percentis 1
+    e 99, em x e em y, é o núcleo dos dados; pontos fora dela, com folga de
+    metade do seu tamanho, são isolados. Medido no sistema do quadro.
+    """
+    try:
+        from qgis.core import QgsCoordinateTransform, QgsFeatureRequest, QgsProject  # type: ignore
+
+        out: list[dict[str, Any]] = []
+        for layer in _frame_layers(map_item, layers):
+            if not hasattr(layer, "geometryType") or int(layer.geometryType()) != 0:
+                continue
+            if int(_safe(layer.featureCount, 0) or 0) > 2_000_000:
+                continue
+            transform = QgsCoordinateTransform(layer.crs(), map_item.crs(), QgsProject.instance())
+            xs: list[float] = []
+            ys: list[float] = []
+            for feature in layer.getFeatures(QgsFeatureRequest().setNoAttributes()):
+                geometry = feature.geometry()
+                if geometry is None or geometry.isEmpty():
+                    continue
+                for part in (geometry.asMultiPoint() if geometry.isMultipart() else [geometry.asPoint()]):
+                    try:
+                        q = transform.transform(part)
+                    except Exception:
+                        continue
+                    if math.isfinite(q.x()) and math.isfinite(q.y()):
+                        xs.append(q.x())
+                        ys.append(q.y())
+            if len(xs) < 20:
+                continue
+            sx, sy = sorted(xs), sorted(ys)
+            n = len(xs)
+            x1, x99 = sx[int(0.01 * (n - 1))], sx[int(0.99 * (n - 1))]
+            y1, y99 = sy[int(0.01 * (n - 1))], sy[int(0.99 * (n - 1))]
+            pad_x, pad_y = max((x99 - x1) * 0.5, 1e-9), max((y99 - y1) * 0.5, 1e-9)
+            core = math.hypot(x99 - x1, y99 - y1)
+            full = math.hypot(sx[-1] - sx[0], sy[-1] - sy[0])
+            isolated = [(x, y) for x, y in zip(xs, ys)
+                        if not (x1 - pad_x <= x <= x99 + pad_x and y1 - pad_y <= y <= y99 + pad_y)]
+            out.append({"layer": str(layer.name()), "points": n, "isolated": len(isolated),
+                        "core_diagonal": core, "full_diagonal": full,
+                        "spread_ratio": round(full / core, 2) if core > 0 else None,
+                        "units": str(_safe(lambda: map_item.crs().mapUnits(), "")).split(".")[-1]})
+        return out
+    except Exception:
+        return None
+
+
+def _heatmap_visibility(map_item: Any, layers: Any) -> list[dict[str, Any]] | None:
+    """Que fração dos lugares com pontos o mapa de calor de fato mostra (CART080).
+
+    Os pontos do quadro, em mm, são contados em células do tamanho do raio;
+    a contagem da célula é a densidade local. Uma célula com pontos e menos
+    de ``HEATMAP_VISIBLE_MIN`` do máximo (o da camada, se fixado, senão o da
+    célula mais cheia) quase não pinta. Com um foco de 20.000 registros, os
+    300 espalhados pelo parque sumiam e o mapa tirava nota A.
+    """
+    try:
+        out: list[dict[str, Any]] = []
+        for layer in _frame_layers(map_item, layers):
+            renderer = _safe(layer.renderer) if hasattr(layer, "renderer") else None
+            if renderer is None or str(_safe(renderer.type, "")) != "heatmapRenderer":
+                continue
+            radius = float(renderer.radius())
+            unit = int(_safe(renderer.radiusUnit, 0) or 0)
+            if unit == 1:  # unidades do mapa
+                radius = radius / float(map_item.scale()) * 1000.0
+            elif unit == 2:  # pixels a 96 dpi
+                radius = radius * 25.4 / 96.0
+            radius = max(radius, 0.2)
+            points = frame_points_mm(map_item, layer)
+            if not points:
+                continue
+            cells: dict[tuple[int, int], int] = {}
+            for x, y in points:
+                key = (int(x // radius), int(y // radius))
+                cells[key] = cells.get(key, 0) + 1
+            fixed = float(_safe(renderer.maximumValue, 0.0) or 0.0)
+            peak = fixed if fixed > 0 else float(max(cells.values()))
+            faint = [count for count in cells.values() if count < HEATMAP_VISIBLE_MIN * peak]
+            out.append({"layer": str(layer.name()), "radius_mm": round(radius, 2), "places": len(cells),
+                        "faint_places": len(faint), "faint_points": sum(faint), "points": len(points),
+                        "peak": peak, "max_value_fixed": fixed > 0})
+        return out
+    except Exception:
+        return None
 
 
 def _layer_colours(layers: Any) -> list[dict[str, Any]]:
@@ -1038,6 +1469,43 @@ def _render_layers(map_item: Any, layers: list[Any], width_px: int, labels: bool
     job.waitForFinished()
     painter.end()
     return image
+
+
+def _value_scales(map_item: Any) -> list[dict[str, Any]]:
+    """A régua de cor ou de tamanho de cada camada temática do quadro (CART081).
+
+    Mapa de calor (com o máximo automático ou fixo), classes graduadas (os
+    limites) e símbolo proporcional (o domínio de valores e os tamanhos), com
+    a variável de cada um: é o que dois painéis precisam ter igual para que
+    o leitor compare cor com cor e tamanho com tamanho.
+    """
+    out: list[dict[str, Any]] = []
+    try:
+        for layer in _frame_layers(map_item, None):
+            renderer = _safe(layer.renderer)
+            kind = str(_safe(renderer.type, "") or "") if renderer is not None else ""
+            entry: dict[str, Any] | None = None
+            if kind == "heatmapRenderer":
+                entry = {"kind": "heatmap", "variable": str(_safe(renderer.weightExpression, "") or ""),
+                         "maximum": float(_safe(renderer.maximumValue, 0.0) or 0.0),
+                         "radius": float(_safe(renderer.radius, 0.0) or 0.0)}
+            elif kind == "graduatedSymbol":
+                entry = {"kind": "graduated", "variable": str(_safe(renderer.classAttribute, "") or ""),
+                         "breaks": [round(float(r.lowerValue()), 6) for r in renderer.ranges()]
+                         + [round(float(r.upperValue()), 6) for r in list(renderer.ranges())[-1:]]}
+            elif kind == "singleSymbol":
+                symbol = _safe(renderer.symbol)
+                size = _safe(symbol.dataDefinedSize) if symbol is not None else None
+                transformer = _safe(size.transformer) if size is not None and _safe(size.isActive, False) else None
+                if transformer is not None and hasattr(transformer, "minValue"):
+                    entry = {"kind": "proportional", "variable": str(_safe(size.field, "") or _safe(size.expressionString, "") or ""),
+                             "domain": [float(transformer.minValue()), float(transformer.maxValue())],
+                             "sizes": [float(transformer.minSize()), float(transformer.maxSize())]}
+            if entry is not None:
+                out.append({"layer": str(layer.name()), **entry})
+    except Exception:
+        return out
+    return out
 
 
 def _frame_layers(map_item: Any, layers: list[Any] | None) -> list[Any]:

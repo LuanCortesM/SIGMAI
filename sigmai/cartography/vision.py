@@ -1,17 +1,23 @@
 """Legibilidade das cores por quem tem deficiência na visão de cores.
 
-Revistas pedem figuras legíveis por daltônicos, e cores categóricas são
-exatamente onde uma paleta escolhida à mão falha: verde e laranja parecem
-distintos para quem escolheu e idênticos para 8% dos leitores homens. A
-verificação aqui é determinística e vem da literatura:
+Cores categóricas são exatamente onde uma paleta escolhida à mão falha:
+verde e laranja parecem distintos para quem escolheu e idênticos para quem
+tem deficiência vermelho-verde — 7,9 % dos homens de ascendência europeia,
+segundo a Tabela 1 de Machado et al. (2009). A verificação aqui é
+determinística:
 
-* a simulação da deficiência usa as matrizes de Machado, Oliveira & Fernandes
-  (2009), *A Physiologically-based Model for Simulation of Color Vision
-  Deficiency*, IEEE Transactions on Visualization and Computer Graphics
-  15(6), aplicadas em RGB linear com severidade 1,0 (dicromacia);
-* a distância entre cores é o ΔE*ab (CIE 1976) no espaço CIELAB, calculado
-  sobre a cor simulada. Abaixo de ``CONFUSABLE_DELTA_E`` duas cores de
-  legenda deixam de ser distinguíveis com segurança num mapa impresso.
+* a simulação usa as matrizes de Machado, Oliveira & Fernandes (2009),
+  *A Physiologically-based Model for Simulation of Color Vision Deficiency*,
+  IEEE Transactions on Visualization and Computer Graphics 15(6), tiradas da
+  tabela publicada pelos autores, com severidade 1,0, aplicadas em RGB linear
+  (a linearização é escolha do SIGMAI; o artigo não a especifica). Protanopia
+  e deuteranopia são dicromacias do modelo. A terceira matriz é a
+  tritanomalia de severidade 1,0: o artigo diz que o modelo não se destina à
+  tritanopia, e a chave aqui se chama ``tritanomaly`` por isso;
+* a distância entre cores é o ΔE*ab (CIE 1976) no espaço CIELAB, pelas
+  fórmulas de Robertson (1977), calculado sobre a cor simulada. Abaixo de
+  ``CONFUSABLE_DELTA_E`` — limiar de projeto, não medido com leitores — duas
+  cores de legenda são acusadas como confundíveis.
 
 O módulo é Python puro: pode ser testado sem QGIS e reutilizado pelo
 regulamento (CART070) sobre a observação de qualquer layout.
@@ -21,7 +27,9 @@ from __future__ import annotations
 
 from typing import Iterable
 
-#: Matrizes de Machado et al. (2009), severidade 1,0 — linhas R, G, B.
+#: Matrizes de Machado et al. (2009), severidade 1,0 — linhas R, G, B. A
+#: terceira é a linha "Tritanomaly 1.0" da tabela dos autores, não uma
+#: tritanopia: o modelo deles não se destina à tritanopia.
 CVD_MATRICES: dict[str, tuple[tuple[float, float, float], ...]] = {
     "protanopia": (
         (0.152286, 1.052583, -0.204868),
@@ -33,7 +41,7 @@ CVD_MATRICES: dict[str, tuple[tuple[float, float, float], ...]] = {
         (0.280085, 0.672501, 0.047413),
         (-0.011820, 0.042940, 0.968881),
     ),
-    "tritanopia": (
+    "tritanomaly": (
         (1.255528, -0.076749, -0.178779),
         (-0.078411, 0.930809, 0.147602),
         (0.004733, 0.691367, 0.303900),
@@ -85,7 +93,13 @@ def simulate(rgb: tuple[float, float, float], deficiency: str) -> tuple[float, f
 
 
 def to_lab(rgb: tuple[float, float, float]) -> tuple[float, float, float]:
-    """sRGB (0..1) → CIELAB, iluminante D65 (observador 2°)."""
+    """sRGB (0..1) → CIELAB, iluminante D65 (observador 2°).
+
+    L*, a* e b* seguem as equações 7–8 de Robertson (1977). O trecho linear
+    abaixo de 0,008856 é a extensão para cores muito escuras que Robertson só
+    menciona em nota (proposta de Pauli, 1976), e a passagem de sRGB a XYZ
+    segue a definição do sRGB; nenhuma das duas vem de Robertson.
+    """
     r, g, b = (_to_linear(c) for c in rgb)
     x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047
     y = (0.2126729 * r + 0.7151522 * g + 0.0721750 * b) / 1.00000

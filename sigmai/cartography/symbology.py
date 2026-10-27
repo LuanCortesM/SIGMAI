@@ -39,17 +39,18 @@ OKABE_ITO = (
 #: Até a 1.0.3 todo preenchimento era o matiz clareado 82 % — e a própria
 #: regra CART070 reprovava o mapa que o SIGMAI compunha: perto do branco os
 #: matizes convergem e, nas simulações de Machado, Oliveira & Fernandes
-#: (2009), azul-claro e verde-claro ficam a ΔE*ab 2,9 sob tritanopia. O que
+#: (2009), azul-claro e verde-claro ficam a ΔE*ab 2,9 sob tritanomalia. O que
 #: sobrevive à simulação é a diferença de luminosidade, não a de matiz; a
 #: sequência abaixo alterna claridades e matizes de eixos opostos, e os
-#: quatro primeiros preenchimentos ficam a ΔE*ab ≥ 19 entre si em qualquer
-#: das três simulações (o quinto cai a 14 — com cinco camadas de polígono
-#: sobrepostas o aviso da regra é legítimo e o remédio são padrões).
-#: A figura (assunto) recebe o laranja mais firme; o fundo, azul quase branco.
+#: cinco primeiros preenchimentos ficam a ΔE*ab ≥ 15,9 entre si em qualquer
+#: das três simulações (acima do limiar de 15 da regra).
+#: A figura (assunto) recebe o laranja mais firme; o fundo, cinza quase branco:
+#: o azul-claro de antes fazia os municípios em volta de um parque parecerem
+#: mar.
 POLYGON_FILLS: tuple[tuple[str, float], ...] = (
     ("#D55E00", 0.45),  # assunto: laranja firme
-    ("#0072B2", 0.85),  # contexto: azul quase branco
-    ("#E69F00", 0.75),  # amarelo claro
+    ("#6E6259", 0.85),  # contexto: cinza quase branco, levemente quente (azul-claro se lia como água)
+    ("#E69F00", 0.65),  # âmbar claro (a 0,75 se confundia com o cinza do contexto sob tritanomalia)
     ("#009E73", 0.40),  # verde-azulado médio
     ("#56B4E9", 0.45),  # azul claro médio
     ("#CC79A7", 0.60),  # rosa
@@ -68,8 +69,8 @@ GEOMETRY_DEFAULTS: dict[str, dict[str, Any]] = {
 
 #: Modos de cor da composição. ``"greyscale"`` existe porque periódicos
 #: imprimem em tons de cinza e cobram a cor impressa: a *Transactions in GIS*
-#: pede gráficos de linha em preto e branco e cobra £150 pela primeira figura
-#: colorida no papel. Um mapa colorido convertido depois perde a distinção
+#: prefere gráficos de linha em preto e branco e cobra £150 pela primeira
+#: figura colorida no papel. Um mapa colorido convertido depois perde a distinção
 #: entre preenchimentos de mesma luminosidade; composto em cinza, não.
 COLOUR_MODES: tuple[str, ...] = ("colour", "greyscale")
 _COLOUR_MODE_ALIASES = {
@@ -680,6 +681,25 @@ def _tint(hex_color: str, amount: float) -> str:
     fator = max(0.0, min(1.0, amount))
     claros = [round(canal + (255 - canal) * fator) for canal in canais]
     return "#" + "".join(f"{canal:02X}" for canal in claros)
+
+
+def shade(hex_color: str, amount: float) -> str:
+    """Escurece uma cor em direção ao preto, mantendo o matiz; ``amount`` 0 a devolve, 1 dá preto."""
+    texto = hex_color.lstrip("#")
+    if len(texto) != 6:
+        return hex_color
+    try:
+        canais = [int(texto[i:i + 2], 16) for i in (0, 2, 4)]
+    except ValueError:
+        return hex_color
+    fator = 1.0 - max(0.0, min(1.0, amount))
+    return "#" + "".join(f"{round(canal * fator):02X}" for canal in canais)
+
+
+#: Contorno dos círculos proporcionais: a cor do preenchimento, escurecida.
+#: Era branco, e onde muitos círculos se sobrepunham os contornos formavam uma
+#: mancha clara — o lugar com mais registros parecia o mais vazio.
+PROPORTIONAL_OUTLINE_SHADE = 0.45
 
 
 def _build_symbol(kind: str, style: dict[str, Any], accent: str, imports: dict[str, Any]) -> Any:
