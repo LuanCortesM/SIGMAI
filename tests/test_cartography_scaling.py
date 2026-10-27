@@ -7,6 +7,7 @@ from sigmai.cartography.scaling import (
     ExtentError,
     choose_publication_scale,
     fit_extent_to_frame,
+    graticule_decimals,
     graticule_interval,
     nice_number,
     round_scale,
@@ -133,6 +134,14 @@ class ScaleBarTests(unittest.TestCase):
         spec = scalebar_spec(250_000, 176.0)
         self.assertIn(spec.units_per_segment / (10 ** len(str(int(spec.units_per_segment))[1:])), (1.0, 2.0, 2.5, 5.0))
 
+    def test_journal_figure_bar_starts_at_zero(self):
+        """Figura de periódico: sem o segmento à esquerda do zero, convenção das folhas topográficas."""
+        for denominator in (25_000, 250_000, 1_000_000):
+            with self.subTest(scale=denominator):
+                self.assertEqual(scalebar_spec(denominator, 130.0, left_segment=False).segments_left, 0)
+                folha = scalebar_spec(denominator, 130.0)
+                self.assertEqual(folha.segments_left, 1 if folha.segments_right >= 4 else 0)
+
     def test_uses_metres_below_a_kilometre(self):
         self.assertEqual(scalebar_spec(2_000, 176.0).unit, "m")
 
@@ -160,6 +169,20 @@ class GraticuleTests(unittest.TestCase):
         # SIGMAI 0.1.1 nunca aparecer no papel.
         for span in (0.0001, 1, 1000, 5_000_000):
             self.assertGreater(graticule_interval(span, 4), 0)
+
+    def test_decimals_follow_the_interval(self):
+        # Três casas em graus faziam "90.000" num mapa-múndi de 30°.
+        self.assertEqual(graticule_decimals(30.0, geographic=True), 0)
+        self.assertEqual(graticule_decimals(0.5, geographic=True), 1)
+        self.assertEqual(graticule_decimals(0.25, geographic=True), 2)
+        self.assertEqual(graticule_decimals(5 / 60, geographic=True), 3)
+        self.assertEqual(graticule_decimals(10_000, geographic=False), 0)
+
+    def test_every_degree_interval_has_bounded_decimals(self):
+        from sigmai.cartography.scaling import DEGREE_INTERVALS
+
+        for interval in DEGREE_INTERVALS:
+            self.assertIn(graticule_decimals(interval, geographic=True), (0, 1, 2, 3))
 
 
 if __name__ == "__main__":

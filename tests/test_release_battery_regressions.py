@@ -97,7 +97,8 @@ class GradeFantasmaNaInspecao(unittest.TestCase):
     def test_grade_existente_continua_sendo_lida(self) -> None:
         quadro = _Quadro([_Grade(enabled=True, interval=1000.0, annotations=True)])
         info = _observe_map(quadro, None, None)
-        self.assertEqual(info["grid"], {"enabled": True, "interval_x": 1000.0, "interval_y": 1000.0, "annotations": True})
+        self.assertEqual(info["grid"], {"enabled": True, "interval_x": 1000.0, "interval_y": 1000.0, "annotations": True,
+                                        "graticule": False})
 
     def test_existing_grid_devolve_none_sem_pilha(self) -> None:
         class SemPilha:
@@ -216,6 +217,9 @@ class SeparadorDeMilharPorLingua(unittest.TestCase):
             with self.subTest(lingua=lingua):
                 self.assertIn("separador_milhar", tabela)
                 self.assertEqual(len(tabela["separador_milhar"]), 1)
+                self.assertIn("separador_decimal", tabela)
+                self.assertIn(tabela["separador_decimal"], (",", "."))
+                self.assertNotEqual(tabela["separador_decimal"], tabela["separador_milhar"])
 
     def test_separadores_batem_com_o_cldr_via_qlocale(self) -> None:
         """Verificação independente contra os dados do CLDR embutidos no Qt.
@@ -231,6 +235,7 @@ class SeparadorDeMilharPorLingua(unittest.TestCase):
         for lingua, nome in locales.items():
             with self.subTest(lingua=lingua):
                 self.assertEqual(QLocale(nome).groupSeparator(), MAP_TEXT[lingua]["separador_milhar"])
+                self.assertEqual(QLocale(nome).decimalPoint(), MAP_TEXT[lingua]["separador_decimal"])
 
 
 class CaminhoDeSaidaDeOutroSistemaOuRelativo(unittest.TestCase):

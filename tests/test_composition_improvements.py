@@ -282,6 +282,33 @@ class ContextoDerivadoNoQgis(unittest.TestCase):
         from qgis.core import QgsProject
 
         self.assertEqual(len(QgsProject.instance().mapLayers()), 1)
+        nomeada = add_context_annotations({"boundary_layer_id": layer.id(), "boundary_name": "State boundary"},
+                                          {"dry_run": True})
+        self.assertEqual(nomeada["boundary_layer"], "State boundary")
+
+    def test_nomes_na_parte_que_aparece_em_volta_da_area(self):
+        """O nome do estado ia para o centro do estado, fora do quadro de um mapa de localização."""
+        from qgis.core import QgsFeature, QgsGeometry, QgsProject, QgsRectangle, QgsVectorLayer
+
+        from sigmai.qgis_actions.context_annotations import add_context_annotations
+
+        estados = self._estados()
+        area = QgsVectorLayer("Polygon?crs=EPSG:31984", "Parque", "memory")
+        f = QgsFeature()
+        f.setGeometry(QgsGeometry.fromRect(QgsRectangle(900, 450, 1100, 550)))
+        area.dataProvider().addFeatures([f])
+        area.updateExtents()
+        QgsProject.instance().addMapLayer(area)
+        resultado = add_context_annotations({"boundary_layer_id": estados.id(), "label_field": "nome", "dissolve": False,
+                                             "include_boundary": False, "label_within_layer_id": area.id()},
+                                            {"dry_run": False})
+        nomes = QgsProject.instance().mapLayer(resultado["created_layers"][0]["id"])
+        janela = QgsRectangle(850, 425, 1150, 575)
+        pontos = [g.geometry().asPoint() for g in nomes.getFeatures()]
+        self.assertEqual(len(pontos), 2)
+        self.assertTrue(all(janela.contains(p) for p in pontos), pontos)
+        parque = QgsRectangle(900, 450, 1100, 550)
+        self.assertFalse(any(parque.contains(p) for p in pontos), pontos)
 
     def test_cria_divisa_e_nomes_por_feicao(self):
         from qgis.core import QgsProject
