@@ -193,7 +193,7 @@ Developed by Luan da Silva Cortes Maciel as a research product associated with H
 @software{maciel_sigmai,
   author  = {Maciel, Luan da Silva Cortes},
   title   = {{SIGMAI}: Secure {GIS}-{AI} Interface},
-  version = {1.3.0},
+  version = {1.3.1},
   doi     = {10.5281/zenodo.20389286},
   url     = {https://github.com/LuanCortesM/SIGMAI},
   license = {MIT}
