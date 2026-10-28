@@ -1,7 +1,7 @@
 [general]
 name=SIGMAI
 description=Secure local bridge between AI assistants and QGIS, with cartographic quality control.
-version=1.3.0
+version=1.3.1
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=MACIEL, L. S. C.
@@ -16,7 +16,15 @@ homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=MIT
-changelog=1.3.0
+changelog=1.3.1
+    - A auditoria mede pontos, rampas e mapas de calor em todos os painéis de uma figura de comparação, não só no primeiro.
+    - Figura de periódico com dados em graus: a altura da página sai do recorte já projetado.
+    - Recompor pela receita não regrava a receita original nem sobrescreve o mapa original, e mantém o sistema de referência gravado.
+    - Parágrafo de Métodos: diz onde a receita ficou (no PDF ela não vai dentro do arquivo), cita pela língua e dá o DOI do Zenodo.
+    - Novo comando rename_layer; load_qml_style e save_qml_style informam o resultado certo.
+    - Opacidade de pontos e linhas no símbolo (o PDF continua vetorial); fill_opacity vale para pontos.
+    - Legenda de círculos com valores que não se sobrepõem, sem título quando pedido, e sem se dividir entre colunas.
+    1.3.0
     - Símbolo de ponto ajustado ao quadro: menor e semitransparente quando os pontos cobririam o que está embaixo.
     - Nova regra CART076 (aviso): pontos que escondem quantos registros há em cada lugar.
     - Novos comandos count_points_by_site e apply_proportional_symbol_style (um símbolo por local, com área proporcional ao número de registros, locais agrupados na escala do mapa); apply_single_symbol aceita size_mm.

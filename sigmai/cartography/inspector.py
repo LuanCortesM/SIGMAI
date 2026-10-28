@@ -143,6 +143,7 @@ def observe_layout(
 
     _infer_roles(pairs)
 
+    map_frames: list[tuple[Any, str]] = []
     for item, entry in pairs:
         item_id = entry["id"]
         observation["items"].append(entry)
@@ -158,6 +159,7 @@ def observe_layout(
             if label_results and item_id in label_results:
                 frame_entry["labels"] = label_results[item_id]
             observation["map_frames"].append(frame_entry)
+            map_frames.append((item, item_id))
             # Num layout de comparação há dois itens de mapa; o laudo se refere
             # ao principal, identificado pelo id — ou, sem ids, ao maior quadro
             # (_infer_roles já rebaixou os menores a inserto).
@@ -182,6 +184,13 @@ def observe_layout(
         observation["map"]["rendered_ink_grid"] = ink_grid
         if label_results and observation["map"]["item_id"] in label_results:
             observation["map"]["labels"] = label_results[observation["map"]["item_id"]]
+        # Os outros painéis de uma comparação também são mapas: pontos
+        # amontoados, rampa e mapa de calor de cada um entram no laudo. Antes, a
+        # CART076 só media o primeiro painel, e o painel B passava sem medida.
+        for item, frame_id in map_frames:
+            if item is map_item:
+                continue
+            _merge_frame_measures(observation["map"], item, frame_id)
     if inset_item is not None:
         observation["inset"] = _observe_inset(inset_item, map_item)
         observation["inset"]["item_id"] = ids.get(id(inset_item), observation["inset"]["item_id"])
@@ -655,6 +664,20 @@ def _sites_of(layer: Any) -> str:
         return str(layer.customProperty(SITES_OF_PROPERTY, "") or "")
     except Exception:
         return ""
+
+
+def _merge_frame_measures(main: dict[str, Any], item: Any, frame_id: str) -> None:
+    """Junta às medidas do quadro principal as de outro painel, cada entrada marcada com o quadro."""
+    layers = _safe(item.layers, []) or []
+    measures = {"point_stacking": _point_stacking, "raster_ramps": _raster_ramps,
+                "heatmap_visibility": _heatmap_visibility}
+    for key, measure in measures.items():
+        extra = measure(item, layers)
+        if not extra:
+            continue
+        for entry in extra:
+            entry["frame"] = frame_id
+        main[key] = list(main.get(key) or []) + list(extra)
 
 
 def _point_stacking(map_item: Any, layers: Any) -> list[dict[str, Any]] | None:

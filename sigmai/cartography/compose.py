@@ -1496,11 +1496,8 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         frame = plan.map_frame()
         orientation_auto = False
         print_width_mm = float(figure_width)
-        notes.append(
-            f"Figura para periódico: página de {page.width_mm:g} x {page.height_mm:g} mm (largura final impressa"
-            + (f", coluna {params.get('journal_column')}" if params.get("journal_column") else "")
-            + f"), template {template!r}, fontes de pelo menos {MIN_FONT_PT:g} pt nessa largura."
-        )
+        figure_note_index = len(notes)
+        notes.append(_figure_page_note(page, params, template))
 
     auto_projected_crs, auto_projected_note = as_flag(params, "auto_projected_crs", True)
     if auto_projected_note:
@@ -1534,6 +1531,18 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
             map_crs = projected
             map_crs_label = label
             extent = _combined_extent(extent_layers, map_crs, imports)
+            if figure_shape is not None and figure_shape[1] is None:
+                # A altura da figura casava o quadro com o recorte em graus; no
+                # mapa projetado a proporção é outra (a 22° de latitude, um grau
+                # de longitude mede 0,92 de um de latitude), e o mapa ganhava uma
+                # faixa de sobra. Com map_crs explícito a altura já saía certa, e
+                # recompor pela receita dava outra figura.
+                page, plan = _solve_figure_page(figure_shape[0], None, figure_shape[2], figure_shape[3], extent,
+                                                layout_request)
+                figure_shape = (figure_shape[0], None, figure_shape[2], figure_shape[3], extent)
+                layout_request["page"] = page
+                frame = plan.map_frame()
+                notes[figure_note_index] = _figure_page_note(page, params, template)
             if editorial_projection:
                 notes.append(f"map_crs=\"auto\": o mapa foi projetado em {label}, escolhida pelo recorte"
                              + (", com a grade em graus." if graticule else "."))
@@ -2341,6 +2350,12 @@ def _resolve_figure_width(params: dict[str, Any]) -> float | None:
         if width is None:
             width = JOURNAL_COLUMNS[column]
     return float(width) if width is not None else None
+
+
+def _figure_page_note(page: Any, params: dict[str, Any], template: str) -> str:
+    return (f"Figura para periódico: página de {page.width_mm:g} x {page.height_mm:g} mm (largura final impressa"
+            + (f", coluna {params.get('journal_column')}" if params.get("journal_column") else "")
+            + f"), template {template!r}, fontes de pelo menos {MIN_FONT_PT:g} pt nessa largura.")
 
 
 def _solve_figure_page(
@@ -3442,6 +3457,22 @@ def _wrap_class_labels(model: Any, node: Any, layout: Any, imports: dict[str, An
         return False
 
 
+def _has_size_legend(legend: Any) -> bool:
+    """A legenda tem um símbolo proporcional? O título e os círculos aninhados dele não vão para colunas diferentes.
+
+    Com a camada dividida entre colunas, uma figura do exemplo do artigo saiu
+    com "Records per site" numa coluna e os círculos na outra.
+    """
+    try:
+        for node in legend.model().rootGroup().findLayers():
+            renderer = node.layer().renderer() if node.layer() is not None and hasattr(node.layer(), "renderer") else None
+            if renderer is not None and hasattr(renderer, "dataDefinedSizeLegend") and renderer.dataDefinedSizeLegend():
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def _legend_content_size_mm(legend: Any) -> tuple[float, float] | None:
     """Tamanho mínimo (mm) que o conteúdo da legenda precisa para ser desenhado inteiro."""
     try:
@@ -3777,7 +3808,7 @@ def _legend_need_mm(
             legend.setWrapString(LEGEND_WRAP)
             _merge_identical_legends(legend, imports, layout, plan)
             legend.setColumnCount(columns)
-            legend.setSplitLayer(True)
+            legend.setSplitLayer(not _has_size_legend(legend))
             legend.setEqualColumnWidth(True)
             _set_legend_font(legend, imports, float(plan.fonts["legend"]))
             legend.updateLegend()
@@ -3901,7 +3932,7 @@ def _add_legend(
         legend.setResizeToContents(False)
         # Colunas: uma coluna estreita com muitas entradas transborda a caixa.
         legend.setColumnCount(1)
-        legend.setSplitLayer(True)
+        legend.setSplitLayer(not _has_size_legend(legend))
         legend.setEqualColumnWidth(True)
     except Exception:
         pass

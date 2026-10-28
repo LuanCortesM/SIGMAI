@@ -133,6 +133,27 @@ class NoQgis(unittest.TestCase):
                 self.assertEqual((plano["min"], plano["max"]), (1.0, 500.0))
             self.assertEqual(self._status(self._compor(pasta, a, b)), rulebook.STATUS_PASSED)
 
+    def test_cart076_mede_tambem_o_segundo_painel(self):
+        """O laudo media os pontos só no primeiro painel: no exemplo do artigo, o painel B não tinha medida."""
+        from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsProject, QgsVectorLayer
+
+        poucos = self._locais("Poucos", 20, 1, campo=False)
+        amontoados = QgsVectorLayer("Point?crs=EPSG:31983", "Amontoados", "memory")
+        feats = []
+        for i in range(3000):
+            f = QgsFeature(amontoados.fields())
+            x, y = (522000, 7516000) if i % 3 == 0 else (544000, 7534000) if i % 3 == 1 else (533000, 7525000)
+            f.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(x + (i % 7), y + (i % 5))))
+            feats.append(f)
+        amontoados.dataProvider().addFeatures(feats)
+        amontoados.updateExtents()
+        QgsProject.instance().addMapLayer(amontoados)
+        with pasta_temporaria() as pasta:
+            resultado = self._compor(pasta, poucos, amontoados)
+        cart076 = next(r for r in resultado["audit"]["results"] if r["id"] == "CART076")
+        self.assertEqual(cart076["status"], rulebook.STATUS_FAIL, cart076)
+        self.assertIn("(painel 2)", cart076["detail_pt"])
+
 
 if __name__ == "__main__":
     unittest.main()
