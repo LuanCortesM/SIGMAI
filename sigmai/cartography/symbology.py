@@ -701,6 +701,51 @@ def shade(hex_color: str, amount: float) -> str:
 #: mancha clara — o lugar com mais registros parecia o mais vazio.
 PROPORTIONAL_OUTLINE_SHADE = 0.45
 
+#: Distância mínima, em mm, entre os diâmetros de dois círculos vizinhos na legenda
+#: aninhada: os rótulos ficam no topo de cada círculo, e a 7 pt uma linha tem uns 2,5 mm.
+SIZE_LEGEND_GAP_MM = 2.5
+
+
+def proportional_size_mm(value: float, minimum: float, maximum: float, min_size: float, max_size: float) -> float:
+    """Diâmetro do círculo de área proporcional (o QgsSizeScaleTransformer de área, expoente 0,5)."""
+    if maximum <= minimum:
+        return max_size
+    share = min(1.0, max(0.0, (value - minimum) / (maximum - minimum)))
+    return min_size + (max_size - min_size) * share ** 0.5
+
+
+def size_legend_values(minimum: float, maximum: float, min_size: float, max_size: float,
+                       gap_mm: float = SIZE_LEGEND_GAP_MM) -> list[float]:
+    """Valores da legenda de círculos aninhados: o máximo e valores redondos (1, 2, 5 × 10ⁿ) cujos círculos
+    ficam a pelo menos ``gap_mm`` um do outro, no máximo três.
+
+    Com área proporcional, os círculos dos valores pequenos quase não diferem: na
+    figura dos registros do GBIF no Itatiaia, as classes 1 e 100 davam 1,0 e
+    1,3 mm, e os rótulos se sobrepunham.
+    """
+    if maximum <= minimum:
+        return [maximum]
+    candidates: list[float] = []
+    power = 1.0
+    while power * 10 <= maximum:
+        power *= 10
+    while power >= 1e-6 and len(candidates) < 40:
+        for mantissa in (5, 2, 1):
+            value = mantissa * power
+            if minimum <= value < maximum:
+                candidates.append(value)
+        power /= 10
+    chosen = [maximum]
+    last = proportional_size_mm(maximum, minimum, maximum, min_size, max_size)
+    for value in candidates:
+        size = proportional_size_mm(value, minimum, maximum, min_size, max_size)
+        if last - size >= gap_mm:
+            chosen.append(value)
+            last = size
+        if len(chosen) == 3:
+            break
+    return sorted(chosen)
+
 
 def _build_symbol(kind: str, style: dict[str, Any], accent: str, imports: dict[str, Any]) -> Any:
     if kind == "Polygon":

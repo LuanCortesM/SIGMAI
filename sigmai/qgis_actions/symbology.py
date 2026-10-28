@@ -5,7 +5,9 @@ from typing import Any
 
 from ..cartography.qtcompat import geometry_type as _geometry_type
 from ..security import ensure_parent_exists, normalize_output_path, reject_existing_path_without_confirmation
-from ..cartography.symbology import PROPORTIONAL_OUTLINE_SHADE, STYLE_ORIGIN_USER, mark_style_origin, shade, style_origin
+from ..cartography.symbology import (
+    PROPORTIONAL_OUTLINE_SHADE, STYLE_ORIGIN_USER, mark_style_origin, shade, size_legend_values, style_origin,
+)
 from ..validators import ValidationError, require_param
 from .common import layer_type_name, project
 
@@ -137,6 +139,19 @@ def _symbol_for_layer(
     return symbol
 
 
+def _set_marker_alphas(symbol: Any, params: dict[str, Any], imports: dict[str, Any]) -> None:
+    """fill_opacity e stroke_opacity pedidos explicitamente valem para o marcador (o preenchimento e o contorno)."""
+    marker = symbol.symbolLayer(0) if symbol.symbolLayerCount() else None
+    if marker is None:
+        return
+    for key, getter, setter in (("fill_opacity", "color", "setColor"), ("stroke_opacity", "strokeColor", "setStrokeColor")):
+        if key not in params or not hasattr(marker, setter):
+            continue
+        colour = imports["QColor"](getattr(marker, getter)())
+        colour.setAlphaF(_opacity_param(params, key, 1.0))
+        getattr(marker, setter)(colour)
+
+
 def _set_opacity(layer: Any, opacity: float) -> None:
     try:
         layer.setOpacity(max(0.0, min(1.0, float(opacity))))
@@ -175,9 +190,18 @@ def apply_single_symbol(params: dict[str, Any], context: dict[str, Any]):
         }
     imports = _imports()
     symbol = _symbol_for_layer(layer, fill, stroke, stroke_width, fill_opacity, stroke_opacity, outline_only, size)
+    if layer.geometryType() != _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Polygon"):
+        # Em ponto e linha, a opacidade vai para o símbolo, e não para a camada:
+        # uma camada semitransparente pode levar o QGIS a rasterizar o mapa no
+        # PDF; e fill_opacity, que o marcador ignorava, vale para o preenchimento.
+        symbol.setOpacity(opacity)
+        if layer.geometryType() == _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Point"):
+            _set_marker_alphas(symbol, params, imports)
+        elif "stroke_opacity" in params:
+            symbol.setColor(_qcolor(stroke, stroke_opacity))
     layer.setRenderer(imports["QgsSingleSymbolRenderer"](symbol))
     mark_style_origin(layer, STYLE_ORIGIN_USER)
-    _set_opacity(layer, opacity if layer.geometryType() != _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Polygon") else 1.0)
+    _set_opacity(layer, 1.0)
     layer.triggerRepaint()
     return {
         "layer_id": layer.id(),
@@ -505,19 +529,6 @@ def apply_heatmap_style(params: dict[str, Any], context: dict[str, Any]):
     return plan
 
 
-def _legend_classes(minimum: float, maximum: float) -> list[float]:
-    """Valores da legenda de tamanhos: potências de 10 entre o mínimo e o máximo, mais o máximo."""
-    values: list[float] = []
-    step = 1.0
-    while step < maximum:
-        if step >= minimum:
-            values.append(step)
-        step *= 10.0
-    if len(values) > 3:  # círculos aninhados: mais de quatro não se leem
-        values = [values[0], values[len(values) // 2], values[-1]]
-    return values + [maximum] if not values or values[-1] != maximum else values
-
-
 def apply_proportional_symbol_style(params: dict[str, Any], context: dict[str, Any]):
     """Símbolo de ponto com área proporcional a um campo numérico, com legenda de tamanhos.
 
@@ -563,12 +574,14 @@ def apply_proportional_symbol_style(params: dict[str, Any], context: dict[str, A
     opacity = _opacity_param(params, "opacity", 0.75)
     outline = str(params.get("outline_color") or shade(colour, PROPORTIONAL_OUTLINE_SHADE))
     outline_width = float(params.get("outline_width_mm", 0.2))
-    classes = params.get("legend_classes") or _legend_classes(minimum, maximum)
+    classes = params.get("legend_classes") or size_legend_values(minimum, maximum, min_size, max_size)
     try:
         classes = sorted({float(c) for c in classes if minimum <= float(c) <= maximum})
     except Exception as exc:
         raise ValidationError("BAD_REQUEST", "legend_classes precisa ser uma lista de números.", {}) from exc
-    title = str(params.get("legend_title") or field_name)
+    # legend_title vazio é pedido de legenda sem título (o nome da camada já
+    # diz o que os círculos contam); antes ele virava o nome do campo.
+    title = str(params["legend_title"] or "").strip() if "legend_title" in params else field_name
     from ..cartography.maptext import resolve_language
 
     language, _known = resolve_language(str(params.get("map_language") or "pt-BR"))
@@ -780,8 +793,20 @@ def save_qml_style(params: dict[str, Any], context: dict[str, Any]):
         raise ValidationError("OVERWRITE_BLOCKED", str(exc), {"path": str(path)}) from exc
     if context.get("dry_run"):
         return {"dry_run": True, "layer_id": layer.id(), "output_path": str(path)}
-    ok, message = layer.saveNamedStyle(str(path))
-    return {"layer_id": layer.id(), "output_path": str(path), "saved": bool(ok), "message": message}
+    ok, message = _style_result(layer.saveNamedStyle(str(path)))
+    return {"layer_id": layer.id(), "output_path": str(path), "saved": ok, "message": message}
+
+
+def _style_result(result: Any) -> tuple[bool, str]:
+    """(sucesso, mensagem) de loadNamedStyle/saveNamedStyle, que o PyQGIS devolve como (mensagem, sucesso).
+
+    Lido na ordem inversa, o estilo carregado saía como não carregado e não era
+    marcado como do usuário, e a composição podia trocá-lo pela paleta.
+    """
+    first, second = result
+    if isinstance(first, bool):
+        return first, str(second or "")
+    return bool(second), str(first or "")
 
 
 def load_qml_style(params: dict[str, Any], context: dict[str, Any]):
@@ -791,11 +816,11 @@ def load_qml_style(params: dict[str, Any], context: dict[str, Any]):
         raise ValidationError("FILE_NOT_FOUND", "QML style file not found.", {"path": str(path)})
     if context.get("dry_run"):
         return {"dry_run": True, "layer_id": layer.id(), "path": str(path)}
-    ok, message = layer.loadNamedStyle(str(path))
+    ok, message = _style_result(layer.loadNamedStyle(str(path)))
     if ok:
         mark_style_origin(layer, STYLE_ORIGIN_USER)
     layer.triggerRepaint()
-    return {"layer_id": layer.id(), "path": str(path), "loaded": bool(ok), "message": message}
+    return {"layer_id": layer.id(), "path": str(path), "loaded": ok, "message": message}
 
 
 def recommend_style_for_layer(params: dict[str, Any], context: dict[str, Any]):

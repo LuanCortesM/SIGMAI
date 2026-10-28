@@ -105,6 +105,28 @@ def list_duplicate_layers(params: dict[str, Any], context: dict[str, Any]):
     return {"duplicate_group_count": len(groups), "duplicate_layer_count": sum(group["count"] for group in groups), "groups": groups}
 
 
+#: Nomes de camada maiores que isto não cabem numa legenda.
+LAYER_NAME_MAX_CHARS = 200
+
+
+def rename_layer(params: dict[str, Any], context: dict[str, Any]):
+    """Muda o nome da camada, que é o que a legenda do mapa mostra.
+
+    Sem este comando, o assistente do exemplo do artigo recarregou os arquivos
+    com outro nome só para trocar o texto da legenda.
+    """
+    layer = _layer(require_param(params, "layer_id", str))
+    name = str(require_param(params, "name", str)).strip()
+    if not name or len(name) > LAYER_NAME_MAX_CHARS:
+        raise ValidationError("BAD_REQUEST", f"name precisa ter de 1 a {LAYER_NAME_MAX_CHARS} caracteres.",
+                              {"name": params.get("name")})
+    plan = {"layer_id": layer.id(), "old_name": layer.name(), "new_name": name}
+    if context.get("dry_run"):
+        return {"dry_run": True, **plan}
+    layer.setName(name)
+    return plan
+
+
 def remove_layer(params: dict[str, Any], context: dict[str, Any]):
     layer_id = require_param(params, "layer_id", str)
     _layer(layer_id)

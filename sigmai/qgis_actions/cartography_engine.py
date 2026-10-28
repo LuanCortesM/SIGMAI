@@ -502,6 +502,22 @@ def _relink_recipe_layers(remapped: dict[str, str]) -> None:
                 pass
 
 
+def _recipe_projected_crs(recipe: dict[str, Any]) -> str:
+    """O código do CRS projetado do mapa original ("EPSG:31983"), ou "" se ele era geográfico ou sem código."""
+    import re
+
+    code = str(recipe.get("map_crs") or "").strip()
+    if not re.fullmatch(r"[A-Za-z]+:\d+", code):
+        return ""
+    try:
+        from qgis.core import QgsCoordinateReferenceSystem  # type: ignore
+
+        crs = QgsCoordinateReferenceSystem(code)
+        return code if crs.isValid() and not crs.isGeographic() else ""
+    except Exception:
+        return ""
+
+
 def recompose_from_recipe(params: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
     """Refaz um mapa a partir da receita, com os mesmos parâmetros e ``overrides`` opcionais."""
     from ..cartography.recipe import data_changes
@@ -589,6 +605,18 @@ def recompose_from_recipe(params: dict[str, Any], context: dict[str, Any]) -> di
         compose_params["layout_name"] = recipe["layout_name"]
 
     notes = []
+    # A permissão de sobrescrever e o caminho da receita valiam para o mapa
+    # original: herdados, a recomposição regravava a receita de origem por cima
+    # (e o mapa, se ninguém mudasse output_path). Só valem se vierem em overrides.
+    for key in ("recipe_path", "confirm_overwrite"):
+        if key not in overrides:
+            compose_params.pop(key, None)
+    # O sistema de referência do mapa original vai junto: escolhido de novo, ele
+    # dependia do projeto em que se recompõe (WGS 84 em vez de SIRGAS 2000).
+    pinned = _recipe_projected_crs(recipe) if "map_crs" not in overrides and not compose_params.get("map_crs") else ""
+    if pinned:
+        compose_params["map_crs"] = pinned
+        notes.append(f"Sistema de referência da receita mantido: {pinned}.")
     changes = data_changes(recipe)
     if changes:
         notes.append("Os dados mudaram desde a receita: " + "; ".join(changes) + ". O mapa recomposto reflete os dados atuais.")

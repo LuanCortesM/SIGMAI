@@ -155,6 +155,7 @@ def register_actions(registry):
     registry.register("inspect_postgis_layer", data_sources.inspect_postgis_layer)
     registry.register("list_layer_tree", layer_tree.list_layer_tree)
     registry.register("list_duplicate_layers", layer_tree.list_duplicate_layers)
+    registry.register("rename_layer", layer_tree.rename_layer)
     registry.register("remove_layer", layer_tree.remove_layer)
     registry.register("remove_layers_by_name", layer_tree.remove_layers_by_name)
     registry.register("remove_layers_by_source_path", layer_tree.remove_layers_by_source_path)

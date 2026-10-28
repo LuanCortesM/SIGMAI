@@ -157,6 +157,7 @@ COMMAND_PERMISSIONS: dict[str, CommandPermission] = {
     "set_layer_encoding": CommandPermission("set_layer_encoding", "layers", SAFE_WRITE, supports_dry_run=True),
     "list_layer_tree": CommandPermission("list_layer_tree", "layer_tree", READ_ONLY),
     "list_duplicate_layers": CommandPermission("list_duplicate_layers", "layer_tree", READ_ONLY),
+    "rename_layer": CommandPermission("rename_layer", "layer_tree", SAFE_WRITE, supports_dry_run=True),
     "remove_layer": CommandPermission("remove_layer", "layer_tree", SAFE_WRITE, supports_dry_run=True),
     "remove_layers_by_name": CommandPermission("remove_layers_by_name", "layer_tree", SAFE_WRITE, supports_dry_run=True),
     "remove_layers_by_source_path": CommandPermission("remove_layers_by_source_path", "layer_tree", SAFE_WRITE, supports_dry_run=True),

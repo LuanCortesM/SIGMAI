@@ -279,6 +279,54 @@ class ReceitaNoQgis(unittest.TestCase):
             self.assertTrue(any("recarregadas da receita" in n for n in rr["notes"]), rr["notes"])
             self.assertEqual(len(projeto.mapLayersByName("Quadrado")), 2)
 
+    def test_recompor_nao_regrava_a_receita_nem_o_mapa_e_mantem_o_crs(self):
+        """No exemplo do artigo, recompor regravou o JSON da receita original por cima e trocou SIRGAS 2000 por WGS 84."""
+        from qgis.core import (
+            QgsCoordinateReferenceSystem, QgsFeature, QgsGeometry, QgsProject, QgsRectangle, QgsVectorFileWriter,
+            QgsVectorLayer,
+        )
+
+        from sigmai.qgis_actions.cartography_engine import compose_map, recompose_from_recipe
+
+        projeto = QgsProject.instance()
+        projeto.clear()
+        projeto.setCrs(QgsCoordinateReferenceSystem("EPSG:4674"))
+        with pasta_temporaria() as pasta:
+            memoria = QgsVectorLayer("Polygon?crs=EPSG:4674&field=nome:string", "Parque", "memory")
+            f = QgsFeature(memoria.fields())
+            f.setGeometry(QgsGeometry.fromRect(QgsRectangle(-44.8, -22.5, -44.5, -22.3)))
+            f.setAttributes(["P"])
+            memoria.dataProvider().addFeatures([f])
+            caminho = os.path.join(pasta, "parque.gpkg")
+            options = QgsVectorFileWriter.SaveVectorOptions()
+            options.driverName = "GPKG"
+            erro, mensagem, *_ = QgsVectorFileWriter.writeAsVectorFormatV3(memoria, caminho, projeto.transformContext(), options)
+            self.assertEqual(int(erro), 0, mensagem)
+            parque = QgsVectorLayer(caminho, "Parque", "ogr")
+            if not parque.crs().isValid():
+                parque.setCrs(QgsCoordinateReferenceSystem("EPSG:4674"))
+            projeto.addMapLayer(parque)
+            receita, mapa = os.path.join(pasta, "p.json"), os.path.join(pasta, "p.png")
+            feito = compose_map({"layer_ids": [parque.id()], "title": "Parque", "map_author": "T", "data_source": "teste",
+                                 "output_path": mapa, "format": "png", "dpi": 72, "layout_name": "P",
+                                 "recipe_path": receita, "confirm_overwrite": True}, {"dry_run": False})
+            self.assertEqual(feito["map_crs"], "EPSG:31983")
+            gravada = Path(receita).read_text(encoding="utf-8")
+
+            # Sem output_path novo, recompor não sobrescreve o mapa original só porque a receita tinha confirm_overwrite.
+            with self.assertRaises(Exception) as recusa:
+                recompose_from_recipe({"recipe_path": receita}, {"dry_run": False})
+            self.assertIn("exist", str(recusa.exception).lower())
+
+            # Num projeto em WGS 84, o mapa recomposto continua em SIRGAS 2000 / UTM 23S, e a receita fica intacta.
+            projeto.clear()
+            projeto.setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
+            refeito = recompose_from_recipe({"recipe_path": receita, "overrides": {"output_path": os.path.join(pasta, "p2.png")}},
+                                            {"dry_run": False})
+            self.assertEqual(refeito["map_crs"], "EPSG:31983")
+            self.assertTrue(any("Sistema de referência da receita mantido" in n for n in refeito["notes"]), refeito["notes"])
+            self.assertEqual(Path(receita).read_text(encoding="utf-8"), gravada)
+
     def test_receita_refaz_relevo_com_estilo_num_projeto_novo(self):
         """Recarregado sem o estilo, o relevo sombreado voltava em cinza e sem a reamostragem bilinear."""
         import numpy

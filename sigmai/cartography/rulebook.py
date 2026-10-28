@@ -201,6 +201,18 @@ def _map(observation: dict[str, Any]) -> dict[str, Any]:
     return observation.get("map") or {}
 
 
+def _panel(entry: dict[str, Any]) -> str:
+    """" no painel N" para a medida de outro painel de uma comparação; "" no quadro principal."""
+    frame = str(entry.get("frame") or "")
+    if not frame:
+        return ""
+    if frame == "comparison_map":
+        return " (painel 2)"
+    if frame.startswith("panel_map_"):
+        return f" (painel {frame.rsplit('_', 1)[-1]})"
+    return f" (quadro {frame!r})"
+
+
 def _texts(observation: dict[str, Any]) -> list[dict[str, Any]]:
     """Os rótulos do layout e, numa figura com os créditos na legenda do texto, essa legenda."""
     texts = [item for item in _items(observation) if item.get("type") == "label"]
@@ -374,8 +386,8 @@ def _check_raster_ramp_used(observation: dict[str, Any]) -> CheckOutcome:
     def num(value: Any) -> str:
         return f"{float(value):,.6g}".replace(",", ".")
 
-    described = (f"os pixels de {worst['layer']!r} (percentis 2 a 98: {num(worst['p02'])} a {num(worst['p98'])}) "
-                 f"usam {used:.0%} da rampa, que vai de {num(worst['ramp_min'])} a {num(worst['ramp_max'])}")
+    described = (f"os pixels de {worst['layer']!r}{_panel(worst)} (percentis 2 a 98: {num(worst['p02'])} a "
+                 f"{num(worst['p98'])}) usam {used:.0%} da rampa, que vai de {num(worst['ramp_min'])} a {num(worst['ramp_max'])}")
     if used >= RAMP_USED_MIN:
         return _pass(f"A rampa mostra os dados: {described}.", raster_ramps=ramps)
     return _fail(f"{described[0].upper()}{described[1:]}: o relevo, ou o tema, sai quase de uma cor só. Um extremo "
@@ -442,8 +454,8 @@ def _check_heatmap_visibility(observation: dict[str, Any]) -> CheckOutcome:
         return _skip("Nenhum mapa de calor no quadro.")
     worst = max(layers, key=lambda entry: int(entry.get("faint_places") or 0) / max(1, int(entry.get("places") or 1)))
     share = int(worst.get("faint_places") or 0) / max(1, int(worst.get("places") or 1))
-    described = (f"{_num(worst['faint_places'])} dos {_num(worst['places'])} lugares com pontos de {worst['layer']!r} "
-                 f"({_num(worst['faint_points'])} pontos) ficam abaixo de {HEATMAP_VISIBLE_MIN * 100:g} % da densidade "
+    described = (f"{_num(worst['faint_places'])} dos {_num(worst['places'])} lugares com pontos de {worst['layer']!r}"
+                 f"{_panel(worst)} ({_num(worst['faint_points'])} pontos) ficam abaixo de {HEATMAP_VISIBLE_MIN * 100:g} % da densidade "
                  "máxima")
     if share <= HEATMAP_FAINT_PLACES_MAX:
         return _pass(f"O mapa de calor mostra os lugares com pontos: {described}.", heatmap_visibility=layers)
@@ -464,8 +476,8 @@ def _check_point_stacking(observation: dict[str, Any]) -> CheckOutcome:
     worst = max(measured, key=lambda entry: float(entry.get("hidden_fraction") or 0.0))
     hidden = float(worst.get("hidden_fraction") or 0.0)
     if worst.get("proportional"):
-        described = (f"{hidden:.0%} dos {_num(worst['points'])} locais de {worst['layer']!r} caem sobre outros no "
-                     f"papel (até {_num(worst['max_per_cell'])} num lugar do tamanho do menor círculo, "
+        described = (f"{hidden:.0%} dos {_num(worst['points'])} locais de {worst['layer']!r}{_panel(worst)} caem "
+                     f"sobre outros no papel (até {_num(worst['max_per_cell'])} num lugar do tamanho do menor círculo, "
                      f"{float(worst['symbol_mm']):g} mm)")
         if hidden <= STACKING_HIDDEN_MAX:
             return _pass(f"Os círculos não escondem os locais: {described}.", point_stacking=layers)
@@ -477,8 +489,8 @@ def _check_point_stacking(observation: dict[str, Any]) -> CheckOutcome:
         return _fail(f"{described}. Amontoados, os círculos se fundem: o leitor não separa os locais nem compara "
                      f"os tamanhos, e onde há mais locais o mapa parece ter menos. Agrupe os locais na escala do "
                      f"mapa: {remedy}.", point_stacking=layers)
-    described = (f"{hidden:.0%} dos {_num(worst['points'])} pontos de {worst['layer']!r} não aparecem: caem sobre "
-                 f"outros (até {_num(worst['max_per_cell'])} num mesmo lugar do tamanho do símbolo, "
+    described = (f"{hidden:.0%} dos {_num(worst['points'])} pontos de {worst['layer']!r}{_panel(worst)} não "
+                 f"aparecem: caem sobre outros (até {_num(worst['max_per_cell'])} num mesmo lugar do tamanho do símbolo, "
                  f"{float(worst['symbol_mm']):g} mm com opacidade {float(worst['opacity']):g})")
     if hidden <= STACKING_HIDDEN_MAX:
         return _pass(f"Os pontos não escondem a contagem: {described}.", point_stacking=layers)

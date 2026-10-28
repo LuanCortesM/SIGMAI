@@ -2,6 +2,23 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.3.1] — 2026-10-28
+
+Achados de um assistente de IA que fez as figuras do artigo do SIGMAI só pelas ferramentas do plugin, num QGIS limpo.
+
+### Adicionado
+- `rename_layer`: muda o nome da camada, que é o que a legenda mostra. Sem ele, o assistente recarregou os arquivos com outro nome para trocar a legenda (a taxonomia de comandos já o dava como implementado). 237 comandos no catálogo, 224 habilitados.
+
+### Corrigido
+- Numa figura de comparação, `CART076` (pontos que escondem a contagem), `CART077` (rampa de raster) e `CART080` (mapa de calor) mediam só o primeiro painel; agora medem todos, e a mensagem diz o painel.
+- `recompose_from_recipe` herdava da receita o `recipe_path` e o `confirm_overwrite` do mapa original: regravava a receita de origem por cima e, sem um `output_path` novo, sobrescrevia o mapa. Agora só valem se vierem em `overrides`.
+- Figura de periódico com dados em graus: a altura da página era escolhida pela proporção do recorte em graus, antes de o mapa ser reprojetado, e o mapa ganhava uma faixa de sobra (a 22° de latitude, um grau de longitude mede 0,92 de um de latitude). A altura passa a sair do recorte projetado, a mesma de quando map_crs é passado.
+- `recompose_from_recipe` mantém o sistema de referência projetado da receita: escolhido de novo, ele dependia do projeto em que se recompunha, e um mapa em SIRGAS 2000 / UTM 23S voltava em WGS 84 / UTM 23S.
+- Parágrafo de Métodos (`describe_map_for_methods`): dizia que a receita estava "nos metadados do arquivo exportado" também em PDF e SVG, onde ela fica no layout e no JSON; citava "(MACIEL, 2026)" em inglês e espanhol, que agora citam "(Maciel 2026)"; a referência do software dá o DOI do Zenodo em vez do GitHub; a mesma fonte de duas camadas sai uma vez; em PDF, o dpi só aparece se houver raster.
+- `load_qml_style` e `save_qml_style` liam o resultado do QGIS na ordem inversa: o estilo carregado saía como não carregado e não era marcado como do usuário, e a composição podia trocá-lo pela paleta.
+- `apply_single_symbol` em pontos e linhas: a opacidade ia para a camada inteira, o que pode levar o QGIS a rasterizar o mapa no PDF; agora vai para o símbolo. `fill_opacity` e `stroke_opacity` passam a valer para pontos.
+- Legenda de círculos proporcionais: os valores eram potências de 10, e com área proporcional os círculos de 1 e 100 registros tinham 1,0 e 1,3 mm, com os rótulos sobrepostos; agora são valores redondos com círculos a pelo menos 2,5 mm um do outro. `legend_title` vazio deixa a legenda sem título, em vez de pôr o nome do campo. Uma legenda com círculos não se divide mais entre colunas, que separavam o título dos círculos.
+
 ## [1.3.0] — 2026-10-27
 
 ### Adicionado

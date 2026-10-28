@@ -155,16 +155,19 @@ def _sources_text(recipe: dict[str, Any]) -> str:
     layers = recipe.get("layers") or []
     names = {layer.get("id"): layer.get("name") for layer in layers}
     if isinstance(source, dict):
-        parts = []
-        for key, value in source.items():
-            parts.append(f"{value} ({names.get(key, key)})")
-        return "; ".join(parts)
-    if isinstance(source, list):
-        return "; ".join(f"{e.get('source')} ({names.get(e.get('layer'), e.get('layer'))})" for e in source if isinstance(e, dict))
-    if source:
+        pairs = [(str(value), str(names.get(key, key))) for key, value in source.items()]
+    elif isinstance(source, list):
+        pairs = [(str(e.get("source")), str(names.get(e.get("layer"), e.get("layer")))) for e in source if isinstance(e, dict)]
+    elif source:
         return str(source)
-    declared = [f"{layer.get('source_text')} ({layer.get('name')})" for layer in layers if layer.get("source_text")]
-    return "; ".join(declared)
+    else:
+        pairs = [(str(layer.get("source_text")), str(layer.get("name"))) for layer in layers if layer.get("source_text")]
+    # A mesma fonte de duas camadas (os registros e os locais derivados deles)
+    # sai uma vez, com as camadas juntas.
+    grouped: dict[str, list[str]] = {}
+    for text, name in pairs:
+        grouped.setdefault(text, []).append(name)
+    return "; ".join(f"{text} ({', '.join(layer_names)})" for text, layer_names in grouped.items())
 
 
 def _page_phrase(page: dict[str, Any], params: dict[str, Any], lang: str) -> str:
@@ -196,6 +199,51 @@ def _page_phrase(page: dict[str, Any], params: dict[str, Any], lang: str) -> str
     return f", as a journal figure at its final printed width ({detail})"
 
 
+#: DOI de todas as versões do SIGMAI no Zenodo (o mesmo do CITATION.cff); resolve para a versão mais recente.
+SOFTWARE_DOI = "10.5281/zenodo.20389286"
+
+#: Formatos em que a receita vai dentro do arquivo exportado.
+_RECIPE_EMBEDDED_FORMATS = {"PNG"}
+
+#: Provedores de camada raster, que o PDF e o SVG gravam como imagem.
+_RASTER_PROVIDERS = {"gdal", "wms", "wcs", "arcgismapserver", "xyz"}
+
+
+def _export_phrase(fmt: str, dpi: Any, layers: list[dict[str, Any]], lang: str) -> str:
+    """", exportada em PDF, com os rasters a 300 dpi" — o dpi só vale para o que é imagem."""
+    if not fmt:
+        return ""
+    words = {"pt-BR": (", exportada em", " a", ", com os rasters a"), "es": (", exportada en", " a", ", con los rásteres a"),
+             "en": (", exported as", " at", ", with raster layers at")}[lang]
+    if fmt in ("PDF", "SVG"):
+        rasters = any(str(layer.get("provider") or "") in _RASTER_PROVIDERS for layer in layers)
+        return f"{words[0]} {fmt}" + (f"{words[2]} {dpi} dpi" if rasters and dpi else "")
+    return f"{words[0]} {fmt}" + (f"{words[1]} {dpi} dpi" if dpi else "")
+
+
+#: Onde a receita fica (layout, PNG, JSON), a conjunção e a frase, por língua.
+_RECIPE_PLACE_TEXT = {
+    "pt-BR": ("nas propriedades do layout", "nos metadados do PNG exportado", "num arquivo JSON distribuído com a figura",
+              " e ", "A receita completa da composição (parâmetros, camadas, hashes dos arquivos e versões de software) "
+              "está gravada {}, o que permite reproduzir o mapa."),
+    "es": ("en las propiedades del diseño", "en los metadatos del PNG exportado",
+           "en un archivo JSON distribuido con la figura", " y ",
+           "La receta completa de la composición (parámetros, capas, hashes de los archivos y versiones del software) "
+           "queda registrada {}, lo que permite reproducir el mapa."),
+    "en": ("in the layout properties", "in the metadata of the exported PNG", "in a JSON file distributed with the figure",
+           " and ", "The full composition recipe (parameters, layers, file hashes and software versions) is stored {}, "
+           "so the map can be reproduced."),
+}
+
+
+def _recipe_place(fmt: str, json_written: bool, lang: str) -> str:
+    """Onde a receita ficou gravada: no PNG ela vai dentro do arquivo; no PDF e no SVG, não."""
+    layout, png, json_file, conjunction, sentence = _RECIPE_PLACE_TEXT[lang]
+    places = [layout] + ([png] if fmt in _RECIPE_EMBEDDED_FORMATS else []) + ([json_file] if json_written else [])
+    joined = places[0] if len(places) == 1 else ", ".join(places[:-1]) + conjunction + places[-1]
+    return sentence.format(joined)
+
+
 def methods_paragraph(recipe: dict[str, Any], language: str = "pt-BR") -> dict[str, Any]:
     """Texto de Métodos + referência do software, na língua pedida."""
     lang = language if language in _METHODS_LANGS else "en"
@@ -212,6 +260,8 @@ def methods_paragraph(recipe: dict[str, Any], language: str = "pt-BR") -> dict[s
     page_phrase = _page_phrase(page, params, lang)
     fmt = str(output.get("format") or "").upper()
     dpi = output.get("dpi")
+    export = _export_phrase(fmt, dpi, recipe.get("layers") or [], lang)
+    place = _recipe_place(fmt, bool(str(params.get("recipe_path") or "").strip()), lang)
     author = str(params.get("map_author") or "").strip()
     grade = audit.get("grade")
     score = audit.get("score")
@@ -232,44 +282,42 @@ def methods_paragraph(recipe: dict[str, Any], language: str = "pt-BR") -> dict[s
             + (f"; camadas de anotação derivadas delas no QGIS (divisas e nomes): {derived_names}" if derived_names else "") + ". "
             f"O sistema de referência adotado foi {crs}"
             + (f", na escala {scale}" if scale else "") + page_phrase
-            + (f", exportada em {fmt}" + (f" a {dpi} dpi" if dpi else "") if fmt else "") + ". "
+            + export + ". "
             + (f"A composição foi auditada contra {rule_count} regras e recebeu nota {grade} ({score}/100). " if grade else "")
             + (f"Elaboração: {author}. " if author else "")
-            + "A receita completa da composição (parâmetros, camadas, hashes dos arquivos e versões de software) está "
-            "gravada nas propriedades do layout e nos metadados do arquivo exportado, permitindo reproduzir o mapa."
+            + place
         )
-        reference = f"MACIEL, L. S. C. SIGMAI: Secure GIS-AI Interface. Versão {sigmai}. {year}. Disponível em: https://github.com/LuanCortesM/SIGMAI."
+        reference = (f"MACIEL, L. S. C. SIGMAI: Secure GIS-AI Interface. Versão {sigmai}. Zenodo, {year}. "
+                     f"Disponível em: https://doi.org/{SOFTWARE_DOI}.")
     elif lang == "es":
         text = (
             f"El mapa{(' ' + repr(title)) if title else ''} fue elaborado en QGIS {qgis} mediante el complemento SIGMAI {sigmai} "
-            f"(MACIEL, {year}), que compone el diseño a partir de parámetros declarados y lo audita según un reglamento "
+            f"(Maciel {year}), que compone el diseño a partir de parámetros declarados y lo audita según un reglamento "
             f"cartográfico explícito. Las capas utilizadas fueron: {layer_names}"
             + (f"; fuentes de los datos: {sources}" if sources else "")
             + (f"; capas de anotación derivadas de ellas en QGIS (límites y nombres): {derived_names}" if derived_names else "") + ". "
             f"El sistema de referencia adoptado fue {crs}"
             + (f", a escala {scale}" if scale else "") + page_phrase
-            + (f", exportada en {fmt}" + (f" a {dpi} dpi" if dpi else "") if fmt else "") + ". "
+            + export + ". "
             + (f"La composición fue auditada contra {rule_count} reglas y obtuvo la nota {grade} ({score}/100). " if grade else "")
             + (f"Elaboración: {author}. " if author else "")
-            + "La receta completa de la composición (parámetros, capas, hashes de los archivos y versiones del software) "
-            "queda registrada en las propiedades del diseño y en los metadatos del archivo exportado, lo que permite reproducir el mapa."
+            + place
         )
-        reference = f"MACIEL, L. S. C. SIGMAI: Secure GIS-AI Interface. Versión {sigmai}. {year}. Disponible en: https://github.com/LuanCortesM/SIGMAI."
+        reference = f"Maciel, L. S. C. {year}. SIGMAI: Secure GIS-AI Interface, versión {sigmai}. Zenodo. https://doi.org/{SOFTWARE_DOI}"
     else:
         text = (
             f"The map{(' ' + repr(title)) if title else ''} was produced in QGIS {qgis} through the SIGMAI plugin {sigmai} "
-            f"(MACIEL, {year}), which composes the layout from declared parameters and audits it against an explicit "
+            f"(Maciel {year}), which composes the layout from declared parameters and audits it against an explicit "
             f"cartographic rulebook. Layers used: {layer_names}"
             + (f"; data sources: {sources}" if sources else "")
             + (f"; annotation layers derived from them in QGIS (boundaries and names): {derived_names}" if derived_names else "") + ". "
             f"The coordinate reference system was {crs}"
             + (f", at scale {scale}" if scale else "") + page_phrase
-            + (f", exported as {fmt}" + (f" at {dpi} dpi" if dpi else "") if fmt else "") + ". "
+            + export + ". "
             + (f"The composition was audited against {rule_count} rules and graded {grade} ({score}/100). " if grade else "")
             + (f"Prepared by: {author}. " if author else "")
-            + "The full composition recipe (parameters, layers, file hashes and software versions) is stored in the layout "
-            "properties and in the exported file's metadata, so the map can be reproduced."
+            + place
         )
-        reference = f"MACIEL, L. S. C. SIGMAI: Secure GIS-AI Interface. Version {sigmai}. {year}. Available at: https://github.com/LuanCortesM/SIGMAI."
+        reference = f"Maciel, L. S. C. {year}. SIGMAI: Secure GIS-AI Interface, version {sigmai}. Zenodo. https://doi.org/{SOFTWARE_DOI}"
     text = re.sub(r"\s+", " ", text).strip()
     return {"language": lang, "paragraph": text, "software_reference": reference, "note": note}
