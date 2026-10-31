@@ -65,6 +65,9 @@ class Palette:
     pill_offline: str
     pill_offline_text: str
     scrollbar: str
+    bubble_user: str = "#E3F5EC"       # balão da pessoa no chat
+    bubble_user_line: str = "#B8E3CF"
+    chip: str = "#EEF3F6"              # etiqueta de ferramenta no chat
 
 
 LIGHT = Palette(
@@ -117,6 +120,9 @@ DARK = Palette(
     pill_offline="#3B4954",
     pill_offline_text="#C4D4DD",
     scrollbar="#4A5A66",
+    bubble_user="#173A2E",
+    bubble_user_line="#2B6450",
+    chip="#2B353D",
 )
 
 PALETTES: dict[str, Palette] = {THEME_LIGHT: LIGHT, THEME_DARK: DARK}
@@ -331,14 +337,14 @@ def get_sigmai_stylesheet(scale: float = 1.0, dark: bool = False) -> str:
     QPushButton#devButtonOn {{ background-color: #A3231F; color: #FFFFFF; border: {px(2)} solid #6E120F; }}
 
     QLineEdit, QPlainTextEdit, QTextEdit,
-    QSpinBox, QComboBox, QListWidget,
+    QSpinBox, QDoubleSpinBox, QComboBox, QListWidget,
     QTableWidget {{
         background-color: {p.surface}; border: {px(1)} solid {p.line};
         border-radius: {px(8)}; padding: {px(6)}; color: {p.ink};
         selection-background-color: {p.accent}; selection-color: {p.brand_deep};
     }}
     QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus,
-    QSpinBox:focus {{ border-color: {p.brand_bright}; }}
+    QSpinBox:focus, QDoubleSpinBox:focus {{ border-color: {p.brand_bright}; }}
     QLineEdit:read-only {{ color: {p.ink}; }}
     QPlainTextEdit#codeBlock, QLineEdit#codeField {{
         font-family: Consolas, "JetBrains Mono", "DejaVu Sans Mono", monospace;
@@ -350,12 +356,12 @@ def get_sigmai_stylesheet(scale: float = 1.0, dark: bool = False) -> str:
         background-color: {p.surface}; color: {p.ink}; border: {px(1)} solid {p.line};
         selection-background-color: {p.brand_bright}; selection-color: #FFFFFF; outline: none;
     }}
-    QSpinBox {{ padding-right: {px(18)}; }}
-    QSpinBox::up-button, QSpinBox::down-button {{
+    QSpinBox, QDoubleSpinBox {{ padding-right: {px(18)}; }}
+    QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
         width: {px(16)}; background-color: {p.canvas}; border-left: {px(1)} solid {p.line};
     }}
-    QSpinBox::up-button {{ border-top-right-radius: {px(8)}; }}
-    QSpinBox::down-button {{ border-bottom-right-radius: {px(8)}; }}
+    QSpinBox::up-button, QDoubleSpinBox::up-button {{ border-top-right-radius: {px(8)}; }}
+    QSpinBox::down-button, QDoubleSpinBox::down-button {{ border-bottom-right-radius: {px(8)}; }}
     QListWidget::item {{ color: {p.ink}; padding: {px(2)}; }}
     QListWidget::item:selected {{ background-color: {p.brand_bright}; color: #FFFFFF; }}
     QTableWidget {{ gridline-color: {p.line}; alternate-background-color: {p.canvas}; }}
@@ -400,4 +406,52 @@ def get_sigmai_stylesheet(scale: float = 1.0, dark: bool = False) -> str:
         width: 0; height: 0; border: none; background: none;
     }}
     QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}
+
+    /* Botão do cabeçalho que troca o painel pelo chat: o mesmo vidro do
+       seletor de idioma; ligado, ganha o verde de destaque. */
+    QPushButton#headerToggle {{
+        background-color: rgba(255, 255, 255, 0.10); color: #FFFFFF;
+        border: {px(1)} solid rgba(255, 255, 255, 0.28); border-radius: {px(8)};
+        padding: {px(4)} {px(10)}; font-weight: 700;
+    }}
+    QPushButton#headerToggle:hover {{ border-color: {p.accent}; }}
+    QPushButton#headerToggleOn {{
+        background-color: {p.accent}; color: {p.brand_deep};
+        border: {px(1)} solid {p.accent}; border-radius: {px(8)};
+        padding: {px(4)} {px(10)}; font-weight: 800;
+    }}
+
+    /* Chat */
+    QWidget#chatPage, QWidget#chatMessages {{ background-color: {p.canvas}; }}
+    QFrame#chatBubbleUser {{
+        background-color: {p.bubble_user}; border: {px(1)} solid {p.bubble_user_line};
+        border-radius: {px(14)}; border-bottom-right-radius: {px(4)};
+    }}
+    QFrame#chatBubbleAssistant {{
+        background-color: {p.surface}; border: {px(1)} solid {p.line};
+        border-radius: {px(14)}; border-bottom-left-radius: {px(4)};
+    }}
+    QLabel#chatText {{ color: {p.ink}; font-size: {px(13)}; background: transparent; }}
+    QLabel#chatWho {{ color: {p.ink_soft}; font-size: {px(11)}; font-weight: 700; background: transparent; }}
+    QLabel#chatTool {{
+        background-color: {p.chip}; color: {p.ink_soft}; border-radius: {px(8)};
+        padding: {px(3)} {px(9)}; font-size: {px(11)};
+        font-family: Consolas, "JetBrains Mono", "DejaVu Sans Mono", monospace;
+    }}
+    QLabel#chatNote {{ color: {p.ink_soft}; font-size: {px(11)}; font-style: italic; background: transparent; }}
+    QLabel#chatStatus {{
+        background-color: {p.bubble_user}; color: {p.brand}; border-radius: {px(10)};
+        padding: {px(4)} {px(10)}; font-weight: 700; font-size: {px(12)};
+    }}
+    QPushButton#chatStatusButton {{
+        background-color: {p.bubble_user}; color: {p.brand}; border: {px(1)} solid transparent;
+        border-radius: {px(10)}; padding: {px(4)} {px(10)}; font-weight: 700; font-size: {px(12)};
+    }}
+    QPushButton#chatStatusButton:hover {{ border-color: {p.brand_bright}; }}
+    QLabel#chatCost {{ color: {p.ink_soft}; font-size: {px(11)}; background: transparent; }}
+    QPlainTextEdit#chatInput {{
+        background-color: {p.surface}; border: {px(1)} solid {p.line}; border-radius: {px(12)};
+        padding: {px(8)}; font-size: {px(13)};
+    }}
+    QPlainTextEdit#chatInput:focus {{ border-color: {p.brand_bright}; }}
     """

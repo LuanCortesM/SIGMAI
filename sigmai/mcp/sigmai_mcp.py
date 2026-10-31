@@ -176,8 +176,14 @@ class BridgeError(RuntimeError):
     """Falha ao falar com a bridge do SIGMAI dentro do QGIS."""
 
 
+#: Host, porta e token da ponte quando o servidor roda dentro do próprio
+#: plugin (o chat do painel): o plugin os conhece e não precisa do arquivo de
+#: sessão, que a pessoa pode ter desligado.
+CONNECTION_OVERRIDES: dict[str, Any] = {}
+
+
 def bridge_call(action: str, params: dict[str, Any] | None = None, dry_run: bool = False, timeout: float = 180.0) -> dict[str, Any]:
-    connection = resolve_connection()
+    connection = resolve_connection(**CONNECTION_OVERRIDES)
     token = connection.get("token") or ""
     if not token:
         raise BridgeError(
@@ -342,6 +348,13 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
         "imagem e voltam em 'caption', pronta para a legenda no texto, que é o que as revistas pedem; escala, "
         "norte, legenda de símbolos e grade ficam no mapa. 'none': mapa sem título, créditos no mapa. Num "
         "pedido de figura para revista, pergunte ao usuário onde vai o título; quase sempre é 'caption'."
+    )},
+    "legend_placement": {"type": "string", "enum": ["map", "below", "separate", "none"], "description": (
+        "Onde vai a legenda de símbolos. 'map' (padrão): ao lado do mapa. 'below': embaixo do mapa, na largura "
+        "da figura. 'separate': a figura sai sem legenda, e a legenda vai num arquivo à parte "
+        "(<nome>_legend.<formato>), para outro lugar do artigo. 'none': fora da figura, explicada no texto. "
+        "Legenda simples (até 8 linhas) vai no mapa; complexa, pergunte ao usuário — a resposta da simulação "
+        "avisa quando ela passa disso."
     )},
     "subtitle": _S,
     "map_language": {**_S, "description": (
@@ -902,6 +915,83 @@ TOOLS: list[dict[str, Any]] = [
 
 TOOLS_BY_NAME = {tool["name"]: tool for tool in TOOLS}
 
+#: Ferramentas que devolvem laudo ou receita inteiros. Nas 113 chamadas da
+#: sessão do exemplo do artigo, três quartos de cada laudo eram as regras
+#: aprovadas e a observação bruta, e a receita levava o QML de cada camada
+#: (148 mil caracteres por chamada); o modelo não usa nada disso para corrigir
+#: o mapa. Por padrão elas respondem o resumo; detail='full' devolve tudo.
+DETAIL_TOOLS = (
+    "sigmai_plan_map", "sigmai_compose_map", "sigmai_audit_layout", "sigmai_campaign_map",
+    "sigmai_map_recipe", "sigmai_recompose_from_recipe", "sigmai_run_command",
+)
+DETAIL_PROPERTY = {"type": "string", "enum": ["summary", "full"], "description": (
+    "'summary' (padrão): o laudo traz nota, contagens e só as regras reprovadas, com o problema e o comando "
+    "que corrige; a receita vem sem o QML das camadas. 'full': todas as regras, a observação e o QML."
+)}
+for _tool in TOOLS:
+    if _tool["name"] in DETAIL_TOOLS:
+        _tool["inputSchema"]["properties"]["detail"] = DETAIL_PROPERTY
+
+
+def _compact_audit(audit: dict[str, Any]) -> dict[str, Any]:
+    failed = [entry for entry in audit.get("results") or [] if isinstance(entry, dict) and entry.get("status") == "fail"]
+    order = {"error": 0, "warning": 1, "advice": 2}
+    failed.sort(key=lambda entry: (order.get(str(entry.get("severity")), 3), str(entry.get("id"))))
+    # As chaves e os tipos do laudo completo, só que menores: um cliente que lia
+    # as reprovadas em "results" recebia a lista vazia (a bateria de mapas da
+    # 1.4 listava failing=[] com nota 95).
+    short = [{"id": entry.get("id"), "severity": entry.get("severity"), "status": "fail", "title_pt": entry.get("title_pt")}
+             for entry in failed]
+    return {
+        "score": audit.get("score"),
+        "grade": audit.get("grade"),
+        "label": audit.get("label"),
+        "counts": audit.get("counts"),
+        "blocking_issues": [entry for entry in short if entry["severity"] == "error"],
+        "next_actions": [
+            {"rule": entry.get("id"), "severity": entry.get("severity"), "problem": entry.get("detail_pt"), "fix": entry.get("fix_pt")}
+            for entry in failed
+        ],
+        "results": short,
+        "detail": "summary",
+    }
+
+
+def compact_response(value: Any) -> Any:
+    """O resumo de uma resposta: laudos só com as regras reprovadas, receitas sem o QML."""
+    if isinstance(value, dict):
+        if isinstance(value.get("results"), list) and "grade" in value:
+            return _compact_audit(value)
+        return {
+            key: (f"(estilo QML guardado na receita, {len(item)} caracteres)" if key == "style_qml" and isinstance(item, str)
+                  else compact_response(item))
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [compact_response(item) for item in value]
+    return value
+
+
+def run_tool(name: str, arguments: dict[str, Any]) -> tuple[Any, bool]:
+    """Executa uma ferramenta como o servidor MCP: devolve (resposta, é_erro).
+
+    O chat do painel usa esta mesma função, para que ferramentas, recusas e
+    resumo sejam idênticos aos de um cliente MCP externo.
+    """
+    arguments = dict(arguments)
+    detail = str(arguments.pop("detail", "summary") or "summary") if name in DETAIL_TOOLS else "summary"
+    tool = TOOLS_BY_NAME[name]
+    try:
+        response = tool["handler"](arguments)
+    except BridgeError as exc:
+        # Erro de execução: vai como isError para o modelo poder reagir.
+        return {"ok": False, "error": "SIGMAI_BRIDGE_UNAVAILABLE", "message": str(exc)}, True
+    except Exception as exc:
+        return {"ok": False, "error": type(exc).__name__, "message": str(exc)}, True
+    if detail != "full":
+        response = compact_response(response)
+    return response, isinstance(response, dict) and response.get("ok") is False
+
 INSTRUCTIONS = """O SIGMAI conecta você ao QGIS que o usuário tem aberto na máquina dele.
 
 Ordem de trabalho que evita a maioria dos erros:
@@ -915,8 +1005,9 @@ Ordem de trabalho que evita a maioria dos erros:
    sigmai_campaign_map (sítios em planilha: sigmai_run_command load_vector_layer
    com o .csv — lon/lat, separador e decimal são detectados); para revista,
    journal_column/figure_width_mm e format tif; para (a)(b)(c), panels.
-4. Leia o campo `audit` da resposta. Ele traz nota, problemas e o comando que
-   corrige cada um. Se a nota não for A, corrija e refaça em vez de entregar.
+4. Leia o campo `audit` da resposta. Ele traz nota, as regras reprovadas e o
+   comando que corrige cada uma. Se a nota não for A, corrija e refaça em vez
+   de entregar. O laudo vem resumido; detail='full' traz todas as regras.
 5. Errou? sigmai_undo. Vai citar? sigmai_methods_paragraph e sigmai_map_recipe.
 6. Milhares de registros de ocorrência? Um mapa de pontos mostra onde, não
    quantos (CART076). dense_points='sites' ou 'heatmap' em sigmai_compose_map
@@ -925,6 +1016,11 @@ Ordem de trabalho que evita a maioria dos erros:
    não na imagem: title_placement='caption' devolve a legenda pronta em
    'caption'. Pergunte; há mapas que vão sem título ('none') e relatórios que
    o querem no mapa ('map', o padrão).
+8. Legenda de símbolos: simples (até 8 linhas) vai no mapa. Complexa, pergunte
+   onde vai: ao lado ('map'), embaixo ('below'), num arquivo à parte para
+   outro lugar do artigo ('separate') ou fora da figura ('none'), em
+   legend_placement. Os nomes da legenda são os das camadas: renomeie com
+   rename_layer para o que o leitor entende (CART082 reprova nome de arquivo).
 
 Sobre o modo de acesso: em "Somente leitura" (padrão) nenhuma ação de escrita
 executa — simule com dry_run, mostre o resultado e peça ao usuário que libere no
@@ -988,7 +1084,9 @@ def _text_result(payload: Any, is_error: bool = False) -> dict[str, Any]:
     A spec recomenda emitir os dois: clientes antigos leem o texto, clientes
     novos leem o objeto.
     """
-    text = payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+    # Sem recuo: o texto vai inteiro para o contexto do modelo, e o recuo era
+    # um quinto dos caracteres das respostas na sessão do exemplo do artigo.
+    text = payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str)
     result: dict[str, Any] = {"content": [{"type": "text", "text": text}], "isError": bool(is_error)}
     if not isinstance(payload, str):
         result["structuredContent"] = payload if isinstance(payload, dict) else {"result": payload}
@@ -1097,18 +1195,7 @@ class MCPServer:
             self._send_error(message_id, INVALID_PARAMS, "arguments must be an object")
             return
 
-        tool = TOOLS_BY_NAME[name]
-        try:
-            response = tool["handler"](arguments)
-        except BridgeError as exc:
-            # Erro de execução: vai como isError para o modelo poder reagir.
-            self._send_result(message_id, _text_result({"ok": False, "error": "SIGMAI_BRIDGE_UNAVAILABLE", "message": str(exc)}, True))
-            return
-        except Exception as exc:
-            self._send_result(message_id, _text_result({"ok": False, "error": type(exc).__name__, "message": str(exc)}, True))
-            return
-
-        failed = isinstance(response, dict) and response.get("ok") is False
+        response, failed = run_tool(name, arguments)
         self._send_result(message_id, _text_result(response, failed))
 
     # -- envio ------------------------------------------------------------

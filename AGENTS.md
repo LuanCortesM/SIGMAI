@@ -27,6 +27,8 @@ O autor do plugin **não** é o autor dos mapas. Pergunte ao usuário o que deve
 
 **Título e créditos:** pergunte onde vão. Numa figura de artigo, as revistas pedem título e fontes na legenda do texto, e não na imagem: use `title_placement: "caption"`, e a legenda volta pronta em `caption`. Há mapas que vão sem título (`"none"`) e relatórios que o querem no mapa (`"map"`, o padrão).
 
+**Legenda de símbolos:** simples (até 8 linhas) vai no mapa. Complexa, pergunte onde vai: ao lado (`legend_placement: "map"`), embaixo (`"below"`), num arquivo à parte para outro lugar do artigo (`"separate"`) ou fora da figura, explicada no texto (`"none"`). A simulação avisa quando a legenda passa de 8 linhas. Os nomes na legenda são os das camadas: renomeie com `rename_layer` para o nome que o leitor entende, na língua do mapa; nome de arquivo reprova (`CART082`).
+
 ## Estrutura do projeto
 
 | Parte | Responsabilidade |

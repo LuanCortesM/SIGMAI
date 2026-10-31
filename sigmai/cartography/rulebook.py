@@ -19,6 +19,8 @@ e alguém pode contestar uma regra lendo um arquivo em vez de um traceback.
 
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -259,6 +261,13 @@ def _check_legend(observation: dict[str, Any]) -> CheckOutcome:
     visible = _map(observation).get("visible_layer_names") or []
     if legend and legend.get("item_id"):
         return _pass(f"Legenda presente com {len(legend.get('layer_names') or [])} entrada(s).")
+    placement = _caption(observation).get("legend_placement")
+    if placement == "separate":
+        return _pass("Legenda num arquivo à parte (legend_placement='separate'), para outro lugar do artigo, com "
+                     f"{len(_caption(observation).get('legend_layer_names') or [])} entrada(s).")
+    if placement == "none":
+        return _skip("Legenda fora da figura por escolha de quem o fez (legend_placement='none'): os símbolos são "
+                     "explicados no texto.")
     if len(visible) <= 1:
         return _skip("Mapa com uma única camada; a legenda pode ser dispensada se o título já a identifica.")
     return _fail(f"Mapa exibe {len(visible)} camadas e não há legenda.", visible_layers=visible)
@@ -315,6 +324,37 @@ def _check_legend_covers_visible_layers(observation: dict[str, Any]) -> CheckOut
     )
 
 
+#: Rótulo com cara de nome de arquivo: sublinhado, extensão de dado ou ano
+#: colado no nome ("municipios2024"). Nenhum leitor de revista entende
+#: "parna_itatiaia" ou "relevo_copernicus_glo30".
+_FILE_LIKE_LABEL = re.compile(
+    r"_|\.(?:gpkg|shp|tif|tiff|geojson|json|csv|kml|kmz|gml|sqlite|asc|vrt|jp2|img|nc)$|[^\W\d_]\d{4}$",
+    re.IGNORECASE,
+)
+
+
+def _check_legend_names(observation: dict[str, Any]) -> CheckOutcome:
+    """CART082 — a legenda mostra nomes que o leitor entende, e não nomes de arquivo."""
+    legend = observation.get("legend")
+    caption = _caption(observation)
+    if legend and legend.get("item_id"):
+        names = [str(name) for name in (legend.get("layer_names") or [])]
+    elif caption.get("legend_placement") == "separate":
+        names = [str(name) for name in (caption.get("legend_layer_names") or [])]
+    else:
+        return _skip("Sem legenda para avaliar.")
+    file_like = [name for name in names if _FILE_LIKE_LABEL.search(name.strip())]
+    if not file_like:
+        return _pass(f"{len(names)} nome(s) na legenda, nenhum com cara de nome de arquivo.")
+    listed = ", ".join(repr(name) for name in file_like[:6])
+    return _fail(
+        f"A legenda mostra {listed}: nome(s) de arquivo, que o leitor não entende. Renomeie cada camada com "
+        "rename_layer para o nome que o leitor entende, na língua do mapa (por exemplo, 'parna_itatiaia' vira "
+        "'Itatiaia National Park'), e recomponha.",
+        file_like=file_like,
+    )
+
+
 def _check_legend_has_no_phantoms(observation: dict[str, Any]) -> CheckOutcome:
     legend = observation.get("legend")
     if not legend or not legend.get("item_id"):
@@ -347,7 +387,9 @@ def _check_legend_has_no_phantoms(observation: dict[str, Any]) -> CheckOutcome:
         partes.append(
             "A legenda lista " + ", ".join(repr(name) for name in covered) + ", ligada(s) ao quadro mas "
             "coberta(s) pelas camadas desenhadas por cima: o QGIS desenha a primeira camada da lista por cima. "
-            "Reordene as camadas ou desenhe a que cobre como contorno, sem preenchimento."
+            "Reordene as camadas ou desenhe a que cobre como contorno, sem preenchimento. Uma linha sob outra que "
+            "corre junto com ela (a divisa do estado sob a do município) some do mesmo jeito: desenhe-a por cima e "
+            "mais grossa."
         )
     return _fail(" ".join(partes), phantom_layers=extra, covered_layers=covered, empty_layers=empty)
 
@@ -1362,6 +1404,15 @@ RULES: tuple[Rule, ...] = (
          "Chame add_layout_legend informando linked_map_item_id.",
          "Decreto nº 89.817/1984 (Normas Técnicas da Cartografia Nacional), art. 13 (legenda com símbolos e convenções); Slocum et al. (2009), Thematic Cartography and Geovisualization — legend design",
          _check_legend),
+    Rule("CART082", "elementos", SEVERITY_ERROR,
+         "Nomes da legenda que o leitor entende", "Legend shows readable names, not file names",
+         "A legenda é o dicionário do mapa: 'parna_itatiaia' ou 'municipios_2024' dizem de onde veio o dado, e "
+         "não o que o símbolo representa. Nenhuma revista publica legenda com nome de arquivo.",
+         "Renomeie a camada com rename_layer (o nome que aparece na legenda), na língua do mapa, e recomponha. "
+         "O nome é decisão de quem fez o pedido: o SIGMAI não o adivinha.",
+         "Slocum et al. (2009), Thematic Cartography and Geovisualization — legend design; sublinhado, extensão "
+         "de arquivo ou ano colado ao nome como sinal de nome de arquivo: decisão de projeto do SIGMAI",
+         _check_legend_names),
     Rule("CART020", "elementos", SEVERITY_ERROR,
          "A legenda explica todas as camadas visíveis", "Legend covers every visible layer",
          "Feição desenhada sem entrada correspondente na legenda é ruído: o leitor vê e não sabe o que é. "
@@ -1386,7 +1437,7 @@ RULES: tuple[Rule, ...] = (
          "camada fora do quadro, seja ligada a ele mas inteiramente coberta por uma camada opaca desenhada por cima.",
          "Ative filter_to_map_layers ou remova as camadas extras de legend_layers; se a camada está coberta, "
          "reordene as camadas (o QGIS desenha a primeira da lista por cima) ou desenhe a que cobre como contorno.",
-         "Slocum et al. (2009) — legend design; camada coberta quando menos de 10 % do que ela desenha sozinha fica visível e o que fica ocupa menos de 1 % do quadro: decisão de projeto do SIGMAI; verificação: QGIS Documentation — Legend: filter by map content",
+         "Slocum et al. (2009) — legend design; camada coberta quando menos de 10 % do que ela desenha sozinha fica visível e o que fica ocupa menos de 1 % do quadro, e, numa linha ou contorno, o pixel colado a um traço opaco de cima pelo menos tão grosso quanto ela conta como coberto: decisão de projeto do SIGMAI; verificação: QGIS Documentation — Legend: filter by map content",
          _check_legend_has_no_phantoms),
     Rule("CART075", "simbologia", SEVERITY_ERROR,
          "O assunto do mapa está à vista", "The map subject is visible",

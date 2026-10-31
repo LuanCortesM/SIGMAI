@@ -148,6 +148,10 @@ NORTH_MAX_PAGE_FRACTION = 0.08
 #: Menor altura da faixa inferior quando ela é dimensionada pelo conteúdo:
 #: cabe a escala numérica sobre a barra e uma seta de norte legível.
 SUPPORT_BAND_MIN_MM = 22.0
+#: Altura da faixa inferior sem legenda: a escala numérica (5 mm), a calha e
+#: a barra com seus rótulos (cerca de 8 mm). A seta de norte, se for maior
+#: nesta página, manda.
+SCALE_ONLY_BAND_MM = 15.0
 #: Teto da faixa inferior medida pela legenda, como fração do corpo. Com a
 #: legenda em linha própria (dez classes de solo numa figura de coluna) o
 #: teto sobe: é ela ou nomes cortados.
@@ -394,6 +398,11 @@ def solve_layout(
         if support_content_mm and support_content_mm > 0 and not include_inset:
             wanted = float(support_content_mm) + (LEGEND_ROW_SUPPORT_MM + gutter if narrow else 0.0)
             support_h = min(body_h * ceiling, max(SUPPORT_BAND_MIN_MM, wanted))
+        elif not include_legend and not include_inset:
+            # Só escala e norte (a legenda foi para um arquivo à parte ou para o
+            # texto): a fração fixa deixava 14 mm de branco sob a barra numa
+            # figura de 88 mm.
+            support_h = min(support_h, max(SCALE_ONLY_BAND_MM, _north_max(spec)))
         if narrow:
             # A linha própria precisa de altura para a legenda acima da linha
             # de escala e norte, mesmo antes de a legenda ser medida.

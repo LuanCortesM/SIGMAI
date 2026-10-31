@@ -51,6 +51,16 @@ An existing output file is never overwritten unless the call explicitly sets `co
 
 Loading a remote XYZ, WMS, WFS or ArcGIS REST layer (`sigmai/qgis_actions/data_sources.py`) is a `safe_write`-level action like any other, but a request whose URL is not local additionally requires `confirm_network: true` — the model has to say, in the same call, that it means to make the QGIS process fetch data from an external server. A licensed source (OpenStreetMap and similar) also requires an `attribution` string before the layer loads, so a generated map cannot silently drop the credit its source's licence requires.
 
+## The chat panel
+
+The chat is the only part of SIGMAI that sends data off the machine, and only when the user uses it.
+
+- **Egress:** requests go to the provider address the user chose, through the QGIS network access manager. Only HTTPS is accepted, plus `http` to this machine for a local model.
+- **What is sent:** the conversation and what the tools return. The panel lists this before the first message, and [CHAT.md](CHAT.md) spells it out.
+- **The key:** kept in the encrypted QGIS authentication database. It is never written to settings, logs, recipes or error messages, and the test suite checks that the conversation log does not contain it.
+- **The model's tools:** the twenty MCP tools, through the same function that serves an external MCP client. Consent, the catalog, authorised folders and limits apply unchanged. The model has no file, code or web tool, so the "assistant outside QGIS" risk of an external client does not arise.
+- **Prompt injection is not solved.** Text in the data or in a tool result can still steer the model. What limits the damage is the same as for any client: the access mode, the closed catalog and the authorised folders.
+
 ## What this model does not claim
 
 In the same spirit as the rest of this project: a few limits worth stating plainly rather than leaving implicit.

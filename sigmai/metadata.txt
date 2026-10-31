@@ -1,22 +1,32 @@
 [general]
 name=SIGMAI
-description=Secure local bridge between AI assistants and QGIS, with cartographic quality control.
-version=1.3.2
+description=Secure local bridge between AI assistants and QGIS, with a built-in chat and cartographic quality control.
+version=1.4.0
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=MACIEL, L. S. C.
 email=herpetomantiqueira@gmail.com
-about=SIGMAI lets AI assistants operate QGIS through a local, auditable command interface instead of screen automation. It ships a standards-compliant MCP server (JSON-RPC 2.0 over stdio) so Claude, Cursor, Codex and any other MCP client can connect; a consent layer where the user chooses between read-only, ask-every-time and allow-for-this-session, with output-folder sandboxing, per-session limits and an audit trail; and a cartographic engine that composes page-aware map layouts, fits the extent to the map frame, rounds the scale to the cartographic series, sizes the scale bar, computes the coordinate grid interval, builds a legend covering every visible layer, and then audits the result against an explicit rulebook whose findings tell the assistant what is wrong and how to fix it. The bridge binds to 127.0.0.1 only and requires a bearer token. Normal operation never exposes arbitrary Python execution; Developer Mode is explicit, warning-protected and disabled by default. SIGMAI runs on the Python bundled with QGIS/OSGeo4W. Developed by Luan da Silva Cortes Maciel as a research product associated with Herpeto Mantiqueira.
+about=SIGMAI lets AI assistants operate QGIS through a local, auditable command interface instead of screen automation. It ships a standards-compliant MCP server (JSON-RPC 2.0 over stdio) so Claude, Cursor, Codex and any other MCP client can connect; a consent layer where the user chooses between read-only, ask-every-time and allow-for-this-session, with output-folder sandboxing, per-session limits and an audit trail; and a cartographic engine that composes page-aware map layouts, fits the extent to the map frame, rounds the scale to the cartographic series, sizes the scale bar, computes the coordinate grid interval, builds a legend covering every visible layer, and then audits the result against an explicit rulebook whose findings tell the assistant what is wrong and how to fix it. A chat panel inside QGIS talks to a model with your own API key (Anthropic, or any OpenAI-compatible provider, including a local Ollama model); the model's only tools are SIGMAI's. When you use the chat, the conversation and what the tools return (layer and field names, counts, sample attribute values, file paths, audit reports and, if enabled, a map preview) are sent to the AI provider you configure; data files are not. The key is kept in the encrypted QGIS authentication database. The bridge binds to 127.0.0.1 only and requires a bearer token. Normal operation never exposes arbitrary Python execution; Developer Mode is explicit, warning-protected and disabled by default. SIGMAI runs on the Python bundled with QGIS/OSGeo4W. Developed by Luan da Silva Cortes Maciel as a research product associated with Herpeto Mantiqueira.
 category=Plugins
 icon=icons/sigmai_icon.png
 experimental=False
 deprecated=False
-tags=AI,MCP,cartography,map layout,automation,workflow,spatial analysis,research tools,GIS automation,plugin development,JSON API,quality control
+tags=AI,MCP,chat,LLM,cartography,map layout,automation,workflow,spatial analysis,research tools,GIS automation,plugin development,JSON API,quality control
 homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=MIT
-changelog=1.3.2
+changelog=1.4.0
+    - Chat dentro do QGIS: a pessoa usa a própria chave de API (Anthropic ou qualquer provedor compatível com OpenAI, inclusive Ollama local) e conversa com um modelo que só tem as ferramentas do SIGMAI.
+    - Chave no cofre criptografado do QGIS; aviso do que vai para o provedor; custo estimado e teto por conversa; registro local de cada conversa.
+    - O modelo pode receber uma prévia do mapa exportado para conferir à vista.
+    - Respostas resumidas para o modelo, no chat e nos clientes MCP: o laudo traz só as regras reprovadas, e a receita vem sem o QML (detail='full' devolve tudo). Na sessão do exemplo do artigo, dois terços a menos de texto.
+    - legend_placement: legenda ao lado do mapa, embaixo, num arquivo à parte ou fora da figura; legenda com mais de 8 linhas faz a simulação mandar perguntar.
+    - Nova regra CART082 (erro): nome de arquivo na legenda.
+    - Figura sem legenda sem faixa branca sob a escala; altura da figura escolhe o quadro mais largo.
+    - include_inset sem inset_layer_ids volta a funcionar; divisa estadual destacada e por cima da municipal; inserto com contornos finos.
+    - CART021 acusa a linha coberta por outra que corre junto com ela (a divisa estadual sob a municipal).
+    1.3.2
     - Legenda de círculos mostra o menor símbolo do mapa (1, 20.000 e 68.881, não 2.000, 20.000 e 68.881).
     - recompose_from_recipe não avisa mais que ignora o recipe_path que usa.
     - A simulação de apply_raster_style recusa rampa de cores inexistente; a saída temporária do Processing não é tratada como caminho; panel_title num mapa só gera aviso.

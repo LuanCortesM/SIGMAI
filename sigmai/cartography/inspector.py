@@ -1571,6 +1571,79 @@ def _occludes(layer: Any) -> bool:
         return True
 
 
+def _is_line_like(layer: Any) -> bool:
+    """Linha, ou polígono desenhado só como contorno: o que a camada pinta é um traço."""
+    try:
+        geometry = int(layer.geometryType())
+    except Exception:
+        return False
+    if geometry == 1:
+        return True
+    if geometry != 2:
+        return False
+    try:
+        from qgis.PyQt.QtCore import Qt  # type: ignore
+
+        from .qtcompat import qt_enum
+
+        renderer = layer.renderer()
+        if str(renderer.type()) != "singleSymbol":
+            return False
+        symbol = renderer.symbol()
+        fills = [symbol.symbolLayer(i) for i in range(symbol.symbolLayerCount())]
+        no_brush = qt_enum(Qt, "BrushStyle", "NoBrush")
+        return bool(fills) and all(hasattr(fill, "brushStyle") and fill.brushStyle() == no_brush for fill in fills)
+    except Exception:
+        return False
+
+
+def _stroke_width_mm(layer: Any) -> float:
+    """O traço mais grosso dos símbolos da camada, em mm (pontos convertidos); 0 se não dá para ler."""
+    widest = 0.0
+    try:
+        from qgis.core import QgsUnitTypes  # type: ignore
+
+        # Os itens ficam vivos enquanto os símbolos são lidos: o símbolo é do
+        # item, e lido de uma lista temporária derrubava o QGIS.
+        items = layer.renderer().legendSymbolItems()
+        for item in items:
+            symbol = item.symbol()
+            if symbol is None:
+                continue
+            for index in range(symbol.symbolLayerCount()):
+                part = symbol.symbolLayer(index)
+                if hasattr(part, "strokeWidth"):
+                    width, unit = float(part.strokeWidth()), part.strokeWidthUnit()
+                elif hasattr(part, "width"):
+                    width, unit = float(part.width()), part.widthUnit()
+                else:
+                    continue
+                unit_name = QgsUnitTypes.encodeUnit(unit) if hasattr(QgsUnitTypes, "encodeUnit") else str(unit)
+                if unit_name == "Point":
+                    width *= 0.3528
+                elif unit_name not in ("MM", "Millimeter"):
+                    continue
+                widest = max(widest, width)
+    except Exception:
+        return widest
+    return widest
+
+
+#: Um traço de cima cobre a vizinhança de um traço de baixo quando é pelo
+#: menos esta fração da espessura dele.
+STROKE_COVER_MIN_RATIO = 0.9
+
+
+def _dilate(mask: Any) -> Any:
+    """Dilatação de um pixel (vizinhança em cruz) de uma máscara booleana numpy."""
+    out = mask.copy()
+    out[1:, :] |= mask[:-1, :]
+    out[:-1, :] |= mask[1:, :]
+    out[:, 1:] |= mask[:, :-1]
+    out[:, :-1] |= mask[:, 1:]
+    return out
+
+
 def _erode(mask: Any) -> Any:
     """Erosão de um pixel (vizinhança em cruz) de uma máscara booleana numpy."""
     out = mask.copy()
@@ -1611,6 +1684,7 @@ def measure_layer_stack(map_item: Any, layers: list[Any] | None = None, width_px
             return None
         cover = None
         union = None
+        strokes: list[tuple[float, Any]] = []  # (espessura em mm, onde pinta) das linhas e contornos opacos de cima
         visible_fraction: dict[str, float] = {}
         visible_share: dict[str, float] = {}
         visible_by_id: dict[str, float] = {}
@@ -1624,6 +1698,8 @@ def measure_layer_stack(map_item: Any, layers: list[Any] | None = None, width_px
                 cover = numpy.zeros_like(alpha)
                 union = numpy.zeros_like(alpha)
             ink = alpha >= (8.0 / 255.0)
+            line_like = _is_line_like(layer)
+            width = _stroke_width_mm(layer) if line_like else 0.0
             name = str(layer.name())
             painted = int(ink.sum())
             if painted == 0:
@@ -1632,7 +1708,21 @@ def measure_layer_stack(map_item: Any, layers: list[Any] | None = None, width_px
                 visible_by_id[str(layer.id())] = 0.0
                 empty.append(name)
             else:
-                shown = (1.0 - cover)[ink]
+                shown = 1.0 - cover
+                if line_like:
+                    # Traço sob outro traço que corre junto (a divisa estadual sob
+                    # a municipal, que coincide com ela): sobra uma lasca de meio
+                    # pixel ao lado da linha de cima, que no papel não se lê como
+                    # a linha da legenda. Contava como 44 % à vista, e a legenda
+                    # mostrava uma divisa vermelha que o mapa não tinha. Só traço
+                    # sobre traço, e só o de cima pelo menos tão grosso quanto
+                    # ela: sob um preenchimento semitransparente a linha vale
+                    # pela opacidade dele, e o contorno de 0,7 mm de um parque
+                    # cruzado por curvas de nível de 0,25 mm continua legível.
+                    over = [mask for upper, mask in strokes if upper >= STROKE_COVER_MIN_RATIO * width]
+                    if over:
+                        shown = numpy.where(_dilate(numpy.logical_or.reduce(over)), 0.0, shown)
+                shown = shown[ink]
                 visible_fraction[name] = round(float(shown.mean()), 4)
                 # Fração do quadro em que a camada aparece como MANCHA: a máscara
                 # do que fica à vista é erodida de um pixel, o que apaga a lasca
@@ -1643,6 +1733,8 @@ def measure_layer_stack(map_item: Any, layers: list[Any] | None = None, width_px
                 visible_by_id[str(layer.id())] = visible_fraction[name]
             if _occludes(layer):
                 cover = cover + alpha * (1.0 - cover)
+                if line_like:
+                    strokes.append((width, ink))
             union = union + alpha * (1.0 - union)
         inked = union >= (8.0 / 255.0)
         rows, cols = inked.shape
