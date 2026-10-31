@@ -155,11 +155,10 @@ class NoQgis(unittest.TestCase):
             self.assertTrue(legenda.exists(), feito["notes"])
             self.assertEqual(feito["legend_output_path"], str(legenda))
             self.assertNotIn("legend", feito["items_created"])
-            from PIL import Image
+            from qgis.PyQt.QtGui import QImage  # o QGIS do conda-forge no macOS não traz o PIL
 
-            with Image.open(legenda) as imagem:
-                largura, altura = imagem.size
-            self.assertLess(altura, largura)  # só a legenda, cortada na altura dela
+            imagem = QImage(str(legenda))
+            self.assertLess(imagem.height(), imagem.width())  # só a legenda, cortada na altura dela
         cart002 = next(r for r in feito["audit"]["results"] if r["id"] == "CART002")
         self.assertEqual(cart002["status"], "pass")
         self.assertIn("arquivo à parte", cart002["detail_pt"])
