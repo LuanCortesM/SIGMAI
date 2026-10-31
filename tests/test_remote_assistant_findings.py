@@ -37,7 +37,8 @@ class EsquemaDoComposeMapEIgualAoCompositor(unittest.TestCase):
         tools = {tool["name"]: tool for tool in mcp.TOOLS}
         schema = set(tools["sigmai_compose_map"]["inputSchema"]["properties"])
         self.assertEqual(set(KNOWN_PARAMETERS) - self.ALIASES - schema, set())
-        self.assertEqual(schema - set(KNOWN_PARAMETERS), set())
+        # detail é do servidor MCP (resumo ou laudo inteiro) e sai antes da ponte.
+        self.assertEqual(schema - set(KNOWN_PARAMETERS) - {"detail"}, set())
         for chave in ("production_date", "auto_projected_crs", "round_scale", "margin_mm", "include_logo", "logo_path"):
             self.assertIn(chave, schema)
 

@@ -426,6 +426,16 @@ class NoQgis(unittest.TestCase):
                                 {"dry_run": False})
         self.assertIn("CNUC/MMA (2025) [Parque]; IBGE (2024) [Brasil]", feito["caption"])
 
+    def test_inserto_sem_camadas_proprias(self):
+        """A correção acima quebrava include_inset sem inset_layer_ids: 'NoneType' object is not iterable."""
+        from sigmai.cartography.compose import compose_map
+
+        parque = self._poligono("Parque", "POLYGON((520000 7515000,545000 7515000,545000 7535000,"
+                                          "520000 7535000,520000 7515000))")
+        plano = compose_map({"layer_ids": [parque.id()], "title": "Parque", "include_inset": True,
+                             "data_source": "CNUC/MMA (2025)"}, {"dry_run": True})
+        self.assertIn("map", plano["plan"]["slots"])
+
     def test_relatorio_de_estilo_da_cor_do_ponto(self):
         from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsProject, QgsVectorLayer
 

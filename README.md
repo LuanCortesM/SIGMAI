@@ -59,6 +59,18 @@ The panel does this for you — pick your program in step 2 and it produces the 
 
 Step 3 of the panel runs a self-test across the whole path — bridge, authentication, session file, MCP server, project, access mode — and names the step that failed instead of leaving you to guess.
 
+## Chat inside QGIS
+
+No MCP client? Click **API & Chat** in the header of the SIGMAI panel: the tabs give way to the chat, in the same look, and **Back to panel** returns. The first time, a *Connect your AI* card asks for the provider and your API key; after that, only the conversation shows, with the settings one click away. The model in the chat has no tools but SIGMAI's: it cannot read files, run code or reach the internet, and every command goes through the same catalog, access mode, authorised folders, audit and recipe as an external client.
+
+- **Providers:** Anthropic's Messages API (Claude Opus 5.5 by default, medium effort; Sonnet 5.5 and Haiku 5.5 selectable) and any service that speaks OpenAI's chat format — OpenAI, Gemini's OpenAI-compatible endpoint, a local Ollama model, and others.
+- **Your key** is stored in the encrypted QGIS authentication database, never in the settings, logs or recipes.
+- **What is sent:** the conversation and what the tools return — layer and field names, counts, sample attribute values, file paths, audit reports and, if enabled, a low-resolution preview of the exported map. Data files are not sent. The panel says this before the first message; for nothing to leave the machine, use a local model.
+- **Cost:** a token counter with the estimated cost at list price, and a cap per conversation (US$ 5 by default).
+- **Fewer tokens:** tool answers are summaries — the audit lists only the failed rules, each with the command that fixes it — so the model does not have to inspect the map itself. `detail: "full"` returns everything.
+
+Details: [docs/CHAT.md](docs/CHAT.md).
+
 ## What the assistant can do
 
 Twenty MCP tools, each with a validated input schema. `sigmai_briefing` is where an assistant should start: it replaces the usual five opening calls with one.
@@ -114,6 +126,7 @@ Independently of the mode: **output folders** restrict where files may be writte
 - picks the page orientation — and where the legend and scale bar go, side column or bottom band — from the shape of the data when you ask for `orientation: "auto"` or say nothing about orientation (either choice switches only for a 12 % gain in scale; `arrangement` forces one), and lets you ask for a journal figure by column width (`journal_column`, `figure_width_mm`) instead of by paper size, and in greyscale for print (`colour_mode: "greyscale"`, checked on the exported image by `CART073`);
 - composes two, three or more panels — `second_map` or `panels` — lettered (a), (b), (c) with a shared scale when you ask for one;
 - makes journal figures the way journals ask for them: with `title_placement: "caption"` the title and the credits (sources with their DOI, reference system, tool) leave the image and come back as a caption ready for the manuscript, while scale, north arrow, symbol legend and grid stay on the map; `"none"` makes a map without a title;
+- puts the symbol legend where the figure needs it (`legend_placement`): beside the map, below it at the figure's width, in a separate file cropped to the legend for another place in the article, or out of the figure; a legend longer than 8 rows makes the plan tell the assistant to ask you;
 - takes `data_source` per layer and prints each layer's source in the legend, next to the layer it belongs to;
 - sizes the point symbol to how many points fall in the frame — 2.2 mm for dozens, down to 0.45 mm and semi-transparent for a dense cloud — so the points do not cover what lies beneath; occurrence records repeated on the same coordinates are shown with a heatmap or with one proportional symbol per site (`count_points_by_site`, `apply_proportional_symbol_style`), the sites merged at the map's own scale so the circles do not pile up — or in one call, with `dense_points: "sites"` or `"heatmap"`;
 - knows the field-campaign case (`compose_campaign_map`): sites over a track over an area over its context, with a locator inset and a coordinate table.
@@ -122,11 +135,13 @@ Then it audits what it produced, stores the **recipe** of the map in the layout 
 
 ## The cartographic rulebook
 
-43 rules across ten categories — elements, scale, orientation, provenance, grid, geometry, typography, projection, data, symbology. Each carries its severity, the reason it exists, its reference, and the command that satisfies it. `sigmai_cartographic_rulebook` returns the whole thing as data, so an assistant can read the rules before composing rather than discovering them by failing.
+44 rules across ten categories — elements, scale, orientation, provenance, grid, geometry, typography, projection, data, symbology. Each carries its severity, the reason it exists, its reference, and the command that satisfies it. `sigmai_cartographic_rulebook` returns the whole thing as data, so an assistant can read the rules before composing rather than discovering them by failing.
 
 Five rules came out of the 1.0.3 experiment in which the same request was given to an agent writing raw PyQGIS and to an agent driving SIGMAI, the audit was run on both maps, and the new version was then driven end to end by an emulated assistant: labels the labelling engine could not place (`CART068`), an empty band of the frame that the page shape left unused (`CART069`), colour pairs that a reader with a colour-vision deficiency cannot tell apart, simulated with the Machado, Oliveira & Fernandes (2009) matrices (`CART070`), fonts that fall below the readable size once the figure is printed at column width (`CART071`), and a legend whose content is larger than its box, which QGIS silently clips (`CART072`). The audit also learned to read hand-made layouts — items without an id, headings such as "Data sources", label-only layers — instead of failing them for what it could not see.
 
 `CART076` (1.3.0) came from 362,210 GBIF records of a national park, which sit on 11,742 distinct coordinates, one of them with 54,009 records: as dots, that place looked like a place with a single record, and a map of 10,000 of those records scored A. The rule counts, in millimetres of the frame, how many points add nothing visible to the map, and warns when more than half of them do. It measures proportional circles the same way: one circle per exact coordinate left 79 % of the circles of that park on top of others at 1:300,000, and the densest place looked the emptiest; merged at the map scale, the 11,224 sites become 863 and none is hidden.
+
+`CART082` (1.4.0) came from the first real test of the built-in chat, with a free Gemini model: the map scored A with a legend that read "parna_itatiaia", "municipios_2024" and "relevo_copernicus_glo30". A legend label with an underscore, a data-file extension or a year glued to the name fails, and the fix is to rename the layer (`rename_layer`) to what the reader understands.
 
 Every rule says what it rests on — Brazil's national cartography regulations (Decreto nº 89.817/1984, arts. 12–21), IBGE's SIRGAS2000 resolution, the cartography textbooks of Brewer and Slocum, Snyder's projection manual, the colour-vision model of Machado et al., the figure requirements of journals — or says plainly that a number is a SIGMAI design decision. None of the thresholds was measured with readers, so `tools/threshold_sensitivity.py` re-scores 138 test maps while varying each one and reports which thresholds decide anything and which do not; the tables and a reading of them are in [docs/experiments/2026-09-19_sensibilidade_limiares/](docs/experiments/2026-09-19_sensibilidade_limiares/).
 
@@ -193,7 +208,7 @@ Developed by Luan da Silva Cortes Maciel as a research product associated with H
 @software{maciel_sigmai,
   author  = {Maciel, Luan da Silva Cortes},
   title   = {{SIGMAI}: Secure {GIS}-{AI} Interface},
-  version = {1.3.2},
+  version = {1.4.0},
   doi     = {10.5281/zenodo.20389286},
   url     = {https://github.com/LuanCortesM/SIGMAI},
   license = {MIT}

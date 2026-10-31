@@ -15,6 +15,7 @@ from __future__ import annotations
 DEV_MODE_CONFIRMATION_WORDS = frozenset({"SIM", "YES"})
 
 import json
+import os
 import threading
 import time
 import urllib.error
@@ -85,6 +86,7 @@ class SIGMAIPlugin:
         self.action = None
         self.dock = None
         self.panel = None
+        self.chat_action = None
         self.last_error = ""
         self.session_file = None
         self.session_id = generate_pairing_code()
@@ -123,10 +125,27 @@ class SIGMAIPlugin:
         self.action.triggered.connect(self.show_panel)
         self.iface.addPluginToMenu("&SIGMAI", self.action)
         self.iface.addToolBarIcon(self.action)
+        from .ui.strings import translate
+
+        self.chat_action = QAction(icon, translate(self.language, "chat_window_title"), self.iface.mainWindow())
+        self.chat_action.triggered.connect(self.show_chat)
+        self.iface.addPluginToMenu("&SIGMAI", self.chat_action)
         if bool(self.settings_get("auto_start", True)):
             QTimer.singleShot(1500, self.start_bridge)
+        # Modo de teste do chat (exemplo do artigo, teste de ponta a ponta): abre
+        # o chat e manda as mensagens do arquivo indicado, sem ninguém clicar.
+        if os.environ.get("SIGMAI_CHAT_SCRIPT") and os.environ.get("SIGMAI_CHAT_AUTORUN") == "1":
+            QTimer.singleShot(4000, self.show_chat)
 
     def unload(self) -> None:
+        if self.panel is not None:
+            try:
+                self.panel.shutdown_chat()
+            except Exception:
+                pass
+        if self.chat_action is not None:
+            self.iface.removePluginMenu("&SIGMAI", self.chat_action)
+            self.chat_action = None
         self.stop_bridge(quiet=True)
         if self.dock is not None:
             try:
@@ -171,6 +190,15 @@ class SIGMAIPlugin:
             self.iface.addDockWidget(area, self.dock)
         except Exception:
             self.dock.setFloating(True)
+
+    def show_chat(self) -> None:
+        """Abre o painel já na página do chat (menu SIGMAI ▸ Chat)."""
+        self.show_panel()
+        if self.panel is not None:
+            self.panel.show_chat()
+
+    def log_dir(self) -> Path:
+        return self._log_dir()
 
     # -- tema -------------------------------------------------------------
     def resolved_theme(self) -> str:

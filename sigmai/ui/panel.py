@@ -49,6 +49,7 @@ try:  # pragma: no cover - só falha fora do QGIS
         QScrollArea,
         QSizePolicy,
         QSpinBox,
+        QStackedWidget,
         QTableWidget,
         QTableWidgetItem,
         QTabWidget,
@@ -208,7 +209,12 @@ class SigmaiPanel(QWidget):
         self.tabs.addTab(self._scrolled(self._build_activity_tab()), self.tr_("tab_activity"))
         self.tabs.addTab(self._scrolled(self._build_advanced_tab()), self.tr_("tab_advanced"))
         self.tabs.addTab(self._scrolled(self._build_help_tab()), self.tr_("tab_help"))
-        outer.addWidget(self.tabs, 1)
+        # As abas e o chat dividem o mesmo espaço; o chat só é montado na
+        # primeira vez que alguém o abre.
+        self.stack = QStackedWidget()
+        self.stack.addWidget(self.tabs)
+        self.chat_view = None
+        outer.addWidget(self.stack, 1)
 
     def _scrolled(self, widget: QWidget) -> QScrollArea:
         area = QScrollArea()
@@ -262,8 +268,14 @@ class SigmaiPanel(QWidget):
         self.language_combo.currentIndexChanged.connect(self._change_language)
         self.status_pill = _label(self.tr_("offline"), "pillOffline")
         self.status_pill.setAlignment(ALIGN_CENTER)
+        # O chat dentro do QGIS: quem não tem cliente MCP conversa por aqui. O
+        # botão troca as abas pela página do chat, no mesmo painel e estilo.
+        self.chat_toggle = QPushButton(self.tr_("chat_toggle"))
+        self.chat_toggle.setObjectName("headerToggle")
+        self.chat_toggle.clicked.connect(self.toggle_chat)
         right.addWidget(self.language_combo, 0, ALIGN_RIGHT)
         right.addWidget(self.status_pill, 0, ALIGN_RIGHT)
+        right.addWidget(self.chat_toggle, 0, ALIGN_RIGHT)
         right.addStretch(1)
         layout.addLayout(right)
         return header
@@ -947,8 +959,41 @@ class SigmaiPanel(QWidget):
         self.help_docs.setText(self.tr_("help_docs"))
         self.help_authorship.setText(self.tr_("about_map_authorship"))
 
+    # -- chat ---------------------------------------------------------------
+    def show_chat(self) -> None:
+        if self.chat_view is None:
+            from .chat_view import ChatView
+
+            self.chat_view = ChatView(self.controller)
+            self.stack.addWidget(self.chat_view)
+        self.stack.setCurrentWidget(self.chat_view)
+        self._sync_chat_toggle()
+
+    def show_main(self) -> None:
+        self.stack.setCurrentWidget(self.tabs)
+        self._sync_chat_toggle()
+
+    def toggle_chat(self) -> None:
+        if self.chat_view is not None and self.stack.currentWidget() is self.chat_view:
+            self.show_main()
+        else:
+            self.show_chat()
+
+    def _sync_chat_toggle(self) -> None:
+        on = self.chat_view is not None and self.stack.currentWidget() is self.chat_view
+        self.chat_toggle.setText(self.tr_("chat_back" if on else "chat_toggle"))
+        self.chat_toggle.setObjectName("headerToggleOn" if on else "headerToggle")
+        self._repolish(self.chat_toggle)
+
+    def shutdown_chat(self) -> None:
+        if self.chat_view is not None:
+            self.chat_view.shutdown()
+
     def retranslate(self) -> None:
         self.subtitle_label.setText(self.tr_("subtitle"))
+        self._sync_chat_toggle()
+        if self.chat_view is not None:
+            self.chat_view.retranslate()
         self.context_label.setText(self.tr_("context"))
         self.language_combo.setToolTip(self.tr_("language_label"))
         self.theme_label.setText(self.tr_("theme_label"))

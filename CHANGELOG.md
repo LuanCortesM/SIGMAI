@@ -2,6 +2,33 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.4.0] — 2026-10-31
+
+### Adicionado
+- Chat dentro do painel do SIGMAI: o botão "API e Chat" do cabeçalho troca as abas pela conversa, no mesmo visual, e "Voltar ao painel" volta. Na primeira vez, o cartão "Conecte sua IA" pede o provedor, o modelo e a chave; depois, só a conversa aparece, e a configuração fica atrás de "Configurar IA". O modelo só tem as 20 ferramentas do SIGMAI, chamadas pelo mesmo caminho de um cliente MCP externo: catálogo fechado, modo de acesso, pastas autorizadas, auditoria e receita.
+  - Provedores: a API de Mensagens da Anthropic (Claude Opus 5.5, Sonnet 5.5 e Haiku 5.5; Opus 5.5 com esforço médio por padrão) e qualquer serviço no formato de chat da OpenAI (OpenAI, o endpoint compatível do Gemini, Ollama local e outros). HTTP direto pelo gerenciador de rede do QGIS, com o proxy configurado nele; só HTTPS, ou http na própria máquina.
+  - A chave fica no cofre criptografado do QGIS (`QgsAuthManager`), nunca nas configurações, nos registros ou nas receitas. Sem cofre, vale a variável de ambiente do provedor ou a chave só para a sessão.
+  - Antes da primeira conversa, o painel diz o que vai para o provedor. Os arquivos de dados não vão.
+  - Contador de tokens e custo estimado pelo preço de tabela, com a data da tabela; teto por conversa (US$ 5 por padrão).
+  - Depois de cada mapa exportado, o modelo pode receber uma prévia em baixa resolução para conferir à vista.
+  - Cada conversa fica registrada no perfil do QGIS, sem a chave, e pode ser exportada em Markdown.
+  - Instruções e ferramentas vão com cache; o raciocínio segue o modelo; uma recusa do filtro de segurança é refeita pela API noutro modelo, e o painel avisa.
+  - Modo de teste: `SIGMAI_CHAT_SCRIPT` e `SIGMAI_CHAT_AUTORUN` abrem o chat e mandam as mensagens de um arquivo, para refazer uma sessão palavra por palavra.
+- `detail` em `sigmai_plan_map`, `sigmai_compose_map`, `sigmai_audit_layout`, `sigmai_campaign_map`, `sigmai_map_recipe`, `sigmai_recompose_from_recipe` e `sigmai_run_command`: `"full"` devolve o laudo e a receita inteiros.
+- `legend_placement` em `compose_map` e `sigmai_plan_map`: a legenda de símbolos vai ao lado do mapa (`"map"`, o padrão), embaixo dele na largura da figura (`"below"`), num arquivo à parte, `<nome>_legend.<formato>`, cortado na altura da legenda, para outro lugar do artigo (`"separate"`), ou fica fora da figura, explicada no texto (`"none"`). Com mais de 8 linhas e sem `legend_placement`, a simulação manda perguntar ao usuário onde ela vai.
+- Regra `CART082` (erro): a legenda mostra nomes que o leitor entende, e não nomes de arquivo (sublinhado, extensão de dado ou ano colado, como em `parna_itatiaia` e `municipios_2024`); a correção é `rename_layer`. Veio do teste real do chat com o Gemini gratuito, que entregou um mapa nota A com essa legenda. São 44 regras.
+
+### Mudou
+- Figura sem legenda: a faixa inferior tem a altura da escala e do norte, e não mais uma fração fixa do corpo, que deixava 14 mm de branco sob a barra numa figura de 88 mm.
+- Altura da figura: entre as alturas em que o quadro casa com o recorte, fica a de quadro mais largo. Uma figura de 88 mm sem legenda saía com 58 mm de altura, coluna lateral e o mapa em 1:400.000; agora sai com 90 mm, faixa inferior e 1:300.000.
+- As ferramentas MCP respondem resumido por padrão. O laudo traz nota, contagens e só as regras reprovadas: em `results` e `blocking_issues`, com as mesmas chaves do laudo completo, e em `next_actions`, com o problema e o comando que corrige. A receita vem sem o QML das camadas, e o JSON vai sem recuo. Nas 113 chamadas da sessão do exemplo do artigo, as respostas teriam 67 % menos texto.
+
+### Corrigido
+- `include_inset: true` sem `inset_layer_ids` quebrava a composição ("'NoneType' object is not iterable"), desde a correção da 1.3.2 que credita as camadas do inserto.
+- Estados e municípios sobre o relevo: os dois viravam contorno com o mesmo traço fino, os municípios por cima, e a divisa estadual que a legenda mostrava sumia no mapa. O contorno que contém outro contorno agora tem o traço destacado e vai por cima.
+- O inserto afina os contornos das camadas do mapa principal (até 0,2 mm): a divisa estadual de 0,7 mm fazia do Brasil, numa caixa de 5 cm, um borrão em que a marca do recorte sumia.
+- `CART021` não via a divisa coberta: numa linha ou contorno, a lasca de meio pixel ao lado do traço de cima contava como 44 % à vista. Agora o pixel colado a um traço opaco de cima, pelo menos tão grosso quanto ela, conta como coberto, e a mensagem diz para desenhar a linha por cima e mais grossa. Traço mais fino por cima não conta: o contorno de um parque cruzado por curvas de nível continua legível.
+
 ## [1.3.2] — 2026-10-30
 
 Achados de três sessões de um assistente novo num QGIS limpo, antes do lançamento: duas do exemplo do artigo com o mesmo pedido (uma na 1.3.1 e outra numa versão candidata da 1.3.2) e uma com outro conjunto de figuras (relevo, cobertura do solo, períodos em painéis, unidades de conservação).

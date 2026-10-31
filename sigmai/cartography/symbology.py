@@ -234,8 +234,14 @@ APPLY_STYLE_MODES: tuple[str, ...] = ("missing", "all", "none")
 def apply_default_symbology(
     layers: list[Any], mode: str = "missing", dry_run: bool = False, colour_mode: str = "colour",
     outline_ids: set[str] | None = None,
+    outline_parent_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Aplica a paleta padrão às camadas elegíveis.
+
+    ``outline_parent_ids``: contornos que contêm outro contorno do mapa (os
+    estados sobre os municípios). Ficam com o traço destacado mesmo com mais
+    de 20 feições; com o traço de subdivisão, a divisa estadual não se
+    distinguia da municipal.
 
     ``mode`` aceita ``"missing"`` (só camadas com símbolo único), ``"all"``
     (força em todas) e ``"none"`` (não faz nada). Qualquer outro valor é
@@ -351,7 +357,7 @@ def apply_default_symbology(
             # estado e continuavam na legenda. Vira contorno destacado, por cima.
             subdivision = False
             try:
-                subdivision = int(layer.featureCount()) > 20
+                subdivision = int(layer.featureCount()) > 20 and layer.id() not in (outline_parent_ids or set())
             except Exception:
                 pass
             style.update({"fill": "255,255,255,0", "pattern": "no",
