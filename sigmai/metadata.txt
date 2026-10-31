@@ -17,9 +17,5 @@ repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=MIT
 changelog=1.4.0
-    - AI API support: chat with an AI model inside the SIGMAI panel, using your own API key (Claude, OpenAI, Gemini, Ollama)
-    - Choose where the map legend goes: beside the map, below it, in a separate file or left out
-    - New rule: the legend must not show file names
-    - Shorter tool answers for AI assistants
+    - AI API support: Claude, OpenAI, Gemini, Ollama
     - Bug fixes
-    Full history: https://github.com/LuanCortesM/SIGMAI/blob/main/CHANGELOG.md
