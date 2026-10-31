@@ -937,7 +937,10 @@ def resolve_data_sources(
         if layer_id in derived_of:
             continue
         grouped.setdefault(source, []).append(names.get(layer_id, layer_id))
-    credit = "; ".join(f"{source} ({', '.join(covered)})" for source, covered in grouped.items())
+    # Fonte citada com o ano entre parênteses, "CNUC/MMA (2025)": as camadas
+    # vão entre colchetes na linha toda, e não "(2025) (Parque)".
+    opening, closing = ("[", "]") if any("(" in source for source in grouped) else ("(", ")")
+    credit = "; ".join(f"{source} {opening}{', '.join(covered)}{closing}" for source, covered in grouped.items())
     return credit, per_layer, notes
 
 
@@ -1120,7 +1123,7 @@ def _compose_dense_points(params: dict[str, Any], context: dict[str, Any], mode:
     """
     if mode not in DENSE_POINT_MODES:
         raise CompositionError(f"dense_points={mode!r} não existe. Aceitos: {', '.join(DENSE_POINT_MODES)}.")
-    from ..qgis_actions.gis_tools import count_points_by_site
+    from ..qgis_actions.gis_tools import count_points_by_site, preview_sites_layer
     from ..qgis_actions.symbology import apply_heatmap_style, apply_proportional_symbol_style
     from .pointdensity import STACKING_MIN_POINTS
 
@@ -1128,26 +1131,34 @@ def _compose_dense_points(params: dict[str, Any], context: dict[str, Any], mode:
     project = imports["QgsProject"].instance()
     base = {k: v for k, v in params.items() if k != "dense_points"}
     language, _known = resolve_language(str(base.get("map_language") or "pt-BR"))
-    points = [layer for layer in _resolve_layers(base, imports)
-              if _quiet(lambda layer=layer: int(layer.geometryType())) == 0
-              and int(_quiet(layer.featureCount) or 0) >= STACKING_MIN_POINTS]
-    # Só as de assunto, quando alguma é: pontos de contexto (sedes de
-    # município, por exemplo) continuam pontos.
-    wanted = base.get("subject_layer_id")
-    wanted = {str(v).strip() for v in (wanted if isinstance(wanted, list) else [wanted]) if v}
-    points = [layer for layer in points if layer.id() in wanted or layer.name() in wanted] or points
+    def dense(layers: list[Any], wanted: Any) -> list[Any]:
+        found = [layer for layer in layers
+                 if _quiet(lambda layer=layer: int(layer.geometryType())) == 0
+                 and int(_quiet(layer.featureCount) or 0) >= STACKING_MIN_POINTS]
+        # Só as de assunto, quando alguma é: pontos de contexto (sedes de
+        # município, por exemplo) continuam pontos.
+        wanted = {str(v).strip() for v in (wanted if isinstance(wanted, list) else [wanted]) if v}
+        return [layer for layer in found if layer.id() in wanted or layer.name() in wanted] or found
+
+    # Os painéis também: com dois períodos lado a lado, só o painel A virava
+    # locais, e o B saía com 244.948 pontos (figura suplementar S3).
+    panel_specs = [base["second_map"]] if isinstance(base.get("second_map"), dict) else []
+    panel_specs += [spec for spec in (base.get("panels") or []) if isinstance(spec, dict)]
+    points = dense(_resolve_layers(base, imports), base.get("subject_layer_id"))
+    for index, spec in enumerate(panel_specs):
+        for layer in dense(_resolve_layer_ids(spec, imports, _panel_label(index)), spec.get("subject_layer_id")):
+            if all(layer.id() != existing.id() for existing in points):
+                points.append(layer)
     if not points:
         result = _compose_map(base, context)
         result.setdefault("notes", []).append(f"dense_points={mode!r}: nenhuma camada de pontos com {STACKING_MIN_POINTS} "
                                               "pontos ou mais; o mapa saiu como pedido.")
         return result
     names = ", ".join(repr(layer.name()) for layer in points)
-    if context.get("dry_run"):
+    dry = bool(context.get("dry_run"))
+    if dry and mode == "heatmap":
         result = _compose_map(base, context)
-        result.setdefault("notes", []).append(
-            f"dense_points={mode!r}: {names} " + ("viraria(m) mapa de calor." if mode == "heatmap" else
-                                                  "viraria(m) um símbolo por local, agrupado na escala do mapa, "
-                                                  "num GeoPackage ao lado de output_path."))
+        result.setdefault("notes", []).append(f"dense_points='heatmap': {names} viraria(m) mapa de calor.")
         return result
     if mode == "heatmap":
         for layer in points:
@@ -1157,7 +1168,7 @@ def _compose_dense_points(params: dict[str, Any], context: dict[str, Any], mode:
         return result
 
     output = _resolve_output_path(base)
-    if output is None:
+    if output is None and not dry:
         raise CompositionError("dense_points='sites' grava os locais num GeoPackage ao lado do mapa: passe output_path.")
     derived: dict[str, Any] = {}
     overwrite, _note = as_flag(base, "confirm_overwrite", False)
@@ -1168,17 +1179,34 @@ def _compose_dense_points(params: dict[str, Any], context: dict[str, Any], mode:
             previous = derived.get(layer.id())
             if previous is not None:
                 project.removeMapLayer(previous.id())
-            stem = re.sub(r"[^0-9A-Za-z_-]+", "_", layer.name()).strip("_") or "pontos"
-            target = output.with_name(f"{output.stem}_{stem}_sites.gpkg")
-            summary = count_points_by_site({
-                "layer_id": layer.id(), "output_path": str(target), "scale": scale,
-                "layer_name": layer.name(), "confirm_overwrite": previous is not None or overwrite,
-            }, {"dry_run": False})
-            sites = project.mapLayer(summary["layer_id"])
-            apply_proportional_symbol_style({"layer_id": sites.id(), "field_name": "records", "map_language": language,
-                                             "legend_title": maptext(language, "registros_por_local")}, {"dry_run": False})
+            if dry:
+                # A simulação mede a legenda de símbolos proporcionais que o
+                # mapa terá (o plano dava 88 x 120 mm e o mapa saía 88 x 134):
+                # locais numa camada de memória, retirada do projeto no fim.
+                sites, summary = preview_sites_layer({"layer_id": layer.id(), "scale": scale, "layer_name": layer.name()})
+                project.addMapLayer(sites)
+            else:
+                stem = re.sub(r"[^0-9A-Za-z_-]+", "_", layer.name()).strip("_") or "pontos"
+                target = output.with_name(f"{output.stem}_{stem}_sites.gpkg")
+                summary = count_points_by_site({
+                    "layer_id": layer.id(), "output_path": str(target), "scale": scale,
+                    "layer_name": layer.name(), "confirm_overwrite": previous is not None or overwrite,
+                }, {"dry_run": False})
+                sites = project.mapLayer(summary["layer_id"])
             derived[layer.id()] = sites
             summaries[layer.id()] = summary
+        # Painéis comparados com a mesma escala de tamanhos: um círculo de
+        # 10.000 registros tem o mesmo tamanho nos dois (CART081).
+        shared: dict[str, Any] = {}
+        if len(derived) > 1:
+            lows = [_quiet(lambda sites=sites: sites.minimumValue(sites.fields().indexOf("records"))) for sites in derived.values()]
+            lows = [float(low) for low in lows if low is not None]
+            shared = {"min_value": min(lows) if lows else 1,
+                      "max_value": max(float(summary["max_records_per_site"]) for summary in summaries.values())}
+        for sites in derived.values():
+            apply_proportional_symbol_style({"layer_id": sites.id(), "field_name": "records", "map_language": language,
+                                             "legend_title": maptext(language, "registros_por_local"), **shared},
+                                            {"dry_run": False})
         return summaries
 
     def swapped() -> dict[str, Any]:
@@ -1195,25 +1223,70 @@ def _compose_dense_points(params: dict[str, Any], context: dict[str, Any], mode:
             return value
         changed = {key: swap(base[key]) for key in ("layer_ids", "subject_layer_id", "label_layer_id", "data_source")
                    if key in base}
+
+        def swap_spec(spec: Any) -> Any:
+            if not isinstance(spec, dict):
+                return spec
+            return {**spec, **{key: swap(spec[key]) for key in ("layer_ids", "subject_layer_id", "label_layer_id") if key in spec}}
+
+        if isinstance(base.get("second_map"), dict):
+            changed["second_map"] = swap_spec(base["second_map"])
+        if isinstance(base.get("panels"), list):
+            changed["panels"] = [swap_spec(spec) for spec in base["panels"]]
         return {**base, **changed}
 
-    scale = int(_compose_map(base, {"dry_run": True})["scale_denominator"])
-    summaries = aggregate(scale)
-    final_scale = int(_compose_map(swapped(), {"dry_run": True})["scale_denominator"])
-    if abs(final_scale - scale) > DENSE_SITES_RESCALE * scale:
-        scale = final_scale
+    dirty = _quiet(project.isDirty)
+    temporary: dict[str, str] = {}
+    try:
+        scale = int(_compose_map(base, {"dry_run": True})["scale_denominator"])
         summaries = aggregate(scale)
-    result = _compose_map(swapped(), context)
+        final_scale = int(_compose_map(swapped(), {"dry_run": True})["scale_denominator"])
+        if abs(final_scale - scale) > DENSE_SITES_RESCALE * scale:
+            scale = final_scale
+            summaries = aggregate(scale)
+        result = _compose_map(swapped(), context)
+    finally:
+        if dry:
+            temporary = {sites.id(): source for source, sites in derived.items()}
+            for layer_id in temporary:
+                project.removeMapLayer(layer_id)
+            if dirty is not None:
+                project.setDirty(bool(dirty))
+    if dry:
+        # A camada de memória saiu do projeto: o plano fala da camada de registros.
+        result = _replace_ids(result, temporary)
+    # Os locais têm o nome dos registros, e o relatório dizia "estilo definido
+    # por uma ação de simbologia", como se o usuário tivesse estilizado.
+    site_names = {layer.name() for layer in points}
+    for entry in result.get("styling") or result.get("styling_preview") or []:
+        if entry.get("layer") in site_names:
+            entry.update(action="estilizada", style_origin="dense_points",
+                         reason="um símbolo por local, de área proporcional ao número de registros (dense_points='sites')")
     for layer in points:
         summary = summaries[layer.id()]
+        where = "num GeoPackage ao lado de output_path" if dry else f"em {summary['output_path']}"
         result.setdefault("notes", []).append(
-            f"dense_points='sites': os {_thousands(summary['records'])} pontos de {layer.name()!r} viraram "
-            f"{_thousands(summary['sites'])} locais, agrupados a {float(summary['min_spacing_mm']):g} mm na escala "
-            f"{_format_scale(scale)} (até {_thousands(summary['max_records_per_site'])} num local), em "
-            f"{summary['output_path']}.")
-    result["derived_layers"] = [{"source_layer_id": source, "layer_id": layer.id(), "name": layer.name(),
-                                 "output_path": summaries[source]["output_path"]} for source, layer in derived.items()]
+            f"dense_points='sites': os {_thousands(summary['records'])} pontos de {layer.name()!r} "
+            f"{'virariam' if dry else 'viraram'} {_thousands(summary['sites'])} locais, agrupados a "
+            f"{float(summary['min_spacing_mm']):g} mm na escala {_format_scale(scale)} "
+            f"(até {_thousands(summary['max_records_per_site'])} num local), {where}.")
+    if not dry:
+        result["derived_layers"] = [{"source_layer_id": source, "layer_id": layer.id(), "name": layer.name(),
+                                     "output_path": summaries[source]["output_path"]} for source, layer in derived.items()]
     return result
+
+
+def _replace_ids(value: Any, mapping: dict[str, str]) -> Any:
+    """Troca ids de camada em toda a resposta (chaves, valores e textos)."""
+    if isinstance(value, str):
+        for old, new in mapping.items():
+            value = value.replace(old, new)
+        return value
+    if isinstance(value, list):
+        return [_replace_ids(item, mapping) for item in value]
+    if isinstance(value, dict):
+        return {_replace_ids(key, mapping): _replace_ids(item, mapping) for key, item in value.items()}
+    return value
 
 
 def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
@@ -1309,10 +1382,19 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # UC) entra na legenda e na linha de crédito; um texto único continua
     # valendo para o mapa inteiro. Resolvido cedo: uma camada citada que não
     # está no mapa é recusa de parâmetro, antes de qualquer mutação.
+    # As camadas do inserto também são dado publicado: o mapa de localização
+    # recusava a fonte do "Brasil (inserto)" como camada fora do mapa.
+    credited = list(styling_targets)
+    if as_flag(params, "include_inset", False)[0]:
+        project_layers = imports["QgsProject"].instance()
+        for key in as_id_list(params, "inset_layer_ids", allow_single=True, label="inset_layer_ids"):
+            layer = project_layers.mapLayer(str(key))
+            if layer is not None and all(layer.id() != existing.id() for existing in credited):
+                credited.append(layer)
     source_text, layer_sources, source_notes = resolve_data_sources(
         params.get("data_source"),
         [(layer.id(), layer.name(), _layer_metadata_source(layer),
-          str(_quiet(lambda: layer.customProperty("sigmai/derived_from", "")) or "")) for layer in styling_targets],
+          str(_quiet(lambda: layer.customProperty("sigmai/derived_from", "")) or "")) for layer in credited],
     )
     if not isinstance(params.get("data_source"), (dict, list)):
         source_notes = []  # texto único: as notas de cobertura por camada não se aplicam
@@ -1341,6 +1423,11 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     # usuário em silêncio. Cada conversão registra uma nota, mesclada em
     # `notes` mais abaixo (a lista ainda não existe neste ponto do fluxo).
     flag_notes: list[str] = []
+    if str(params.get("panel_title") or "").strip() and second_map_spec is None:
+        # Num mapa só, panel_title não tinha onde ir e sumia sem aviso: o
+        # assistente do exemplo esperava as letras A e B nos painéis 3A e 3B.
+        flag_notes.append("panel_title só vale com second_map ou panels: num mapa só ele não é desenhado. Para uma "
+                          "figura com painéis A e B, componha os dois numa chamada, com second_map.")
 
     def _flag(key: str, default: bool) -> bool:
         value, note = as_flag(params, key, default)
@@ -1522,7 +1609,11 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
                 decision_extent.combineExtentWith(
                     _aspect_expanded(panel_extent, frame_n.width, frame_n.height, imports)
                 )
-        projected, label = _suggest_projected_crs(decision_extent, map_crs, imports, editorial=editorial_projection)
+        # O datum do UTM vem das camadas de assunto, não do CRS do projeto: este
+        # é o da primeira camada carregada, e o mesmo pedido saía em SIRGAS 2000
+        # num projeto e em WGS 84 no projeto refeito depois de fechar o QGIS.
+        datum_crs = next((layer.crs() for layer in extent_layers if _quiet(lambda layer=layer: layer.crs().isValid())), map_crs)
+        projected, label = _suggest_projected_crs(decision_extent, datum_crs, imports, editorial=editorial_projection)
         if projected is not None and label:
             if max(decision_extent.width(), decision_extent.height()) > REGIONAL_MAX_SPAN_DEGREES:
                 # Grade em graus sobre o mapa projetado: em metros, os rótulos
@@ -1662,8 +1753,12 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
 
     # Faixa inferior na altura da legenda que vai recebê-la; o que sobra vai
     # para o mapa. Depois da orientação e do arranjo, que só ganham com isso.
-    if plan.arrangement == "faixa_inferior" and include_legend and not extra_specs:
-        chosen_band = _fit_band(layout_request, layers, params, imports, map_language, legend_sources, figure_shape)
+    # Com painéis, também quando a faixa foi pedida (arrangement): a figura
+    # ficava com a altura calculada para a coluna lateral (90 mm em vez de
+    # 140), e a escala que o modo automático alcançava era recusada.
+    if plan.arrangement == "faixa_inferior" and include_legend and (not extra_specs or params.get("arrangement")):
+        entries = _legend_entries(layers, extra_specs, params, imports) if extra_specs else layers
+        chosen_band = _fit_band(layout_request, entries, params, imports, map_language, legend_sources, figure_shape)
         if chosen_band is not None:
             plan = chosen_band[0]
             _refresh_figure_note(notes, page, plan.page)
@@ -1671,6 +1766,12 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
             layout_request.update(arrangement="faixa_inferior", page=page, support_content_mm=chosen_band[1],
                                   legend_row=plan.slots["legend"].width >= plan.page.content_width_mm - 0.5)
             frame = plan.map_frame()
+            if not chosen_band[2] and chosen_band[1] is not None:
+                # A simulação não avisava: o assistente encolheu a figura para
+                # 136,9 mm pelo plano, e o mapa saiu com a legenda cortada.
+                notes.append(f"A legenda pede {chosen_band[1]:.0f} mm de altura e a faixa tem "
+                             f"{plan.slots['legend'].height:.0f} mm nesta figura: ela vai transbordar (CART072). "
+                             "Deixe a altura livre (sem figure_height_mm) ou encurte a legenda.")
 
     fitted = _fit(frame)
 
@@ -1824,6 +1925,10 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
     else:
         export_format = "pdf"
 
+    relief_note = _covering_relief_note(layers)
+    if relief_note:
+        notes.append(relief_note)
+
     if context.get("dry_run"):
         return {
             "dry_run": True,
@@ -1831,7 +1936,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
             "plan": plan.to_dict(),
             "map_crs": _crs_identifier(map_crs, map_crs_label),
             "extent": fitted.to_dict(),
-            "scale": _format_scale(fitted.scale_denominator),
+            "scale": _format_scale(fitted.scale_denominator, map_language),
             "scale_denominator": fitted.scale_denominator,
             "layers": [{"id": layer.id(), "name": layer.name()} for layer in layers],
             # O que a composição faria à simbologia, sem tê-la feito: quais
@@ -2160,7 +2265,7 @@ def _compose_map(params: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         "print_width_mm": print_width_mm,
         "map_crs": _crs_identifier(map_crs, map_crs_label),
         "map_crs_description": map_crs.description(),
-        "scale": _format_scale(fitted.scale_denominator),
+        "scale": _format_scale(fitted.scale_denominator, map_language),
         "scale_denominator": fitted.scale_denominator,
         "extent": fitted.to_dict(),
         "scale_bar": bar_spec.to_dict(),
@@ -2996,7 +3101,12 @@ def _hiding_polygon_ids(layers: list[Any], subject: set[str], already: set[str],
     thematic = [layer for layer in layers
                 if (not hasattr(layer, "geometryType") and not _is_basemap_raster(layer) and not _is_overlay_raster(layer))
                 or _is_density_surface(layer)]
-    for raster in thematic:
+    # O relevo sombreado em modo normal fica embaixo dos polígonos, e o cinza do
+    # contexto o apagava (o assistente do exemplo tirou o preenchimento à mão).
+    # Em modo multiplicar ele vai por cima e não precisa disso. O assunto
+    # mantém o preenchimento, que é semitransparente e deixa o relevo aparecer.
+    relief = [layer for layer in layers if _is_hillshade_under(layer)]
+    for raster in thematic + relief:
         extent = wgs_extent(raster)
         if extent is None:
             continue
@@ -3005,7 +3115,7 @@ def _hiding_polygon_ids(layers: list[Any], subject: set[str], already: set[str],
             continue
         for layer in polygons:
             union = unions.get(layer.id())
-            if union is None or union.isEmpty():
+            if union is None or union.isEmpty() or (raster in relief and is_subject(layer)):
                 continue
             if union.intersection(footprint).area() / footprint.area() >= 0.02:
                 found.add(layer.id())
@@ -3113,6 +3223,22 @@ def _outlined_layer_ids(layers: list[Any], candidates: set[str]) -> set[str]:
         except Exception:
             continue
     return outlined
+
+
+def _covering_relief_note(layers: list[Any]) -> str:
+    """Relevo sombreado opaco em modo normal sobre rasters coloridos: ele vai por cima e os cobre.
+
+    Figura S1 do material suplementar: o relevo fica acima dos outros rasters
+    para sombreá-los, e só a CART021 avisava, depois de exportado.
+    """
+    covering = [layer.name() for layer in layers if _is_hillshade_under(layer)
+                and float(_quiet(lambda layer=layer: layer.renderer().opacity()) or 0.0) >= 0.99]
+    covered = [layer.name() for layer in layers
+               if not hasattr(layer, "geometryType") and not _is_overlay_raster(layer) and not _is_basemap_raster(layer)]
+    if not (covering and covered):
+        return ""
+    return (f"O relevo sombreado {', '.join(map(repr, covering))} vai por cima de {', '.join(map(repr, covered))} e, "
+            "opaco em modo normal, o cobre: passe blend_mode='multiply' ou opacity abaixo de 1 em apply_raster_style.")
 
 
 def _cartographic_draw_order(layers: list[Any], subject: set[str], outlined: set[str], imports: dict[str, Any]) -> list[Any]:
@@ -3352,6 +3478,18 @@ def _is_overlay_raster(layer: Any) -> bool:
         return False
 
 
+def _is_hillshade_under(layer: Any) -> bool:
+    """Relevo sombreado em modo normal: desenhado como fundo, embaixo dos polígonos (não multiplicado por cima)."""
+    try:
+        if str(layer.renderer().type()) != "hillshade":
+            return False
+        from qgis.PyQt.QtGui import QPainter  # type: ignore
+
+        return layer.blendMode() == qt_enum(QPainter, "CompositionMode", "CompositionMode_SourceOver")
+    except Exception:
+        return False
+
+
 def _is_label_only(layer: Any) -> bool:
     try:
         renderer = layer.renderer()
@@ -3471,6 +3609,35 @@ def _has_size_legend(legend: Any) -> bool:
     except Exception:
         pass
     return False
+
+
+def _drop_automatic_size_titles(legend: Any) -> None:
+    """Legenda de tamanhos pedida sem título (legend_title=""): sai sem o nome do campo.
+
+    O QGIS põe o nome do campo no lugar de um título vazio
+    (QgsDataDefinedSizeLegend.updateFromSymbolAndProperty), e a figura do
+    exemplo saía com "Records per site" e, embaixo, "records". O nó desse
+    título fica fora da ordem dos nós da camada.
+    """
+    try:
+        from qgis.core import QgsDataDefinedSizeLegendNode, QgsMapLayerLegendUtils  # type: ignore
+    except Exception:
+        return
+    model = legend.model()
+    for node in model.rootGroup().findLayers():
+        try:
+            renderer = node.layer().renderer() if node.layer() is not None and hasattr(node.layer(), "renderer") else None
+            settings = renderer.dataDefinedSizeLegend() if renderer is not None and hasattr(renderer, "dataDefinedSizeLegend") else None
+            if settings is None or settings.title():
+                continue
+            nodes = model.layerOriginalLegendNodes(node)
+            keep = [index for index, legend_node in enumerate(nodes)
+                    if isinstance(legend_node, QgsDataDefinedSizeLegendNode) or getattr(legend_node, "symbol", lambda: None)() is not None]
+            if len(keep) < len(nodes):
+                QgsMapLayerLegendUtils.setLegendNodeOrder(node, keep)
+                model.refreshLayerLegend(node)
+        except Exception:
+            continue
 
 
 def _legend_content_size_mm(legend: Any) -> tuple[float, float] | None:
@@ -3807,6 +3974,7 @@ def _legend_need_mm(
                 _wrap_class_labels(legend.model(), node, layout, imports, plan, columns)
             legend.setWrapString(LEGEND_WRAP)
             _merge_identical_legends(legend, imports, layout, plan)
+            _drop_automatic_size_titles(legend)
             legend.setColumnCount(columns)
             legend.setSplitLayer(not _has_size_legend(legend))
             legend.setEqualColumnWidth(True)
@@ -3917,6 +4085,7 @@ def _add_legend(
         # quebra ligada o QGIS os desenhava numa linha só, além da caixa.
         legend.setWrapString(LEGEND_WRAP)
         merged = _merge_identical_legends(legend, imports, layout, plan)
+        _drop_automatic_size_titles(legend)
         if merged and notes is not None:
             notes.append("Legenda única para camadas com as mesmas classes: " + ", ".join(merged) + ".")
         legend.updateLegend()

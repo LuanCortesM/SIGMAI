@@ -1,7 +1,7 @@
 [general]
 name=SIGMAI
 description=Secure local bridge between AI assistants and QGIS, with cartographic quality control.
-version=1.3.1
+version=1.3.2
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=MACIEL, L. S. C.
@@ -16,7 +16,20 @@ homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=MIT
-changelog=1.3.1
+changelog=1.3.2
+    - Legenda de círculos mostra o menor símbolo do mapa (1, 20.000 e 68.881, não 2.000, 20.000 e 68.881).
+    - recompose_from_recipe não avisa mais que ignora o recipe_path que usa.
+    - A simulação de apply_raster_style recusa rampa de cores inexistente; a saída temporária do Processing não é tratada como caminho; panel_title num mapa só gera aviso.
+    - spatial_relationship acha o vizinho mais próximo de pontos e conta a camada inteira (layer_summary: quantos dentro e a até radius_m).
+    - sigmai_plan_map com dense_points="sites" prevê a mesma página do mapa (mede a legenda de círculos).
+    - Relevo sombreado embaixo deixa o contexto em contorno; nomes de região não são derrubados; CART020 nomeia as camadas isentas.
+    - data_source aceita as camadas do inserto; fonte com ano entre parênteses põe as camadas entre colchetes.
+    - O histórico de desfazer não lista arquivos só lidos nem get_map_recipe; o relatório de estilo diz de onde veio o estilo dos locais e das camadas de contexto.
+    - Figura de painéis com faixa inferior pedida refaz a altura da figura; a letra do painel não é tomada por título (CART001).
+    - legend_title vazio tira de fato o título da legenda de círculos; o UTM automático segue o datum das camadas de assunto.
+    - dense_points="sites" agrupa todos os painéis, com a mesma escala de tamanhos; select/extract_by_expression leem a camada inteira.
+    - apply_raster_style respeita colors em unique_values; opacidade e leitura de estilo em raster; CART070 olha as classes de raster de categorias; aviso de relevo opaco sobre cores; escala da resposta na língua do mapa.
+    1.3.1
     - A auditoria mede pontos, rampas e mapas de calor em todos os painéis de uma figura de comparação, não só no primeiro.
     - Figura de periódico com dados em graus: a altura da página sai do recorte já projetado.
     - Recompor pela receita não regrava a receita original nem sobrescreve o mapa original, e mantém o sistema de referência gravado.

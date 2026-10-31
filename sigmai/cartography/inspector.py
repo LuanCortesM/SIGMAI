@@ -32,6 +32,9 @@ ROLE_BY_ITEM_ID = {
     "crs_note": "crs_note",
     "logo": "logo",
     "inset_map": "inset",
+    # A letra do painel ("A", "(B) 2020"): com o título na legenda do texto, o
+    # rótulo maior do layout era ela, e a CART001 dizia "Título presente: 'B'".
+    "panel_caption": "panel_caption",
 }
 
 
@@ -1044,6 +1047,15 @@ def _layer_colours(layers: Any) -> list[dict[str, Any]]:
         try:
             renderer = layer.renderer()
             if renderer is None or str(renderer.type()) == "nullSymbol":
+                continue
+            if str(renderer.type()) == "paletted":
+                # Raster de categorias (cobertura do solo): as classes competem
+                # entre si como as de um polígono categorizado. A regra não as
+                # via, e as cores oficiais do WorldCover (vermelho × verde)
+                # passavam sem aviso (figura S2 do material suplementar).
+                classes = [{"label": str(c.label or c.value), "colour": c.color.name()} for c in renderer.classes()]
+                if classes:
+                    out.append({"layer": str(layer.name()), "family": "raster", "classes": classes})
                 continue
             geometry = int(layer.geometryType())
             family = {0: "point", 1: "line", 2: "polygon"}.get(geometry, "other")

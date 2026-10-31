@@ -10,7 +10,12 @@ tocam A, qual é a mais próxima e a que distância.
   região se cancelam mesmo em coordenadas geográficas);
 * distâncias são geodésicas (``QgsDistanceArea`` com o elipsoide do
   projeto, ou WGS 84), em metros, entre os pontos mais próximos das duas
-  geometrias — não entre centroides.
+  geometrias — não entre centroides;
+* com mais de uma feição em A, ``layer_summary`` conta a camada inteira:
+  quantas feições de A tocam B (para pontos, quantos estão dentro) e, com
+  ``radius_m``, quantas ficam a até essa distância. Foi a pergunta do
+  exemplo de Itatiaia ("quantos registros caem no parque?"), que a lista
+  das 50 primeiras feições não respondia.
 
 É uma leitura: não cria camada nem altera o projeto.
 """
@@ -27,6 +32,12 @@ MAX_RESULTS = 100
 #: Passos de busca pelos vizinhos mais próximos (múltiplos da diagonal do
 #: retângulo envolvente de A), até desistir com nota.
 SEARCH_STEPS = (2.0, 8.0, 32.0)
+#: Um ponto não tem diagonal: o passo de busca parte desta fração da
+#: diagonal da extensão de B (sem isso, 1e-9 grau, e nenhum vizinho achado).
+POINT_SEARCH_FRACTION_OF_OTHER = 1.0 / 50.0
+#: Feições de B acima das quais não se varre a camada inteira (busca final
+#: do vizinho e contagem de layer_summary).
+FULL_SCAN_MAX_FEATURES = 20000
 #: Trechos que denunciam um campo de nome (em vez de código).
 NAME_FIELD_HINTS = ("nome", "name", "nm_", "_nm", "titulo", "título", "label", "descr", "toponim")
 
@@ -141,6 +152,80 @@ def _shared(a: Any, b: Any, geometry_type: int) -> float:
     return _size(part, geometry_type)
 
 
+def _add_touching(imports: dict[str, Any], layer: Any, zone: Any, found: set[int]) -> None:
+    """Junta a ``found`` os ids das feições de ``layer`` que tocam ``zone`` (no CRS da camada)."""
+    engine = imports["QgsGeometry"].createGeometryEngine(zone.constGet())
+    engine.prepareGeometry()
+    request = imports["QgsFeatureRequest"]().setFilterRect(zone.boundingBox())
+    request.setNoAttributes()
+    for feature in layer.getFeatures(request):
+        if feature.id() in found:
+            continue
+        geometry = feature.geometry()
+        if geometry is not None and not geometry.isEmpty() and engine.intersects(geometry.constGet()):
+            found.add(feature.id())
+
+
+def _buffer_metres(imports: dict[str, Any], geometry: Any, crs: Any, radius_m: float) -> Any:
+    """Buffer de ``radius_m`` metros numa azimutal equidistante centrada na geometria."""
+    from qgis.core import QgsCoordinateReferenceSystem  # type: ignore
+
+    context = imports["QgsProject"].instance().transformContext()
+    wgs84 = QgsCoordinateReferenceSystem("EPSG:4326")
+    centre = imports["QgsGeometry"].fromPointXY(geometry.boundingBox().center())
+    centre.transform(imports["QgsCoordinateTransform"](crs, wgs84, context))
+    lon, lat = centre.asPoint().x(), centre.asPoint().y()
+    local = QgsCoordinateReferenceSystem.fromProj(f"+proj=aeqd +lat_0={lat} +lon_0={lon} +ellps=WGS84 +units=m +no_defs")
+    to_local = imports["QgsCoordinateTransform"](crs, local, context)
+    zone = imports["QgsGeometry"](geometry)
+    zone.transform(to_local)
+    zone = zone.buffer(float(radius_m), 16)
+    zone.transform(to_local, imports["reverse_transform"])
+    return zone
+
+
+def _layer_summary(imports: dict[str, Any], subject: Any, other: Any, transform: Any, radius_m: float) -> dict[str, Any] | None:
+    """Contagem na camada A inteira: quantas feições tocam B (e ficam a até ``radius_m``).
+
+    Feição a feição de B, guardando os ids de A: unir antes os 5.570
+    municípios do Brasil custaria mais que a contagem.
+    """
+    inside: set[int] = set()
+    near: set[int] = set()
+    measured = False
+    for feature in other.getFeatures(imports["QgsFeatureRequest"]().setNoAttributes()):
+        geometry = feature.geometry()
+        if geometry is None or geometry.isEmpty():
+            continue
+        geometry = imports["QgsGeometry"](geometry)
+        if transform is not None:
+            geometry.transform(transform)
+        measured = True
+        _add_touching(imports, subject, geometry, inside)
+        if radius_m > 0:
+            _add_touching(imports, subject, _buffer_metres(imports, geometry, subject.crs(), radius_m), near)
+    if not measured:
+        return None
+    total = int(subject.featureCount())
+    if total < 0:  # provedor que não sabe contar sem ler
+        total = sum(1 for _ in subject.getFeatures(imports["QgsFeatureRequest"]().setNoAttributes()))
+    touching = len(inside)
+    verb = "estão dentro de" if int(subject.geometryType()) == 0 and int(other.geometryType()) == 2 else "tocam"
+    summary = {
+        "subject_features": total,
+        "touching_other": touching,
+        "fraction": round(touching / total, 4) if total else None,
+    }
+    text = f"{touching} de {total} feições de {subject.name()!r} {verb} {other.name()!r} ({touching / total:.1%})" if total else ""
+    if radius_m > 0:
+        within = len(near | inside)
+        summary["radius_m"] = radius_m
+        summary["within_radius"] = within
+        text += f"; {within} ({within / total:.1%}) a até {radius_m:g} m" if total else ""
+    summary["summary"] = text
+    return summary
+
+
 def spatial_relationship(params: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
     """Contenção, interseção, vizinho mais próximo e distância entre A e B."""
     imports = _imports()
@@ -169,12 +254,23 @@ def spatial_relationship(params: dict[str, Any], context: dict[str, Any]) -> dic
     if feature_id is not None and not subjects:
         raise ValidationError("FEATURE_NOT_FOUND", f"feature_id {feature_id} não existe em {subject.name()!r}.", {"feature_id": feature_id})
     notes: list[str] = []
+    full_scan = int(other.featureCount()) <= FULL_SCAN_MAX_FEATURES
+    layer_summary = None
+    if feature_id is None and len(subjects) > 1:
+        if full_scan:
+            layer_summary = _layer_summary(imports, subject, other, transform, radius_m)
+        else:
+            notes.append(f"{other.name()!r} tem mais de {FULL_SCAN_MAX_FEATURES} feições: a contagem da camada inteira (layer_summary) não foi feita.")
     if len(subjects) > MAX_SUBJECT_FEATURES:
         notes.append(
-            f"{subject.name()!r} tem {len(subjects)} feições; só as {MAX_SUBJECT_FEATURES} primeiras foram analisadas. "
-            "Passe feature_id para uma feição específica ou filtre a camada."
+            f"{subject.name()!r} tem {len(subjects)} feições; só as {MAX_SUBJECT_FEATURES} primeiras foram listadas uma a uma "
+            "(layer_summary conta todas). Passe feature_id para uma feição específica."
         )
         subjects = subjects[:MAX_SUBJECT_FEATURES]
+    other_extent = other.extent()
+    if transform is not None:
+        other_extent = transform.transformBoundingBox(other_extent)
+    other_diagonal = (other_extent.width() ** 2 + other_extent.height() ** 2) ** 0.5
     if crs.isGeographic():
         notes.append(
             "Frações de área/comprimento calculadas em coordenadas geográficas: válidas como proporção da mesma "
@@ -203,7 +299,7 @@ def spatial_relationship(params: dict[str, Any], context: dict[str, Any]) -> dic
             continue
         geometry = imports["QgsGeometry"](geometry)
         bbox = geometry.boundingBox()
-        diagonal = max((bbox.width() ** 2 + bbox.height() ** 2) ** 0.5, 1e-9)
+        diagonal = max((bbox.width() ** 2 + bbox.height() ** 2) ** 0.5, other_diagonal * POINT_SEARCH_FRACTION_OF_OTHER, 1e-9)
         total = _size(geometry, geometry_type)
 
         # Interseções: tudo que toca A.
@@ -234,9 +330,14 @@ def spatial_relationship(params: dict[str, Any], context: dict[str, Any]) -> dic
             steps = [radius_m * _units_per_metre(imports, da, bbox)]
         else:
             steps = [diagonal * step for step in SEARCH_STEPS]
+            if full_scan:
+                steps.append(None)  # por fim, a extensão inteira de B
         for grown in steps:
             rect = imports["QgsRectangle"](bbox)
-            rect.grow(grown)
+            if grown is None:
+                rect.combineExtentWith(other_extent)
+            else:
+                rect.grow(grown)
             found = []
             for candidate, candidate_geometry in other_features_in(rect):
                 if int(candidate.id()) in touching_ids:
@@ -289,6 +390,7 @@ def spatial_relationship(params: dict[str, Any], context: dict[str, Any]) -> dic
         "display_field": display_field,
         "measured_in": crs_authid(crs),
         "distance_method": f"geodésica ({da.ellipsoid()})",
+        "layer_summary": layer_summary,
         "features": results,
         "notes": notes,
     }

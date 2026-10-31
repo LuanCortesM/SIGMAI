@@ -2,6 +2,40 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.3.2] — 2026-10-30
+
+Achados de três sessões de um assistente novo num QGIS limpo, antes do lançamento: duas do exemplo do artigo com o mesmo pedido (uma na 1.3.1 e outra numa versão candidata da 1.3.2) e uma com outro conjunto de figuras (relevo, cobertura do solo, períodos em painéis, unidades de conservação).
+
+### Corrigido
+- Legenda de círculos proporcionais: a 1.3.1 tirava os valores pequenos para os rótulos não se sobreporem, e a legenda passava a começar em 2.000 registros quando 617 dos 635 locais tinham menos. Agora ela mostra o menor símbolo do mapa, o maior e, se couber, um valor redondo no meio, com os círculos a pelo menos 2,5 mm um do outro (1, 20.000 e 68.881). Com mínimo zero, começa num valor que se lê.
+- `recompose_from_recipe` avisava que ignorava o `recipe_path`, que usa: o leitor de parâmetros tomava `compose_params["..."]` por leitura de `params`. Ele passa a exigir `params` como palavra inteira.
+- A simulação de `apply_raster_style` aceitava uma rampa de cores inexistente, recusada só na execução.
+- `output: "TEMPORARY_OUTPUT"` (a camada temporária do Processing, que é o padrão dos comandos de análise) era recusado como caminho fora das pastas autorizadas.
+- `panel_title` num mapa só sumia sem aviso; agora uma nota diz que ele só vale com `second_map` ou `panels`.
+- `spatial_relationship` com pontos não achava o vizinho mais próximo: a busca crescia a partir da diagonal do ponto, que é zero. Agora parte da extensão da outra camada e termina nela inteira.
+- `spatial_relationship` com milhares de registros listava só os 50 primeiros, e o assistente escreveu expressões de agregação para saber quantos caíam no parque. A resposta traz `layer_summary`: quantas feições de A estão dentro de B e, com `radius_m`, quantas ficam a até essa distância.
+- `sigmai_plan_map` com `dense_points: "sites"` previa 88 x 120 mm e o mapa saía 88 x 134 mm: a simulação não media a legenda de círculos proporcionais. Ela agora agrupa os locais numa camada de memória, mede a legenda e retira a camada no fim.
+- Relevo sombreado em modo normal fica embaixo dos polígonos, e o preenchimento dos municípios o apagava. Os polígonos de contexto passam a contorno; o assunto mantém o preenchimento.
+- Os nomes de região de `add_context_annotations` podiam ser derrubados pelo motor de rótulos (SÃO PAULO sumiu num mapa de localização). Eles passam a ter prioridade e a ser desenhados mesmo quando encostam em outro rótulo.
+- A nota da CART020 contava "3 camadas" num mapa com 4 e não dizia qual ficava de fora. Ela passa a nomear as camadas que não pedem entrada (relevo sombreado, mapa de base, só rótulos).
+- O relatório de estilo dava, para pontos e linhas, a cor do preenchimento de polígono da paleta, e não a cor desenhada.
+- `data_source` de uma camada que só aparece no inserto era recusado como "camada fora do mapa", e o inserto ficava sem crédito.
+- Fonte citada com o ano entre parênteses saía "CNUC/MMA (2025) (Parque)" na legenda e no parágrafo de Métodos; as camadas passam a ir entre colchetes nesse caso.
+- O histórico de desfazer listava como gravados arquivos que a ação só leu (o GeoPackage de `load_vector_layer`, a receita de `recompose_from_recipe`), e `get_map_recipe` entrava nele sem mudar o projeto.
+- O relatório de estilo chamava de "estilo do usuário" os locais que `dense_points: "sites"` acabou de estilizar, e de "paleta de uma composição anterior" as camadas de `add_context_annotations`.
+- A orientação da CART068 diz o que fazer quando um nome de região tira da frente o nome de um município.
+- Numa figura de painéis com o título na legenda do texto, a CART001 tomava a letra do painel por título ("Título presente: 'B'").
+- `legend_title: ""` na legenda de círculos (1.3.1) guardava o título vazio, mas o QGIS desenhava o nome do campo no lugar ("records" sob "Records per site"). O compositor tira esse título automático da legenda.
+- O UTM automático escolhia o datum pelo CRS do projeto, que é o da primeira camada carregada: o mesmo pedido saía em SIRGAS 2000 num projeto e em WGS 84 no projeto refeito depois de fechar o QGIS. O datum passa a vir das camadas de assunto.
+- `dense_points: "sites"` numa figura de painéis só agrupava o painel A; o B saía com os pontos crus. Agora agrupa todos os painéis, com a mesma escala de tamanhos dos círculos.
+- `select_by_expression`, e a simulação de `extract_by_expression`, liam só as 100.000 primeiras feições, sem dizer: nos registros do GBIF, a simulação contou 48.425 de 115.494. A camada é lida inteira; `max_features` corta e avisa (`truncated_at_max_features`).
+- `apply_raster_style` com `mode: "unique_values"` ignorava `colors` (agora lista ou `{valor: cor}`); com `mode: "classes"` e `colors`, a resposta dizia `color_ramp: "Viridis"`. `colors` em outro modo é recusado.
+- `set_layer_opacity` e `inspect_layer_style` passam a aceitar raster.
+- A CART070 não olhava as classes de um raster de categorias (cobertura do solo); a correção sugerida passa a dizer como trocar as cores de um raster.
+- O relevo sombreado opaco em modo normal vai por cima dos rasters coloridos e os cobre; `compose_map` avisa na simulação, e a descrição de `layer_ids` diz a regra.
+- A escala da resposta (`scale`) segue a língua do mapa ("1:370,000" em inglês).
+- Figura de painéis com `arrangement: "faixa_inferior"` pedido ficava com a altura calculada para a coluna lateral (90 mm em vez de 140): a escala que o modo automático alcançava era recusada, e a faixa não tinha a altura da legenda (CART072). A simulação também passa a avisar quando a legenda não cabe na altura pedida.
+
 ## [1.3.1] — 2026-10-28
 
 Achados de um assistente de IA que fez as figuras do artigo do SIGMAI só pelas ferramentas do plugin, num QGIS limpo.

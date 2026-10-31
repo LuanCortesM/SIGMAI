@@ -36,7 +36,7 @@ UNDO_LIMIT = 20
 
 #: Ações que nunca entram na pilha (elas próprias operam a pilha, ou só
 #: leem/gravam arquivos sem tocar no projeto).
-EXCLUDED_ACTIONS = frozenset({"undo_last_action", "list_undo_history"})
+EXCLUDED_ACTIONS = frozenset({"undo_last_action", "list_undo_history", "get_map_recipe"})
 
 
 @dataclass
@@ -99,23 +99,12 @@ def _collect_ids(value: Any, keys: tuple[str, ...]) -> list[str]:
     return list(dict.fromkeys(found))
 
 
-def _collect_paths(params: dict[str, Any]) -> list[str]:
-    found: list[str] = []
+def _collect_paths(action: str, params: dict[str, Any]) -> list[str]:
+    # A mesma leitura do consentimento: o arquivo que load_vector_layer abre
+    # não é "gravado", e o histórico dizia que era.
+    from .consent import output_paths_of
 
-    def walk(node: Any, key: str = "") -> None:
-        if isinstance(node, dict):
-            for nested_key, nested in node.items():
-                walk(nested, str(nested_key))
-        elif isinstance(node, list):
-            for nested in node:
-                walk(nested, key)
-        elif isinstance(node, str) and node:
-            lowered = key.lower()
-            if lowered.startswith("output") or lowered.endswith("_path") or lowered in {"path", "destination"}:
-                found.append(node)
-
-    walk(params)
-    return list(dict.fromkeys(found))
+    return list(dict.fromkeys(output_paths_of(action, params)))
 
 
 def _qgis():
@@ -171,7 +160,7 @@ class UndoStack:
             project = q["QgsProject"].instance()
         except Exception:
             return None
-        entry = UndoEntry(action=action, request_id=request_id, started_at=time.time(), output_paths=_collect_paths(params))
+        entry = UndoEntry(action=action, request_id=request_id, started_at=time.time(), output_paths=_collect_paths(action, params))
         try:
             entry.layer_ids_before = set(project.mapLayers().keys())
             entry.layout_names_before = {layout.name() for layout in project.layoutManager().layouts()}

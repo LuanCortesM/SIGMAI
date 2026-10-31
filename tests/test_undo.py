@@ -29,7 +29,17 @@ class ColetaDeReferencias(unittest.TestCase):
 
     def test_caminhos_de_saida(self):
         params = {"output_path": "/x/m.png", "recipe_path": "/x/m.json", "output_gpkg": "/x/c.gpkg", "title": "/nao"}
-        self.assertEqual(_collect_paths(params), ["/x/m.png", "/x/m.json", "/x/c.gpkg"])
+        self.assertEqual(_collect_paths("compose_map", params), ["/x/m.png", "/x/m.json", "/x/c.gpkg"])
+
+    def test_arquivo_lido_nao_e_gravado(self):
+        """O histórico dizia que load_vector_layer gravou o GeoPackage que só abriu (exemplo, 28/10/2026)."""
+        self.assertEqual(_collect_paths("load_vector_layer", {"path": "/dados/parque.gpkg", "name": "Parque"}), [])
+        # recompose_from_recipe lê a receita gravada e grava a de overrides.
+        self.assertEqual(
+            _collect_paths("recompose_from_recipe", {"recipe_path": "/out/a.json",
+                                                     "overrides": {"output_path": "/out/b.pdf", "recipe_path": "/out/b.json"}}),
+            ["/out/b.pdf", "/out/b.json"])
+        self.assertIn("get_map_recipe", EXCLUDED_ACTIONS)  # só lê o layout; gravar o JSON não muda o projeto
 
     def test_acoes_de_desfazer_nao_entram_na_pilha(self):
         self.assertIn("undo_last_action", EXCLUDED_ACTIONS)

@@ -331,7 +331,9 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
     "layer_ids": {**_SA, "description": (
         "Camadas a exibir. O compositor as desenha em ordem cartográfica: raster no fundo, depois polígonos, "
         "linhas e pontos, o assunto acima do contexto; um polígono que contém outro do mapa (estado sobre os "
-        "municípios) vira contorno destacado por cima. Dentro de cada classe vale a ordem da lista, a primeira por cima."
+        "municípios) vira contorno destacado por cima. Relevo sombreado e raster em modo de mistura ficam acima "
+        "dos outros rasters, para sombreá-los (use blend_mode='multiply' ou opacidade menor que 1). Dentro de "
+        "cada classe vale a ordem da lista, a primeira por cima."
     )},
     "title": {**_S, "description": "Título do mapa."},
     "title_placement": {"type": "string", "enum": ["map", "caption", "none"], "description": (
@@ -654,7 +656,9 @@ TOOLS: list[dict[str, Any]] = [
             "dentro de B (fração de área), quais feições de B tocam A, e a feição de B mais próxima com a "
             "distância geodésica em metros. Use ANTES de assumir em que estado/município uma área está — foi "
             "assim que se descobriu que um parque pedido 'no Piauí' fica no Ceará. Nomes vêm do campo de "
-            "nome da camada (display_field para escolher)."
+            "nome da camada (display_field para escolher). Com várias feições em A (registros de ocorrência), "
+            "layer_summary conta a camada inteira: quantas estão dentro de B e, com radius_m, quantas ficam a "
+            "até essa distância — não escreva expressões de agregação para isso."
         ),
         "inputSchema": _obj({
             "layer_id": {**_S, "description": "Camada A (o assunto: a UC, os pontos)."},
@@ -662,7 +666,7 @@ TOOLS: list[dict[str, Any]] = [
             "feature_id": {**_N, "description": "Só esta feição de A (id numérico)."},
             "display_field": {**_S, "description": "Campo de B usado como nome nas respostas."},
             "max_results": {**_N, "description": "Vizinhos/interseções listados por feição (padrão 10, máx. 100)."},
-            "radius_m": {**_N, "description": "Só vizinhos até esta distância em metros."},
+            "radius_m": {**_N, "description": "Só vizinhos até esta distância em metros; em layer_summary, conta também as feições de A a até essa distância de B."},
         }, ["layer_id", "other_layer_id"]),
         "annotations": {"title": "Relação espacial", **READ_ONLY},
         "handler": lambda args: bridge_call("spatial_relationship", dict(args)),

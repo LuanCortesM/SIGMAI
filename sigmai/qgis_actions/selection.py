@@ -47,33 +47,53 @@ def _predicate(params: dict[str, Any]) -> list[int]:
     return codes
 
 
-def _matching_ids(layer: Any, expression_text: str, max_features: int = 100000) -> list[int]:
+def _matching_ids(layer: Any, expression_text: str, max_features: int | None = None) -> tuple[list[int], bool]:
+    """Ids das feições que satisfazem a expressão, na camada inteira; ``truncated`` se ``max_features`` cortou.
+
+    Lia só as 100.000 primeiras feições, sem dizer: nos 362.210 registros do
+    GBIF, a simulação de extract_by_expression contou 48.425 em vez de
+    115.494, e select_by_expression selecionava só entre as primeiras.
+    """
+    from qgis.core import QgsFeatureRequest  # type: ignore
+
+    from ..cartography.qtcompat import qt_enum
+
     expression = _expression(expression_text)
     expr_context = _context(layer)
     expression.prepare(expr_context)
+    request = QgsFeatureRequest()
+    if not expression.needsGeometry():
+        request.setFlags(qt_enum(QgsFeatureRequest, "Flag", "NoGeometry"))
+    request.setSubsetOfAttributes(expression.referencedColumns(), layer.fields())
     ids: list[int] = []
     checked = 0
-    for feature in layer.getFeatures():
+    for feature in layer.getFeatures(request):
+        if max_features is not None and checked >= max_features:
+            return ids, True
         checked += 1
-        if checked > max_features:
-            break
         expr_context.setFeature(feature)
         if bool(expression.evaluate(expr_context)):
             ids.append(feature.id())
         if expression.hasEvalError():
             raise ValidationError("EXPRESSION_EVAL_ERROR", "QGIS expression evaluation error.", {"eval_error": expression.evalErrorString()})
-    return ids
+    return ids, False
+
+
+def _max_features(params: dict[str, Any]) -> int | None:
+    value = params.get("max_features")
+    return None if value in (None, "") else max(1, int(value))
 
 
 def select_by_expression(params: dict[str, Any], context: dict[str, Any]):
     layer = _vector_layer(require_param(params, "layer_id", str))
     expression = require_param(params, "expression", str)
-    ids = _matching_ids(layer, expression, int(params.get("max_features", 100000)))
+    ids, truncated = _matching_ids(layer, expression, _max_features(params))
     before = len(layer.selectedFeatureIds())
+    extra = {"truncated_at_max_features": True} if truncated else {}
     if context.get("dry_run"):
-        return {"dry_run": True, "layer_id": layer.id(), "expression": expression, "would_select_count": len(ids), "sample_feature_ids": ids[:50], "before_selected_count": before}
+        return {"dry_run": True, "layer_id": layer.id(), "expression": expression, "would_select_count": len(ids), "sample_feature_ids": ids[:50], "before_selected_count": before, **extra}
     layer.selectByIds(ids)
-    return {"layer_id": layer.id(), "expression": expression, "selected_count": len(layer.selectedFeatureIds()), "before_selected_count": before, "sample_feature_ids": ids[:50]}
+    return {"layer_id": layer.id(), "expression": expression, "selected_count": len(layer.selectedFeatureIds()), "before_selected_count": before, "sample_feature_ids": ids[:50], **extra}
 
 
 def select_by_attribute(params: dict[str, Any], context: dict[str, Any]):
@@ -113,8 +133,9 @@ def extract_by_expression(params: dict[str, Any], context: dict[str, Any]):
     expression = require_param(params, "expression", str)
     output = _check_output(params.get("output", "TEMPORARY_OUTPUT"), bool(params.get("confirm_overwrite")))
     if context.get("dry_run"):
-        ids = _matching_ids(layer, expression, int(params.get("max_features", 100000)))
-        return {"dry_run": True, "layer_id": layer.id(), "expression": expression, "would_extract_count": len(ids), "output": output}
+        ids, truncated = _matching_ids(layer, expression, _max_features(params))
+        return {"dry_run": True, "layer_id": layer.id(), "expression": expression, "would_extract_count": len(ids), "output": output,
+                **({"truncated_at_max_features": True} if truncated else {})}
     result = _processing_run("native:extractbyexpression", {"INPUT": layer, "EXPRESSION": expression, "OUTPUT": output})
     return {"algorithm": "native:extractbyexpression", "result": _serialize_processing_result(result)}
 

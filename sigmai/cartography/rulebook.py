@@ -300,7 +300,12 @@ def _check_legend_covers_visible_layers(observation: dict[str, Any]) -> CheckOut
         return _skip("Não foi possível determinar as camadas visíveis do mapa.")
     missing = [name for name in visible if name not in listed]
     if not missing:
-        return _pass(f"As {len(visible)} camadas visíveis aparecem na legenda.")
+        # As isentas são ditas pelo nome: "3 camadas visíveis" com 4 desenhadas
+        # parecia erro de contagem, e o relevo saía chamado de rótulo.
+        exempt = [name for name in _all_visible_layer_names(observation, include_label_only=True) if name not in visible]
+        return _pass(f"As {len(visible)} camadas com algo a explicar aparecem na legenda"
+                     + (f"; não pedem entrada (relevo sombreado, mapa de base ou só rótulos): "
+                        + ", ".join(repr(name) for name in exempt) if exempt else "") + ".")
     return _fail(
         "A legenda não explica " + ", ".join(repr(name) for name in missing) + ". "
         "O leitor vê feições que a legenda não identifica.",
@@ -1582,7 +1587,9 @@ RULES: tuple[Rule, ...] = (
          "O motor de rótulos do QGIS descarta em silêncio um rótulo que colide com outro ou cruza a "
          "moldura. O mapa sai 'bem-sucedido' com feições sem nome, e ninguém é avisado.",
          "Reduza label_font_size, aumente o quadro ou a margem (margin_percent) para as feições cortadas "
-         "pela moldura, ou rotule só a camada de assunto (label_layer_id).",
+         "pela moldura, ou rotule só a camada de assunto (label_layer_id). Os nomes de região de "
+         "add_context_annotations têm prioridade e tiram da frente o nome que colide com eles: "
+         "ponha o nome da região noutro lugar com extra_labels (texto e coordenada).",
          "Decisão de projeto do SIGMAI: rótulo pedido e não colocado é informação perdida em silêncio; verificação: QGIS API QgsLabelingEngineSettings::CollectUnplacedLabels, QgsLabelingResults::allLabels",
          _check_labels_placed),
     Rule("CART069", "dados", SEVERITY_WARNING,
@@ -1600,7 +1607,8 @@ RULES: tuple[Rule, ...] = (
          "Use a paleta de Okabe & Ito (apply_style='all' aplica), ou troque uma das cores do par acusado "
          "por outra de luminosidade bem diferente; padrões de preenchimento também resolvem. Com classes "
          "demais nenhuma paleta separa todas: apply_categorized_style com limit=8 deixa as oito mais "
-         "frequentes, com cores de Okabe & Ito, e reúne o resto em 'Outros'.",
+         "frequentes, com cores de Okabe & Ito, e reúne o resto em 'Outros'. Num raster de categorias, "
+         "apply_raster_style com mode='unique_values' e colors={valor: cor} troca as cores do par acusado.",
          "Machado, Oliveira & Fernandes (2009), IEEE TVCG 15(6), severidade 1,0; Robertson (1977), CIE 1976 L*a*b* e ΔE*ab; Okabe & Ito (2008), Color Universal Design; limiar ΔE*ab < 15: decisão de projeto do SIGMAI calibrada nos pares clássicos",
          _check_colour_vision),
     Rule("CART073", "simbologia", SEVERITY_ERROR,
