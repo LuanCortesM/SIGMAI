@@ -66,6 +66,18 @@ def _layer(layer_id: str):
     return layer
 
 
+def _vector_or_raster(layer_id: str):
+    """Camada vetorial ou raster: opacidade e leitura do estilo valem para as duas."""
+    layer = project().mapLayer(layer_id)
+    if layer is None:
+        raise ValidationError("LAYER_NOT_FOUND", "Layer not found.", {"layer_id": layer_id})
+    if not layer.isValid():
+        raise ValidationError("INVALID_LAYER", "Layer is invalid.", {"layer_id": layer_id})
+    if layer_type_name(layer) not in ("vector", "raster"):
+        raise ValidationError("VECTOR_OR_RASTER_LAYER_REQUIRED", "This command requires a vector or raster layer.", {"layer_id": layer_id})
+    return layer
+
+
 def _field_exists(layer: Any, field_name: str) -> bool:
     return layer.fields().indexOf(field_name) >= 0
 
@@ -699,11 +711,16 @@ def _jenks_cuts(values: list[float], classes: int, sample: int = 1000) -> list[f
 
 
 def set_layer_opacity(params: dict[str, Any], context: dict[str, Any]):
-    layer = _layer(require_param(params, "layer_id", str))
-    opacity = float(params.get("opacity", 1.0))
+    # Raster também: o relevo sombreado por cima das cores hipsométricas é o
+    # caso mais comum, e o comando recusava (figura S1 do material suplementar).
+    layer = _vector_or_raster(require_param(params, "layer_id", str))
+    opacity = max(0.0, min(1.0, float(params.get("opacity", 1.0))))
     if context.get("dry_run"):
         return {"dry_run": True, "layer_id": layer.id(), "opacity": opacity}
-    _set_opacity(layer, opacity)
+    if layer_type_name(layer) == "raster" and layer.renderer() is not None:
+        layer.renderer().setOpacity(opacity)
+    else:
+        _set_opacity(layer, opacity)
     layer.triggerRepaint()
     return {"layer_id": layer.id(), "opacity": opacity}
 
@@ -746,7 +763,9 @@ def inspect_layer_style(params: dict[str, Any], context: dict[str, Any]):
     A versão anterior devolvia só o tipo do renderizador: quem aplicava uma
     cor por apply_single_symbol não tinha como confirmar o que ficou.
     """
-    layer = _layer(require_param(params, "layer_id", str))
+    layer = _vector_or_raster(require_param(params, "layer_id", str))
+    if layer_type_name(layer) == "raster":
+        return _raster_style_summary(layer)
     renderer = layer.renderer()
     renderer_type = renderer.type() if renderer else ""
     result: dict[str, Any] = {
@@ -780,6 +799,40 @@ def inspect_layer_style(params: dict[str, Any], context: dict[str, Any]):
             result["note"] = "estilo por feição ou por regra; use apply_single_symbol ou apply_categorized_style para uma legenda por camada"
     except Exception as exc:
         result["symbol_error"] = str(exc)[:200]
+    return result
+
+
+def _raster_style_summary(layer: Any) -> dict[str, Any]:
+    """Renderizador, opacidade, modo de mistura e classes (até 25) de um raster."""
+    renderer = layer.renderer()
+    renderer_type = str(renderer.type()) if renderer is not None else ""
+    result: dict[str, Any] = {
+        "layer_id": layer.id(), "layer_name": layer.name(), "renderer_type": renderer_type,
+        "style_origin": style_origin(layer) or "project",
+        "opacity": round(float(renderer.opacity()), 3) if renderer is not None else None,
+    }
+    try:
+        from qgis.PyQt.QtGui import QPainter  # type: ignore
+
+        from ..cartography.qtcompat import qt_enum
+
+        names = {"CompositionMode_SourceOver": "normal", "CompositionMode_Multiply": "multiply",
+                 "CompositionMode_Overlay": "overlay", "CompositionMode_SoftLight": "soft_light",
+                 "CompositionMode_Screen": "screen", "CompositionMode_Darken": "darken"}
+        result["blend_mode"] = next((label for mode, label in names.items()
+                                     if layer.blendMode() == qt_enum(QPainter, "CompositionMode", mode)), "other")
+        if renderer_type == "paletted":
+            classes = list(renderer.classes())
+            result["class_count"] = len(classes)
+            result["classes"] = [{"value": c.value, "label": c.label, "color": c.color.name()} for c in classes[:25]]
+        elif renderer_type == "singlebandpseudocolor":
+            items = list(renderer.shader().rasterShaderFunction().colorRampItemList())
+            result["class_count"] = len(items)
+            result["classes"] = [{"value": item.value, "label": item.label, "color": item.color.name()} for item in items[:25]]
+        elif renderer_type == "hillshade":
+            result.update(azimuth=renderer.azimuth(), altitude=renderer.altitude(), multidirectional=renderer.multiDirectional())
+    except Exception as exc:
+        result["style_error"] = str(exc)[:200]
     return result
 
 

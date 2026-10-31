@@ -131,6 +131,38 @@ INPUT_PATH_PARAMS: dict[str, frozenset[str]] = {
 #: Lidos em qualquer ação: o logotipo vem de onde o usuário o guarda.
 ALWAYS_INPUT_PARAMS = frozenset({"logo_path"})
 
+def output_paths_of(action: str, params: dict[str, Any]) -> list[str]:
+    """Caminhos que a ação escreve: os do consentimento e os do histórico de desfazer.
+
+    As entradas de ``INPUT_PATH_PARAMS`` valem no primeiro nível: o
+    ``recipe_path`` de recompose_from_recipe é lido, e o de ``overrides`` é a
+    receita nova que ela grava.
+    """
+    found: list[str] = []
+    inputs = INPUT_PATH_PARAMS.get(action, frozenset())
+
+    def walk(value: Any, key: str = "", top: bool = False) -> None:
+        if isinstance(value, dict):
+            for nested_key, nested in value.items():
+                walk(nested, str(nested_key), value is params)
+        elif isinstance(value, list):
+            for nested in value:
+                walk(nested, key)
+        elif isinstance(value, str) and value:
+            lowered = key.lower()
+            if (top and lowered in inputs) or lowered in ALWAYS_INPUT_PARAMS:
+                return
+            # A saída temporária do Processing não é arquivo: tratada como
+            # caminho, ela era recusada como "fora das pastas autorizadas".
+            if value.strip().upper() == "TEMPORARY_OUTPUT" or value.strip().lower().startswith("memory:"):
+                return
+            if lowered.startswith("output") or lowered.endswith("_path") or lowered in {"path", "destination"}:
+                found.append(value)
+
+    walk(params)
+    return found
+
+
 DEFAULT_LIMITS: dict[str, int] = {
     "writes_per_session": 200,
     "exports_per_session": 60,
@@ -163,25 +195,7 @@ class ConsentRequest:
 
     def output_paths(self) -> list[str]:
         """Caminhos que a ação pretende escrever, para mostrar ao usuário."""
-        found: list[str] = []
-        inputs = INPUT_PATH_PARAMS.get(self.action, frozenset()) | ALWAYS_INPUT_PARAMS
-
-        def walk(value: Any, key: str = "") -> None:
-            if isinstance(value, dict):
-                for nested_key, nested in value.items():
-                    walk(nested, str(nested_key))
-            elif isinstance(value, list):
-                for nested in value:
-                    walk(nested, key)
-            elif isinstance(value, str) and value:
-                lowered = key.lower()
-                if lowered in inputs:
-                    return
-                if lowered.startswith("output") or lowered.endswith("_path") or lowered in {"path", "destination"}:
-                    found.append(value)
-
-        walk(self.params)
-        return found
+        return output_paths_of(self.action, self.params)
 
     def summary(self) -> str:
         outputs = self.output_paths()

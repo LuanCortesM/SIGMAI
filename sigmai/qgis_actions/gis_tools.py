@@ -451,20 +451,62 @@ def count_points_by_site(params: dict[str, Any], context: dict[str, Any]):
     (``pointdensity.merge_sites``): sem isso, a 1:300.000, os 11.224 locais a
     1 m do Itatiaia se amontoavam, e 79 % dos círculos caíam sobre outros.
     """
-    layer = _vector_layer(require_param(params, "layer_id", str))
-    imports = qgis_imports()
-    from qgis.core import QgsFeature, QgsFeatureRequest, QgsGeometry, QgsPointXY, QgsVectorLayer  # type: ignore
-
-    from ..cartography.qtcompat import geometry_type
-
-    imports.update(QgsFeature=QgsFeature, QgsFeatureRequest=QgsFeatureRequest, QgsGeometry=QgsGeometry,
-                   QgsPointXY=QgsPointXY, QgsVectorLayer=QgsVectorLayer)
-
-    if layer.geometryType() != geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Point"):
-        raise ValidationError("POINT_LAYER_REQUIRED", "count_points_by_site precisa de uma camada de pontos.", {"layer_id": layer.id()})
+    _point_layer(params)
     output_path = _check_output(require_param(params, "output_path", str), bool(params.get("confirm_overwrite")))
     if Path(output_path).suffix.lower() != ".gpkg":
         raise ValidationError("BAD_REQUEST", "output_path precisa terminar em .gpkg.", {"output_path": output_path})
+    layer, sites, summary = _site_counts(params)
+    summary = {"source_layer_id": layer.id(), "output_path": output_path, **summary}
+    if context.get("dry_run"):
+        return {"dry_run": True, **summary, "changes": ["Grava um GeoPackage novo com um ponto por local e o adiciona ao projeto."]}
+
+    sites = sites()
+    from qgis.core import QgsVectorFileWriter, QgsVectorLayer  # type: ignore
+
+    options = QgsVectorFileWriter.SaveVectorOptions()
+    options.driverName = "GPKG"
+    options.layerName = "sites"
+    options.fileEncoding = "UTF-8"
+    result = QgsVectorFileWriter.writeAsVectorFormatV3(sites, output_path, project().transformContext(), options)
+    error_code = result[0] if isinstance(result, tuple) else result
+    if error_code != qt_enum(QgsVectorFileWriter, "WriterError", "NoError"):
+        raise ValidationError("WRITE_FAILED", "Não foi possível gravar os locais.", {"result": str(result), "path": output_path})
+    persisted = QgsVectorLayer(f"{output_path}|layername=sites", sites.name(), "ogr")
+    if not persisted.isValid():
+        raise ValidationError("WRITE_FAILED", "O GeoPackage gravado não pôde ser lido de volta.", {"path": output_path})
+    persisted.setCustomProperty(SITES_OF_PROPERTY, str(layer.id()))
+    project().addMapLayer(persisted)
+    return {**summary, "layer_id": persisted.id(), "name": persisted.name()}
+
+
+def preview_sites_layer(params: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
+    """Os locais de count_points_by_site numa camada de memória, sem gravar nem pôr no projeto.
+
+    É o que a simulação de compose_map com dense_points="sites" precisa para
+    medir a legenda de símbolos proporcionais que o mapa de verdade terá.
+    """
+    layer, sites, summary = _site_counts(params)
+    return sites(), {"source_layer_id": layer.id(), **summary}
+
+
+def _point_layer(params: dict[str, Any]) -> Any:
+    layer = _vector_layer(require_param(params, "layer_id", str))
+    from ..cartography.qtcompat import geometry_type
+
+    imports = qgis_imports()
+    if layer.geometryType() != geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Point"):
+        raise ValidationError("POINT_LAYER_REQUIRED", "count_points_by_site precisa de uma camada de pontos.", {"layer_id": layer.id()})
+    return layer
+
+
+def _site_counts(params: dict[str, Any]) -> tuple[Any, Any, dict[str, Any]]:
+    """Conta os pontos por local; devolve a camada, a fábrica da camada de memória dos locais e o resumo."""
+    layer = _point_layer(params)
+    imports = qgis_imports()
+    from qgis.core import QgsFeature, QgsFeatureRequest, QgsGeometry, QgsPointXY, QgsVectorLayer  # type: ignore
+
+    imports.update(QgsFeature=QgsFeature, QgsFeatureRequest=QgsFeatureRequest, QgsGeometry=QgsGeometry,
+                   QgsPointXY=QgsPointXY, QgsVectorLayer=QgsVectorLayer)
     geographic = bool(layer.crs().isGeographic())
     default = SITE_DECIMALS_GEOGRAPHIC if geographic else SITE_DECIMALS_PROJECTED
     decimals = int(params.get("decimals", default))
@@ -503,39 +545,24 @@ def count_points_by_site(params: dict[str, Any], context: dict[str, Any]):
         x_metres, y_metres = _metres_per_unit(layer.crs(), [key[1] for key in counts])
         merged = merge_sites([(x, y, n) for (x, y), n in counts.items()], spacing * scale / 1000.0, x_metres, y_metres)
         counts = {(x, y): n for x, y, n in merged}
-    summary = {"source_layer_id": layer.id(), "output_path": output_path, "decimals": decimals,
-               "count_field": count_field, "records": sum(counts.values()), "sites": len(counts),
+    summary = {"decimals": decimals, "count_field": count_field, "records": sum(counts.values()), "sites": len(counts),
                "max_records_per_site": max(counts.values()), "distinct_coordinates": distinct}
     if scale is not None:
         summary.update(scale=int(scale), min_spacing_mm=spacing)
     else:
         summary["note"] = ("Sem scale, cada coordenada é um local. Para um mapa, passe scale (o denominador da escala, "
                            "que sigmai_plan_map informa): locais a menos de 1 mm no papel se sobrepõem.")
-    if context.get("dry_run"):
-        return {"dry_run": True, **summary, "changes": ["Grava um GeoPackage novo com um ponto por local e o adiciona ao projeto."]}
 
-    sites = imports["QgsVectorLayer"](f"Point?crs={crs_authid(layer.crs())}&field={count_field}:integer", layer_name, "memory")
-    features = []
-    for (x, y), count in sorted(counts.items(), key=lambda item: (-item[1], item[0])):
-        feature = imports["QgsFeature"](sites.fields())
-        feature.setGeometry(imports["QgsGeometry"].fromPointXY(imports["QgsPointXY"](x, y)))
-        feature.setAttribute(count_field, count)
-        features.append(feature)
-    sites.dataProvider().addFeatures(features)
-    sites.updateExtents()
-    from qgis.core import QgsVectorFileWriter  # type: ignore
+    def sites() -> Any:
+        memory = imports["QgsVectorLayer"](f"Point?crs={crs_authid(layer.crs())}&field={count_field}:integer", layer_name, "memory")
+        features = []
+        for (x, y), count in sorted(counts.items(), key=lambda item: (-item[1], item[0])):
+            feature = imports["QgsFeature"](memory.fields())
+            feature.setGeometry(imports["QgsGeometry"].fromPointXY(imports["QgsPointXY"](x, y)))
+            feature.setAttribute(count_field, count)
+            features.append(feature)
+        memory.dataProvider().addFeatures(features)
+        memory.updateExtents()
+        return memory
 
-    options = QgsVectorFileWriter.SaveVectorOptions()
-    options.driverName = "GPKG"
-    options.layerName = "sites"
-    options.fileEncoding = "UTF-8"
-    result = QgsVectorFileWriter.writeAsVectorFormatV3(sites, output_path, project().transformContext(), options)
-    error_code = result[0] if isinstance(result, tuple) else result
-    if error_code != qt_enum(QgsVectorFileWriter, "WriterError", "NoError"):
-        raise ValidationError("WRITE_FAILED", "Não foi possível gravar os locais.", {"result": str(result), "path": output_path})
-    persisted = imports["QgsVectorLayer"](f"{output_path}|layername=sites", layer_name, "ogr")
-    if not persisted.isValid():
-        raise ValidationError("WRITE_FAILED", "O GeoPackage gravado não pôde ser lido de volta.", {"path": output_path})
-    persisted.setCustomProperty(SITES_OF_PROPERTY, str(layer.id()))
-    project().addMapLayer(persisted)
-    return {**summary, "layer_id": persisted.id(), "name": persisted.name()}
+    return layer, sites, summary

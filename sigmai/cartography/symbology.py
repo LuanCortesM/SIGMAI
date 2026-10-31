@@ -312,6 +312,11 @@ def apply_default_symbology(
                 STYLE_ORIGIN_USER: "estilo definido por uma ação de simbologia (apply_single_symbol, graduado, categorizado ou QML)",
                 STYLE_ORIGIN_PALETTE: "paleta aplicada numa composição anterior",
             }.get(origem_estilo, "simbologia temática já definida")
+            try:
+                if layer.customProperty("sigmai/derived_from", ""):
+                    reason = "estilo de add_context_annotations (divisa ou nomes de região)"
+            except Exception:
+                pass
             entry = {"layer": layer.name(), "action": "preservada", "reason": reason, "style_origin": origem_estilo or "project"}
             if greyscale:
                 converted = greyscale_layer_style(layer, dry_run=dry_run)
@@ -389,7 +394,7 @@ def apply_default_symbology(
         # é o que permite a uma simulação dizer "com que cor" sem aplicá-la.
         if kind == "Line":
             style["stroke_width"] = _dense_line_width(layer, float(style.get("stroke_width", 0.45)))
-        display_color = accent if outline else style.get("fill", accent)
+        display_color = accent if outline or kind in ("Point", "Line") else style.get("fill", accent)
         origem = type(layer.renderer()).__name__ if hasattr(layer, "renderer") else ""
 
         if dry_run:
@@ -716,34 +721,35 @@ def proportional_size_mm(value: float, minimum: float, maximum: float, min_size:
 
 def size_legend_values(minimum: float, maximum: float, min_size: float, max_size: float,
                        gap_mm: float = SIZE_LEGEND_GAP_MM) -> list[float]:
-    """Valores da legenda de círculos aninhados: o máximo e valores redondos (1, 2, 5 × 10ⁿ) cujos círculos
-    ficam a pelo menos ``gap_mm`` um do outro, no máximo três.
+    """Valores da legenda de círculos aninhados: o menor e o maior símbolo do mapa e, se couber, um valor redondo
+    (1, 2, 5 × 10ⁿ) entre eles, com os círculos a pelo menos ``gap_mm`` um do outro.
 
     Com área proporcional, os círculos dos valores pequenos quase não diferem: na
     figura dos registros do GBIF no Itatiaia, as classes 1 e 100 davam 1,0 e
-    1,3 mm, e os rótulos se sobrepunham.
+    1,3 mm, e os rótulos se sobrepunham. Pular os valores pequenos também não
+    serve: a legenda começava em 2.000 registros, e 617 dos 635 locais tinham menos.
     """
     if maximum <= minimum:
         return [maximum]
+
+    def size(value: float) -> float:
+        return proportional_size_mm(value, minimum, maximum, min_size, max_size)
+
+    # Com mínimo zero, a legenda começa num valor que se lê (1, numa contagem), não em 0,000001.
+    floor = minimum if minimum > 0 else (1.0 if maximum >= 10 else maximum / 100)
     candidates: list[float] = []
-    power = 1.0
-    while power * 10 <= maximum:
+    power = 1e-6
+    while power <= maximum:
+        candidates.extend(m * power for m in (1, 2, 5) if floor <= m * power < maximum)
         power *= 10
-    while power >= 1e-6 and len(candidates) < 40:
-        for mantissa in (5, 2, 1):
-            value = mantissa * power
-            if minimum <= value < maximum:
-                candidates.append(value)
-        power /= 10
+    low = candidates[0] if candidates else minimum  # o menor valor redondo a partir do mínimo
     chosen = [maximum]
-    last = proportional_size_mm(maximum, minimum, maximum, min_size, max_size)
-    for value in candidates:
-        size = proportional_size_mm(value, minimum, maximum, min_size, max_size)
-        if last - size >= gap_mm:
-            chosen.append(value)
-            last = size
-        if len(chosen) == 3:
-            break
+    if size(maximum) - size(low) >= gap_mm:
+        chosen.append(low)
+        target = (size(low) + size(maximum)) / 2
+        middle = [v for v in candidates if size(maximum) - size(v) >= gap_mm and size(v) - size(low) >= gap_mm]
+        if middle:
+            chosen.append(min(middle, key=lambda v: abs(size(v) - target)))
     return sorted(chosen)
 
 

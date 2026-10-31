@@ -55,6 +55,11 @@ class ProcedenciaPorCamada(unittest.TestCase):
         credit, _, _ = resolve_data_sources({"id_mun": "IBGE 2024", "id_uc": "IBGE 2024"}, self.LAYERS)
         self.assertEqual(credit, "IBGE 2024 (Municípios, PE das Carnaúbas)")
 
+    def test_ano_entre_parenteses_poe_as_camadas_entre_colchetes(self):
+        """A legenda do exemplo dizia "CNUC/MMA (2025) (Itatiaia National Park)"."""
+        credit, _, _ = resolve_data_sources({"id_mun": "IBGE (2024)", "id_uc": "CEUC"}, self.LAYERS)
+        self.assertEqual(credit, "IBGE (2024) [Municípios]; CEUC [PE das Carnaúbas]")
+
     def test_camada_desconhecida_e_recusada_com_a_lista(self):
         with self.assertRaises(CompositionError) as ctx:
             resolve_data_sources({"Rios": "ANA"}, self.LAYERS)

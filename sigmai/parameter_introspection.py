@@ -27,10 +27,13 @@ import re
 from functools import lru_cache
 from typing import Any, Callable
 
+# ``params`` como palavra inteira: ``compose_params["map_crs"]`` casava com o
+# terceiro padrão, a contagem fechava errado, e recompose_from_recipe, que
+# repassa params a _load_recipe, avisava que ignorava o recipe_path que usa.
 _LITERAL_ACCESS = (
-    re.compile(r'params\.get\(\s*["\']([\w-]+)["\']'),
-    re.compile(r'params\.pop\(\s*["\']([\w-]+)["\']'),
-    re.compile(r'params\[\s*["\']([\w-]+)["\']\s*\]'),
+    re.compile(r'(?<![\w.])params\.get\(\s*["\']([\w-]+)["\']'),
+    re.compile(r'(?<![\w.])params\.pop\(\s*["\']([\w-]+)["\']'),
+    re.compile(r'(?<![\w.])params\[\s*["\']([\w-]+)["\']\s*\]'),
     re.compile(r'\w+\(\s*params\s*,\s*["\']([\w-]+)["\']'),
     re.compile(r'["\']([\w-]+)["\']\s+(?:not\s+)?in\s+params\b'),
 )

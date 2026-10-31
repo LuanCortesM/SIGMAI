@@ -57,7 +57,7 @@ class ParagrafoDeMetodos(unittest.TestCase):
     def test_mesma_fonte_sai_uma_vez(self):
         en = methods_paragraph(_receita(), "en")["paragraph"]
         self.assertEqual(en.count("GBIF.org (2026)"), 1)
-        self.assertIn("GBIF.org (2026) (Records, Sites)", en)
+        self.assertIn("GBIF.org (2026) [Records, Sites]", en)  # 1.3.2: camadas entre colchetes depois de um ano entre parênteses
 
     def test_citacao_e_referencia_pela_lingua_com_doi(self):
         en = methods_paragraph(_receita(), "en")
@@ -75,14 +75,16 @@ class ParagrafoDeMetodos(unittest.TestCase):
 
 class LegendaDeCirculos(unittest.TestCase):
     def test_valores_com_circulos_separados(self):
-        """1, 100, 10.000 e 69.542 davam círculos de 1,0 e 1,3 mm com rótulos sobrepostos."""
+        """1, 100, 10.000 e 69.542 davam círculos de 1,0 e 1,3 mm com rótulos sobrepostos; na 1.3.1, a legenda
+        pulava para 2.000 e deixava de fora o menor símbolo do mapa."""
         valores = size_legend_values(1, 69542, 1.0, 8.0)
-        self.assertEqual(valores, [2000.0, 20000.0, 69542])
+        self.assertEqual(valores, [1, 20000, 69542])
         tamanhos = [proportional_size_mm(v, 1, 69542, 1.0, 8.0) for v in valores]
         self.assertTrue(all(b - a >= 2.5 for a, b in zip(tamanhos, tamanhos[1:])), tamanhos)
 
     def test_faixa_curta_e_degenerada(self):
         self.assertEqual(size_legend_values(5, 5, 1.0, 8.0), [5])
+        self.assertEqual(size_legend_values(0, 1000, 1.0, 8.0)[0], 1)  # contagem com zero começa em 1
         self.assertLessEqual(len(size_legend_values(3, 40, 1.0, 8.0)), 3)
         self.assertEqual(size_legend_values(3, 40, 1.0, 8.0)[-1], 40)
 

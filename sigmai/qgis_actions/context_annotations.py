@@ -203,6 +203,19 @@ def _label_only_layer(imports: dict[str, Any], name: str, crs: Any, fmt: Any, up
         settings.placement = qt_enum(imports["QgsPalLayerSettings"], "Placement", "OverPoint")
     except Exception:
         pass
+    # Nomes de região são poucos e são a razão da camada: o motor de rótulos do
+    # QGIS derrubava SÃO PAULO quando ele colidia com o nome de um município.
+    settings.priority = 10
+    try:
+        from ..cartography.qtcompat import qt_enum
+
+        settings.placementSettings().setOverlapHandling(
+            qt_enum(imports["Qgis"], "LabelOverlapHandling", "AllowOverlapIfRequired"))
+    except Exception:
+        try:
+            settings.displayAll = True
+        except Exception:
+            pass
     settings.setFormat(fmt)
     layer.setLabeling(imports["QgsVectorLayerSimpleLabeling"](settings))
     layer.setLabelsEnabled(True)

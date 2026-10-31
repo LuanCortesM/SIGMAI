@@ -119,6 +119,50 @@ class RelacoesNoQgis(unittest.TestCase):
         self.assertEqual(feature["intersecting"], [])
         self.assertEqual(feature["nearest"][0]["name"], "Ceará")
 
+    def _pontos(self):
+        from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsProject, QgsVectorLayer
+
+        pontos = QgsVectorLayer("Point?crs=EPSG:31984&field=n:string", "Registros", "memory")
+        feats = []
+        for nome, x, y in (("a", 2000, 5000), ("b", 15000, 5000), ("c", 12000, 8000), ("fora", 25000, 5000)):
+            f = QgsFeature(pontos.fields())
+            f.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(x, y)))
+            f.setAttributes([nome])
+            feats.append(f)
+        pontos.dataProvider().addFeatures(feats)
+        pontos.updateExtents()
+        QgsProject.instance().addMapLayer(pontos)
+        return pontos
+
+    def test_ponto_fora_acha_o_vizinho(self):
+        """Ponto não tem diagonal: a busca crescia de 1e-9 e nunca achava nada (exemplo de Itatiaia)."""
+        from sigmai.qgis_actions.spatial import spatial_relationship
+
+        estados, _ = self._cenario()
+        pontos = self._pontos()
+        r = spatial_relationship({"layer_id": pontos.id(), "other_layer_id": estados.id()}, {})
+        fora = [f for f in r["features"] if f["subject"]["name"] == "fora"][0]
+        self.assertEqual(fora["nearest"][0]["name"], "Ceará")
+        self.assertAlmostEqual(fora["nearest"][0]["distance_m"], 4985.0, delta=30.0)
+        self.assertFalse([n for n in r["notes"] if "Nenhuma feição" in n])
+
+    def test_contagem_da_camada_inteira(self):
+        from sigmai.qgis_actions.spatial import spatial_relationship
+
+        estados, _ = self._cenario()
+        pontos = self._pontos()
+        r = spatial_relationship({"layer_id": pontos.id(), "other_layer_id": estados.id()}, {})
+        resumo = r["layer_summary"]
+        self.assertEqual((resumo["subject_features"], resumo["touching_other"]), (4, 3))
+        self.assertIn("3 de 4 feições de 'Registros' estão dentro de 'Estados'", resumo["summary"])
+        r = spatial_relationship({"layer_id": pontos.id(), "other_layer_id": estados.id(), "radius_m": 6000}, {})
+        self.assertEqual(r["layer_summary"]["within_radius"], 4)
+        r = spatial_relationship({"layer_id": pontos.id(), "other_layer_id": estados.id(), "radius_m": 4000}, {})
+        self.assertEqual(r["layer_summary"]["within_radius"], 3)
+        # Uma feição só: a resposta por feição já diz tudo.
+        r = spatial_relationship({"layer_id": pontos.id(), "other_layer_id": estados.id(), "feature_id": 1}, {})
+        self.assertIsNone(r["layer_summary"])
+
     def test_recusas(self):
         from sigmai.qgis_actions.spatial import spatial_relationship
         from sigmai.validators import ValidationError

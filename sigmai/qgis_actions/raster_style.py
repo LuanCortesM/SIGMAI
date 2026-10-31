@@ -468,6 +468,18 @@ def apply_raster_style(params: dict[str, Any], context: dict[str, Any]) -> dict[
     unit = str(params.get("unit") if params.get("unit") is not None else preset.get("unit", "")).strip()
     ramp_key = ramp_name(params.get("color_ramp") or preset.get("ramp") or
                          {"pseudocolor": "hypsometric", "classes": "Viridis", "unique_values": "qualitative"}.get(mode, ""))
+    if params.get("color_ramp") and mode not in ("hillshade", "greyscale"):
+        qgis_ramp(ramp_key)  # nome desconhecido recusado já na simulação, e não só na execução
+    # colors era ignorado em silêncio em unique_values, e mode='classes' com
+    # colors respondia color_ramp "Viridis" (figura S2 do material suplementar).
+    colours = params.get("colors")
+    if colours is not None:
+        if mode not in ("classes", "unique_values"):
+            raise ValidationError("BAD_REQUEST", "colors vale para mode='classes' (uma cor por classe) e "
+                                  "'unique_values' ({valor: cor} ou uma cor por valor).", {"mode": mode})
+        if not isinstance(colours, (list, dict)) or not colours:
+            raise ValidationError("BAD_REQUEST", "colors precisa ser uma lista de cores ou um dicionário {valor: cor}.",
+                                  {"colors": colours})
     invert = bool(params.get("invert", False))
     opacity = max(0.0, min(1.0, float(params.get("opacity", 1.0))))
     blend = blend_mode_name(params.get("blend_mode"))
@@ -546,11 +558,15 @@ def apply_raster_style(params: dict[str, Any], context: dict[str, Any]) -> dict[
             labels = list(preset["labels"].get(language) or preset["labels"]["en" if language != "pt-BR" else "pt-BR"])
         else:
             labels = class_labels(breaks_checked, unit, language)
-        plan.update({"color_ramp": ramp_key, "breaks": breaks_checked, "labels": labels})
+        if colours is not None and (not isinstance(colours, list) or len(colours) != len(breaks_checked) - 1):
+            raise ValidationError("BAD_REQUEST", "colors precisa ter uma cor por classe.", {"colors": colours})
+        plan.update({"color_ramp": None if colours else ramp_key, "breaks": breaks_checked, "labels": labels})
+        if colours:
+            plan["colors"] = [str(c) for c in colours]
         if preset_key:
             plan["preset"] = preset_key
     elif mode == "unique_values":
-        plan["color_ramp"] = ramp_key
+        plan["color_ramp"] = None if colours else ramp_key
     elif mode == "hillshade":
         crs = layer.crs()
         geographic = bool(crs and crs.isValid() and crs.isGeographic())
@@ -579,9 +595,6 @@ def apply_raster_style(params: dict[str, Any], context: dict[str, Any]) -> dict[
     elif mode == "classes":
         ramp = qgis_ramp(ramp_key, invert)
         count = len(breaks_checked) - 1
-        colours = params.get("colors")
-        if colours is not None and (not isinstance(colours, list) or len(colours) != count):
-            raise ValidationError("BAD_REQUEST", "colors precisa ter uma cor por classe.", {"colors": colours})
         items = []
         for k in range(count):
             upper = breaks_checked[k + 1]
@@ -607,12 +620,25 @@ def apply_raster_style(params: dict[str, Any], context: dict[str, Any]) -> dict[
             raise ValidationError("BAD_REQUEST", "Mais de 60 valores distintos: use mode='pseudocolor' ou 'classes'.",
                                   {"distinct_values": len(values)})
         ramp = None if ramp_key == "qualitative" else qgis_ramp(ramp_key, invert)
+        keys = [str(int(value)) if value.is_integer() else str(value) for value in values]
+        chosen: dict[str, str] = {}
+        if isinstance(colours, list):
+            if len(colours) != len(values):
+                raise ValidationError("BAD_REQUEST", f"colors em lista precisa de uma cor por valor ({len(values)}: "
+                                      f"{', '.join(keys)}), na ordem dos valores; ou use {{valor: cor}}.", {"values": keys})
+            chosen = dict(zip(keys, (str(c) for c in colours)))
+        elif isinstance(colours, dict):
+            chosen = {str(k).removesuffix(".0"): str(v) for k, v in colours.items()}
+            unknown = sorted(set(chosen) - set(keys))
+            if unknown:
+                raise ValidationError("BAD_REQUEST", f"colors cita valores que o raster não tem: {', '.join(unknown)}. "
+                                      f"Valores: {', '.join(keys)}.", {"values": keys})
         classes = []
         for k, value in enumerate(values):
-            key = str(int(value)) if value.is_integer() else str(value)
+            key = keys[k]
             fallback = (QUALITATIVE[k % len(QUALITATIVE)] if ramp is None
                         else _hex(ramp.color(k / float(max(1, len(values) - 1)))))
-            colour = existing.get(value) or QColor(fallback)
+            colour = QColor(chosen[key]) if key in chosen else existing.get(value) or QColor(fallback)
             classes.append(QgsPalettedRasterRenderer.Class(value, colour, names.get(key, key)))
         renderer = QgsPalettedRasterRenderer(layer.dataProvider(), band, classes)
         plan["classes"] = [{"value": c.value, "label": c.label, "colour": c.color.name()} for c in classes]

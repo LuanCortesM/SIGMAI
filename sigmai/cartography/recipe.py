@@ -167,7 +167,9 @@ def _sources_text(recipe: dict[str, Any]) -> str:
     grouped: dict[str, list[str]] = {}
     for text, name in pairs:
         grouped.setdefault(text, []).append(name)
-    return "; ".join(f"{text} ({', '.join(layer_names)})" for text, layer_names in grouped.items())
+    # "CNUC/MMA (2025) [Parque]", como na legenda da figura (compose.resolve_data_sources).
+    opening, closing = ("[", "]") if any("(" in text for text in grouped) else ("(", ")")
+    return "; ".join(f"{text} {opening}{', '.join(layer_names)}{closing}" for text, layer_names in grouped.items())
 
 
 def _page_phrase(page: dict[str, Any], params: dict[str, Any], lang: str) -> str:

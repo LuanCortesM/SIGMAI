@@ -425,6 +425,8 @@ class NoQgis(unittest.TestCase):
             regras = self._regras(resultado)
             self.assertEqual(regras["CART076"]["status"], rulebook.STATUS_PASSED, regras["CART076"])
             self.assertTrue(any("dense_points='sites'" in nota for nota in resultado["notes"]), resultado["notes"])
+            estilo = next(e for e in resultado["styling"] if e["layer"] == "Registros")
+            self.assertEqual(estilo["style_origin"], "dense_points")  # não "estilo do usuário"
             from qgis.core import QgsLayoutItemLabel
 
             layout = QgsProject.instance().layoutManager().layoutByName(resultado["layout_name"])
@@ -432,19 +434,50 @@ class NoQgis(unittest.TestCase):
             self.assertIn("GBIF.org", textos)  # a fonte dos locais não some do rodapé
             del locais
 
+    def test_dense_points_sites_nos_dois_paineis_com_a_mesma_escala_de_tamanhos(self):
+        """Figura S3 (dois períodos): só o painel A virava locais; o B saía com 244.948 pontos."""
+        from qgis.core import QgsProject
+
+        sorteio = random.Random(23)
+        parque = self._parque()
+        antes = self._pontos([(sorteio.uniform(530000, 533000), sorteio.uniform(7520000, 7523000)) for _ in range(3000)],
+                             nome="Até 2014")
+        depois = self._pontos(self._repetidos(6000), nome="Desde 2015")
+        with pasta_temporaria() as pasta:
+            resultado = self._compor(pasta, [antes, parque], [antes], dense_points="sites", panel_title="A",
+                                     second_map={"layer_ids": [depois.id(), parque.id()], "subject_layer_id": depois.id(),
+                                                 "panel_title": "B"}, comparison_same_scale=True)
+            derivadas = {d["source_layer_id"]: QgsProject.instance().mapLayer(d["layer_id"]) for d in resultado["derived_layers"]}
+            self.assertEqual(set(derivadas), {antes.id(), depois.id()})
+            transformadores = [camada.renderer().symbol().dataDefinedSize().transformer() for camada in derivadas.values()]
+            self.assertEqual(len({(t.minValue(), t.maxValue()) for t in transformadores}), 1)  # mesma escala de tamanhos
+            regras = self._regras(resultado)
+            self.assertEqual(regras["CART076"]["status"], rulebook.STATUS_PASSED, regras["CART076"])
+            del derivadas, transformadores
+
     def test_dense_points_simulado_nao_muda_nada(self):
+        """E prevê a página do mapa: o plano de Itatiaia dava 88 x 120 mm e o mapa saía 88 x 134 (legenda de tamanhos)."""
+        from qgis.core import QgsProject
+
         from sigmai.cartography.compose import compose_map
 
-        parque, pontos = self._parque(), self._pontos(self._repetidos(2000))
+        parque, pontos = self._parque(), self._pontos(self._espalhados(3000))
         antes = pontos.renderer().type()
+        camadas = set(QgsProject.instance().mapLayers())
         with pasta_temporaria() as pasta:
-            resultado = compose_map({"layer_ids": [pontos.id(), parque.id()], "subject_layer_id": [pontos.id()],
-                                     "title": "T", "map_author": "T", "data_source": "teste", "map_language": "pt-BR",
-                                     "output_path": os.path.join(pasta, "m.png"), "dense_points": "sites"},
-                                    {"dry_run": True})
+            pedido = {"layer_ids": [pontos.id(), parque.id()], "subject_layer_id": [pontos.id(), parque.id()],
+                      "title": "T", "title_placement": "caption", "map_author": "T", "data_source": "teste",
+                      "map_language": "pt-BR", "figure_width_mm": 88, "format": "pdf",
+                      "output_path": os.path.join(pasta, "m.pdf"), "dense_points": "sites"}
+            plano = compose_map(pedido, {"dry_run": True})
             self.assertEqual(os.listdir(pasta), [])
             self.assertEqual(pontos.renderer().type(), antes)
-        self.assertTrue(any("viraria(m) um símbolo por local" in nota for nota in resultado["notes"]))
+            self.assertEqual(set(QgsProject.instance().mapLayers()), camadas)
+            self.assertLessEqual({c["id"] for c in plano["layers"]}, camadas)
+            self.assertTrue(any("virariam" in nota and "locais" in nota for nota in plano["notes"]), plano["notes"])
+            mapa = compose_map(pedido, {"dry_run": False})
+            self.assertEqual(plano["plan"]["page"]["height_mm"], mapa["page"]["height_mm"])
+            self.assertEqual(plano["scale_denominator"], mapa["scale_denominator"])
 
     def test_dense_points_mapa_de_calor(self):
         parque, pontos = self._parque(), self._pontos(self._espalhados(3000))
