@@ -17,75 +17,9 @@ repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=MIT
 changelog=1.4.0
-    - Chat dentro do QGIS: a pessoa usa a própria chave de API (Anthropic ou qualquer provedor compatível com OpenAI, inclusive Ollama local) e conversa com um modelo que só tem as ferramentas do SIGMAI.
-    - Chave no cofre criptografado do QGIS; aviso do que vai para o provedor; custo estimado e teto por conversa; registro local de cada conversa.
-    - O modelo pode receber uma prévia do mapa exportado para conferir à vista.
-    - Respostas resumidas para o modelo, no chat e nos clientes MCP: o laudo traz só as regras reprovadas, e a receita vem sem o QML (detail='full' devolve tudo). Na sessão do exemplo do artigo, dois terços a menos de texto.
-    - legend_placement: legenda ao lado do mapa, embaixo, num arquivo à parte ou fora da figura; legenda com mais de 8 linhas faz a simulação mandar perguntar.
-    - Nova regra CART082 (erro): nome de arquivo na legenda.
-    - Figura sem legenda sem faixa branca sob a escala; altura da figura escolhe o quadro mais largo.
-    - include_inset sem inset_layer_ids volta a funcionar; divisa estadual destacada e por cima da municipal; inserto com contornos finos.
-    - CART021 acusa a linha coberta por outra que corre junto com ela (a divisa estadual sob a municipal).
-    1.3.2
-    - Legenda de círculos mostra o menor símbolo do mapa (1, 20.000 e 68.881, não 2.000, 20.000 e 68.881).
-    - recompose_from_recipe não avisa mais que ignora o recipe_path que usa.
-    - A simulação de apply_raster_style recusa rampa de cores inexistente; a saída temporária do Processing não é tratada como caminho; panel_title num mapa só gera aviso.
-    - spatial_relationship acha o vizinho mais próximo de pontos e conta a camada inteira (layer_summary: quantos dentro e a até radius_m).
-    - sigmai_plan_map com dense_points="sites" prevê a mesma página do mapa (mede a legenda de círculos).
-    - Relevo sombreado embaixo deixa o contexto em contorno; nomes de região não são derrubados; CART020 nomeia as camadas isentas.
-    - data_source aceita as camadas do inserto; fonte com ano entre parênteses põe as camadas entre colchetes.
-    - O histórico de desfazer não lista arquivos só lidos nem get_map_recipe; o relatório de estilo diz de onde veio o estilo dos locais e das camadas de contexto.
-    - Figura de painéis com faixa inferior pedida refaz a altura da figura; a letra do painel não é tomada por título (CART001).
-    - legend_title vazio tira de fato o título da legenda de círculos; o UTM automático segue o datum das camadas de assunto.
-    - dense_points="sites" agrupa todos os painéis, com a mesma escala de tamanhos; select/extract_by_expression leem a camada inteira.
-    - apply_raster_style respeita colors em unique_values; opacidade e leitura de estilo em raster; CART070 olha as classes de raster de categorias; aviso de relevo opaco sobre cores; escala da resposta na língua do mapa.
-    1.3.1
-    - A auditoria mede pontos, rampas e mapas de calor em todos os painéis de uma figura de comparação, não só no primeiro.
-    - Figura de periódico com dados em graus: a altura da página sai do recorte já projetado.
-    - Recompor pela receita não regrava a receita original nem sobrescreve o mapa original, e mantém o sistema de referência gravado.
-    - Parágrafo de Métodos: diz onde a receita ficou (no PDF ela não vai dentro do arquivo), cita pela língua e dá o DOI do Zenodo.
-    - Novo comando rename_layer; load_qml_style e save_qml_style informam o resultado certo.
-    - Opacidade de pontos e linhas no símbolo (o PDF continua vetorial); fill_opacity vale para pontos.
-    - Legenda de círculos com valores que não se sobrepõem, sem título quando pedido, e sem se dividir entre colunas.
-    1.3.0
-    - Símbolo de ponto ajustado ao quadro: menor e semitransparente quando os pontos cobririam o que está embaixo.
-    - Nova regra CART076 (aviso): pontos que escondem quantos registros há em cada lugar.
-    - Novos comandos count_points_by_site e apply_proportional_symbol_style (um símbolo por local, com área proporcional ao número de registros, locais agrupados na escala do mapa); apply_single_symbol aceita size_mm.
-    - compose_map com dense_points ('sites' ou 'heatmap') e com map_crs='auto' (Lambert azimutal num continente, Equal Earth no mundo, grade em graus).
-    - Figura de artigo: title_placement='caption' tira título e créditos da imagem e devolve a legenda pronta para o texto; 'none' faz o mapa sem título.
-    - Relevo sem riscas (reamostragem bilinear), contexto em cinza, barra de figura a partir do zero, fonte do GBIF preservada no rodapé dos locais.
-    - Nova regra CART081 (painéis comparáveis com a mesma régua de cor e tamanho); símbolo proporcional com min_value e max_value; rótulos de classes de raster na classe certa.
-    - apply_categorized_style acima do limite mantém as classes mais frequentes; rodapé declara a projeção Lambert criada pelo compositor.
-    - Mapa de calor como assunto: o contexto vira contorno por cima, como sobre um raster.
-    - Novas regras CART077 (rampa de raster esticada), CART078 (coordenadas fora do sistema de referência, graus como UTM, ponto em 0,0), CART079 (pontos isolados que abrem o recorte) e CART080 (mapa de calor que esconde lugares com pontos).
-    - Estilo de raster ignora valores de preenchimento e picos isolados; mapa em graus sem barra métrica; contorno fino em polígonos pequenos.
-    - Recusa rotular mais de 5000 feições; amostra de legenda legível para ponto reduzido; aviso quando os quantis coincidem.
-    - Referências das regras CART006, CART024, CART064 e CART070 corrigidas; a terceira simulação de daltonismo passa a se chamar tritanomaly.
-    - A receita refaz o mapa num projeto vazio: recarrega as camadas com o estilo gravado (data_dir noutro computador) e refaz divisas e nomes.
-    1.2.0
-    - Modo em tons de cinza para figuras de periódico (colour_mode='greyscale'), mantendo as classes dos mapas temáticos; regra CART073.
-    - Ordem de desenho cartográfica; polígono que contém outra camada ou cobre um raster é desenhado como contorno por cima.
-    - CART021 acusa camada da legenda coberta; novas regras CART074 (números da barra de escala) e CART075 (assunto do mapa à vista).
-    - Classificação graduada por quantis, Jenks ou números redondos; estilo de raster (hipsometria, declividade Embrapa, valores únicos) e mapa de calor.
-    - Polígono que esconderia outra camada vira contorno; legenda em colunas; cores com significado nas classes.
-    - KMZ, OSM, FlatGeobuf e shapefile zipado; carregar dado fora da pasta de saída; busca e instalação de plugins no perfil em uso.
-    - Orientação e altura da faixa inferior escolhidas pelos dados; legenda de raster legível.
-    - Corrigidas as regras CART003, CART061 e CART062.
-    1.1.7
-    - Nomes de variáveis ajustados (Flake8 E741). Sem mudança de comportamento.
-    1.1.6
-    - Código de pareamento com gerador criptográfico; ajustes para a varredura de segurança do repositório de plugins.
-    1.1.5
-    - Ajustes para a verificação Qt6 do repositório de plugins. Sem mudança de comportamento.
-    1.1.4
-    - Opção persist_token renomeada para persist_access_key, com migração automática.
-    1.1.3
-    - Corrigidos: painel que travava o QGIS 4 e o 3.40, interpretador Python errado no Windows, porta compartilhada entre duas instâncias, CSV de pontos no Windows e Python 3.9.
-    - Token da ponte regenerado a cada abertura do QGIS.
-    1.1.2
-    - Licença MIT; fonte declarada para cada regra; análise de sensibilidade dos limiares.
-    1.1.1
-    - Arranjo do layout pela forma dos dados, grade de painéis e separadores da barra de escala na língua do mapa.
-    1.1.0
-    - Figuras para periódicos, painéis, receita reproduzível do mapa, desfazer, mapa de campanha e regras CART068 a CART072.
-    Histórico completo: CHANGELOG.md no repositório.
+    - AI API support: chat with an AI model inside the SIGMAI panel, using your own API key (Claude, OpenAI, Gemini, Ollama)
+    - Choose where the map legend goes: beside the map, below it, in a separate file or left out
+    - New rule: the legend must not show file names
+    - Shorter tool answers for AI assistants
+    - Bug fixes
+    Full history: https://github.com/LuanCortesM/SIGMAI/blob/main/CHANGELOG.md
