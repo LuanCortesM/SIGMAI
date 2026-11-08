@@ -541,6 +541,10 @@ def recompose_from_recipe(params: dict[str, Any], context: dict[str, Any]) -> di
     for layer in recipe.get("layers") or []:
         layer_id, name = str(layer.get("id") or ""), str(layer.get("name") or "")
         if proj.mapLayer(layer_id) is not None:
+            # A mesma camada, mas restilizada depois (o parque em contorno para a
+            # figura seguinte): sem o estilo da receita, a figura refeita no
+            # mesmo projeto saía com outra cor, e CART070 reprovava.
+            by_name_matches.append((proj.mapLayer(layer_id), layer))
             continue
         # O nome só não basta: os locais de count_points_by_site levam o nome
         # dos registros, e o mapa de calor dos registros saía dos locais.

@@ -595,7 +595,7 @@ class SIGMAIServer:
             if action == "status":
                 data = {
                     "display_name": "SIGMAI",
-                    "subtitle": "Secure GIS-AI Interface",
+                    "subtitle": "GIS-AI Interface",
                     "bridge": "online",
                     "host": self.host,
                     "port": self.port,
@@ -624,7 +624,7 @@ class SIGMAIServer:
                     "endpoints": {"command": "/command", "status": "/status"},
                     "unsafe_developer_mode": self.unsafe_developer_mode,
                     "display_name": "SIGMAI",
-                    "subtitle": "Secure GIS-AI Interface",
+                    "subtitle": "GIS-AI Interface",
                     "local_only": True,
                     "queue_size": self.queue.qsize(),
                     "busy": self._current_command_snapshot() is not None,

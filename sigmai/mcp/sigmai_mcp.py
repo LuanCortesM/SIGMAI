@@ -39,7 +39,7 @@ from pathlib import Path
 from typing import Any
 
 SERVER_NAME = "sigmai"
-SERVER_TITLE = "SIGMAI — Interface Segura GIS-IA"
+SERVER_TITLE = "SIGMAI — Interface GIS-IA"
 
 #: Versões da era com handshake. Todas são aceitas e devolvidas como pedidas.
 SUPPORTED_PROTOCOL_VERSIONS = ("2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25", "2026-07-28")
@@ -349,8 +349,11 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
         "norte, legenda de símbolos e grade ficam no mapa. 'none': mapa sem título, créditos no mapa. Num "
         "pedido de figura para revista, pergunte ao usuário onde vai o título; quase sempre é 'caption'."
     )},
-    "legend_placement": {"type": "string", "enum": ["map", "below", "separate", "none"], "description": (
-        "Onde vai a legenda de símbolos. 'map' (padrão): ao lado do mapa. 'below': embaixo do mapa, na largura "
+    "legend_placement": {"type": "string", "enum": ["auto", "inside", "map", "below", "separate", "none"], "description": (
+        "Onde vai a legenda de símbolos. 'auto' (padrão): numa figura de revista, dentro do quadro, num canto "
+        "sem dados, com a barra de escala e o norte (a escala numérica vai para caption['scale']); sem canto "
+        "livre, ao lado ou embaixo. Fora da figura de revista, ao lado. 'inside': dentro do quadro também "
+        "num mapa de página. 'map': ao lado do mapa. 'below': embaixo do mapa, na largura "
         "da figura. 'separate': a figura sai sem legenda, e a legenda vai num arquivo à parte "
         "(<nome>_legend.<formato>), para outro lugar do artigo. 'none': fora da figura, explicada no texto. "
         "Legenda simples (até 8 linhas) vai no mapa; complexa, pergunte ao usuário — a resposta da simulação "
@@ -373,8 +376,9 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
         "relativo, não um caminho de outro sistema operacional. A extensão define o formato quando "
         "'format' não é informado. Ignorado em sigmai_plan_map."
     )},
-    "format": {"type": "string", "enum": ["pdf", "png", "svg", "tif", "tiff", "jpg", "jpeg"],
-               "description": "Formato do arquivo. Revistas costumam pedir TIFF a 300-600 dpi para figuras."},
+    "format": {"type": "string", "enum": ["pdf", "png", "svg", "tif", "tiff", "jpg", "jpeg", "eps"],
+               "description": ("Formato do arquivo. Revistas costumam pedir TIFF a 300-600 dpi para figuras. EPS sai "
+                               "vetorial, do PDF convertido pelo Ghostscript que o QGIS para Windows instala.")},
     "page": {**_S, "description": (
         "Formato e orientação, ex.: 'A4 landscape', 'A3 retrato', 'A2 portrait'. "
         "Formatos: A0-A5, B4, B5, LETTER, LEGAL, TABLOID. Um formato desconhecido é recusado."
@@ -396,12 +400,40 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
         "nesses casos: Lambert azimutal de áreas iguais num continente e Equal Earth num mapa-múndi, com a grade em "
         "graus e sem rosa dos ventos (no mapa-múndi, sem barra de escala)."
     )},
-    "dense_points": {"type": "string", "enum": ["points", "heatmap", "sites"], "description": (
+    "dense_points": {"type": "string", "enum": ["points", "heatmap", "sites", "grid"], "description": (
         "Pontos demais no mesmo lugar (registros do GBIF, por exemplo; CART076 avisa). Padrão 'points': mapa de "
         "pontos, com o símbolo ajustado ao quadro. 'heatmap' desenha as camadas de pontos de assunto como mapa de "
-        "calor; 'sites' as troca por um símbolo por local, com área proporcional ao número de registros, agrupando "
-        "os locais na escala do mapa (grava um GeoPackage ao lado de output_path). Muda o que o mapa diz: use "
-        "quando o usuário quer mostrar quantos registros há em cada lugar."
+        "calor; 'sites' as troca por um símbolo por local, agrupando os locais na escala do mapa (contagens de "
+        "várias ordens de grandeza saem em classes 1–9, 10–99…, com tamanho e cor); 'grid' por hexágonos de área "
+        "igual (3 mm no papel, ou grid_cell_km2), na cor da classe de registros: nada se sobrepõe, e a cor lê-se "
+        "como registros por km². As duas gravam um GeoPackage ao lado de output_path. Muda o que o mapa diz: "
+        "use quando o usuário quer mostrar quantos registros há em cada lugar, e pergunte qual."
+    )},
+    "journal": {**_S, "description": (
+        "Revista da figura: o SIGMAI usa a largura de coluna, a altura máxima, a fonte mínima e a resolução dela, "
+        "e CART083 confere formato e medidas. Perfis verificados nas páginas oficiais: Biodiversity Informatics, "
+        "Elsevier, Springer, Nature, Wiley, PLOS ONE, ZooKeys, Check List, Biodiversity Data Journal, Diversity "
+        "(MDPI), Taylor & Francis, Zootaxa, Zoological Journal of the Linnean Society, Systematic Biology, Biota "
+        "Neotropica, Zoologia e Papéis Avulsos de Zoologia. Pergunte ao usuário a revista; com journal_column "
+        "escolha a coluna. Revista fora da lista: journal_profile."
+    )},
+    "journal_profile": {"type": "object", "description": (
+        "Normas de figura de uma revista fora da lista, tiradas da instrução aos autores dela: widths_mm "
+        "({\"single\": 84, \"double\": 174}) ou min_width_mm/max_width_mm, max_height_mm, min_font_pt, formats "
+        "(['tiff', 'pdf']), line_art_dpi, combination_dpi, halftone_dpi, colour, panel_labels, title_in_caption, "
+        "alt_text, sources. Ponha só o que a norma diz."
+    )},
+    "grid_cell_km2": {"type": "number", "description": (
+        "Área de cada hexágono de dense_points='grid', em km². Padrão: a de 3 mm no papel, arredondada "
+        "(1 km² a 1:350.000)."
+    )},
+    "relief_opacity": {"type": "number", "description": (
+        "Relevo sombreado sob dados: o compositor o clareia neste mapa, como a 50 % de opacidade sobre o "
+        "papel, para os dados se destacarem (o estilo da camada não muda). Passe de 0 a 1; 1 o deixa como está."
+    )},
+    "grid_coordinates": {"type": "string", "enum": ["auto", "degrees", "map"], "description": (
+        "Rótulos da grade. 'auto' (padrão): em graus e minutos numa figura de revista, nas coordenadas do mapa "
+        "(com mE/mN em UTM) num mapa de página. 'degrees': sempre em graus. 'map': sempre nas do mapa."
     )},
     "auto_projected_crs": {**_B, "description": "Padrão true: projeto em coordenadas geográficas é reprojetado para o UTM/Policônica adequado, para que escala e barra sejam métricas. false mantém o CRS do projeto."},
     "margin_percent": {**_N, "description": "Folga em torno dos dados, em porcentagem da extensão (0 a 100). Padrão 5."},
@@ -492,8 +524,10 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
         "description": (
             "Painéis EXTRAS além do principal, para uma figura (a), (b), (c)… — cada um como second_map "
             "({layer_ids, subject_layer_id?, panel_title?, margin_percent?}). Até 7 extras. Os quadros ficam "
-            "em grade e recebem letras; igualados na escala mais aberta salvo comparison_same_scale=false. "
-            "Não combine com second_map."
+            "em grade e recebem letras (na figura de revista, no estilo da revista, no canto superior "
+            "esquerdo); igualados na escala mais aberta salvo comparison_same_scale=false. Figura de "
+            "localização (Brasil, estado, área de estudo: cada painel dentro do anterior): cada painel tem "
+            "escala, projeção e barra próprias, e o recorte do seguinte vai marcado. Não combine com second_map."
         ),
         "items": {
             "type": "object",
@@ -509,14 +543,17 @@ COMPOSE_PROPERTIES: dict[str, Any] = {
     "figure_height_mm": {**_N, "description": "Altura da figura, se a revista a impõe; senão o SIGMAI escolhe."},
     "figure_max_height_mm": {**_N, "description": "Altura máxima quando o SIGMAI escolhe (padrão 230 mm)."},
     "journal_column": {**_S, "description": (
-        "Atalho para figure_width_mm: 'single' (85 mm), 'one_and_half' (120 mm) ou 'double' (175 mm). "
-        "Cada revista tem a sua medida — se a instrução aos autores der outra, passe figure_width_mm."
+        "Coluna da figura. Com journal, a da revista ('single', 'one_and_half' ou 'double', nas medidas dela; "
+        "sem journal_column, a mais estreita). Sem journal, um atalho genérico: 'single' (85 mm), 'one_and_half' "
+        "(120 mm) ou 'double' (175 mm); se a instrução aos autores der outra medida, passe figure_width_mm."
     )},
     "recipe_path": {**_S, "description": (
         "Caminho absoluto de um .json para gravar a receita reproduzível do mapa (parâmetros, camadas, hashes "
         "dos dados, versões). A receita vai SEMPRE para o layout e para os metadados do PNG; este arquivo é extra."
     )},
-    "comparison_same_scale": {**_B, "description": "Padrão true. Se false, cada painel anuncia a própria escala e a barra única é removida."},
+    "comparison_same_scale": {**_B, "description": (
+        "Padrão true (false numa figura de localização, em que cada painel cabe no anterior). Se false, cada "
+        "painel anuncia a própria escala e a barra única é removida.")},
     "panel_title": {**_S, "description": "Legenda do painel esquerdo/superior num mapa duplo. Sem ela, 'Painel A' na língua do mapa."},
     "include_legend": {**_B, "description": "Padrão true. Sem legenda num mapa de mais de uma camada, CART002 reprova — é uma omissão deliberada que a auditoria aponta."},
     "include_scale_bar": _B,
@@ -1004,14 +1041,16 @@ Ordem de trabalho que evita a maioria dos erros:
    (orientation 'auto', data_source por camada, include_inset). Para campo,
    sigmai_campaign_map (sítios em planilha: sigmai_run_command load_vector_layer
    com o .csv — lon/lat, separador e decimal são detectados); para revista,
-   journal_column/figure_width_mm e format tif; para (a)(b)(c), panels.
+   pergunte qual e passe journal (larguras, fontes, linha e dpi dela entram
+   sozinhos; o formato tem de ser um que ela aceita); para (a)(b)(c), panels
+   (painéis um dentro do outro viram figura de localização).
 4. Leia o campo `audit` da resposta. Ele traz nota, as regras reprovadas e o
    comando que corrige cada uma. Se a nota não for A, corrija e refaça em vez
    de entregar. O laudo vem resumido; detail='full' traz todas as regras.
 5. Errou? sigmai_undo. Vai citar? sigmai_methods_paragraph e sigmai_map_recipe.
 6. Milhares de registros de ocorrência? Um mapa de pontos mostra onde, não
-   quantos (CART076). dense_points='sites' ou 'heatmap' em sigmai_compose_map
-   mostra a contagem; pergunte ao usuário qual das duas ele quer.
+   quantos (CART076). dense_points='sites', 'grid' (hexágonos) ou 'heatmap'
+   em sigmai_compose_map mostra a contagem; pergunte ao usuário qual ele quer.
 7. Figura de artigo? As revistas pedem título e fontes na legenda do texto, e
    não na imagem: title_placement='caption' devolve a legenda pronta em
    'caption'. Pergunte; há mapas que vão sem título ('none') e relatórios que

@@ -39,6 +39,8 @@ SCALE_LADDER: tuple[int, ...] = (
 MAX_EFFECTIVE_MARGIN_PERCENT = 25.0
 
 SCALEBAR_TARGET_FRACTION = 0.28
+#: Alvo da barra de dois segmentos da figura de revista (ver ``few_segments``).
+SCALEBAR_FEW_TARGET_FRACTION = 0.22
 SCALEBAR_MIN_FRACTION = 0.15
 SCALEBAR_MAX_FRACTION = 0.45
 
@@ -404,6 +406,7 @@ def scalebar_spec(
     max_width_mm: float | None = None,
     label_font_pt: float | None = None,
     left_segment: bool = True,
+    few_segments: bool = False,
 ) -> ScaleBarSpec:
     """Escolhe unidade, comprimento do segmento e nº de segmentos.
 
@@ -415,13 +418,19 @@ def scalebar_spec(
     ``left_segment`` falso tira o segmento à esquerda do zero, convenção das
     folhas topográficas que numa figura de periódico só alonga a barra e põe
     um número a mais ("2,5 0 2,5 5 7,5 10 km" em vez de "0 5 10 km").
+
+    ``few_segments`` (figura de revista) prefere dois segmentos e uma barra
+    mais curta (~22 % do quadro): "0 2,5 5 km" se lê de relance numa figura
+    de 88 mm, e "0 2 4 6 8 km" em caixas grossas pesava mais que o dado.
     """
+    target_fraction = SCALEBAR_FEW_TARGET_FRACTION if few_segments else SCALEBAR_TARGET_FRACTION
+    segment_penalty = ({2: 0.0, 3: 0.05, 4: 0.05, 5: 0.1} if few_segments else {4: 0.0, 2: 0.02, 5: 0.06, 3: 0.06})
     if scale_denominator <= 0:
         raise ValueError("O denominador de escala deve ser positivo.")
     if frame_width_mm <= 0:
         raise ValueError("A largura do quadro deve ser positiva.")
 
-    target_ground_metres = (SCALEBAR_TARGET_FRACTION * frame_width_mm / _MM_PER_METRE) * scale_denominator
+    target_ground_metres = (target_fraction * frame_width_mm / _MM_PER_METRE) * scale_denominator
 
     unit_options = _scalebar_unit_options(target_ground_metres, prefer_unit)
 
@@ -456,16 +465,21 @@ def scalebar_spec(
         if label_font_pt and not scalebar_labels_fit(per_segment, segments, segments_left, bar_mm, label_font_pt):
             continue
         # Preferência: perto do alvo, depois 4 segmentos, depois 2.
-        penalty = abs(fraction - SCALEBAR_TARGET_FRACTION) + {4: 0.0, 2: 0.02, 5: 0.06, 3: 0.06}[segments]
+        penalty = abs(fraction - target_fraction) + segment_penalty[segments]
         if per_segment < 1.0:
             # "0,25 km" é pior de ler que "250 m": penaliza segmentos fracionários.
             penalty += 0.30
         elif per_segment != int(per_segment):
             # "0 2,5 5 7,5 10 km" é legível, mas "0 5 10 15 km" é melhor.
-            penalty += 0.05
+            penalty += 0.02 if few_segments else 0.05
         # "0 2500 5000 m" é pior que "0 2,5 5 km": prefere a unidade natural
         # para a ordem de grandeza da escala.
         penalty += 0.04 * unit_rank
+        if unit == "m" and per_segment >= 1000:
+            # "0 2.500 5.000 7.500 m" ganhava de "0 2,5 5 7,5 km" porque a
+            # meia unidade custava mais que a unidade trocada; quatro dígitos
+            # por rótulo são piores de ler que uma vírgula.
+            penalty += 0.08
         candidate = ScaleBarSpec(
             unit=unit,
             unit_label=label,
@@ -569,6 +583,49 @@ def graticule_interval(
     if geographic:
         return float(_snap_to_ladder(raw, DEGREE_INTERVALS, "nearest"))
     return float(nice_number(raw, "nearest"))
+
+
+#: Folga mínima (mm) entre dois rótulos vizinhos da grade.
+GRID_LABEL_GAP_MM = 2.0
+#: Largura média de um caractere, em fração do corpo (Segoe UI, Arial, DejaVu Sans).
+GRID_CHAR_WIDTH_EM = 0.55
+_MM_PER_POINT = 25.4 / 72.0
+
+
+def grid_label_mm(text: str, font_pt: float) -> float:
+    """Comprimento aproximado (mm) de um rótulo da grade no papel."""
+    return len(str(text)) * float(font_pt) * GRID_CHAR_WIDTH_EM * _MM_PER_POINT
+
+
+def graticule_interval_on_paper(
+    extent_span: float,
+    frame_mm: float,
+    label_mm: float,
+    target_divisions: int = 4,
+    geographic: bool = False,
+) -> float:
+    """O intervalo de ``graticule_interval``, aberto até os rótulos caberem lado a lado.
+
+    O intervalo saía só do recorte, quatro divisões em qualquer quadro: num
+    painel de 30 mm, "41°45'W" e "41°30'W" (7 mm cada) eram escritos um
+    sobre o outro, e "9550000 mN" encavalava no vizinho. Aqui o espaço entre
+    duas linhas no papel tem de comportar o rótulo e uma folga.
+    """
+    interval = graticule_interval(extent_span, target_divisions, geographic=geographic)
+    if frame_mm <= 0 or label_mm <= 0:
+        return interval
+    needed = label_mm + GRID_LABEL_GAP_MM
+    for _ in range(40):
+        if frame_mm * interval / extent_span >= needed or interval >= extent_span:
+            break
+        if geographic:
+            larger = [step for step in DEGREE_INTERVALS if step > interval * (1 + 1e-9)]
+            if not larger:
+                break
+            interval = larger[0]
+        else:
+            interval = nice_number(interval * 1.0001, "up")
+    return float(interval)
 
 
 def graticule_decimals(interval: float, geographic: bool = False) -> int:

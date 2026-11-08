@@ -213,3 +213,64 @@ def merge_sites(
         else:
             seeds[owner][2] += int(count)
     return [(seed[0], seed[1], int(seed[2])) for seed in seeds]
+
+
+#: Largura de uma célula hexagonal no papel (mm), de lado plano a lado plano.
+#: 3 mm (1 km² a 1:350.000): o bastante para a cor se ler e pequeno para o
+#: lugar.
+HEX_CELL_MM = 3.0
+#: Áreas de célula que a legenda diz sem casas estranhas ("por célula de 1 km²").
+HEX_NICE_AREAS_KM2 = (0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 25.0, 50.0, 100.0, 250.0, 500.0,
+                      1000.0, 2500.0, 5000.0, 10000.0)
+_SQRT3 = math.sqrt(3.0)
+
+
+def hex_side_for_area(area_m2: float) -> float:
+    """Lado (m) do hexágono regular de área ``area_m2``."""
+    if not area_m2 > 0:
+        raise ValueError(f"área inválida: {area_m2!r}")
+    return math.sqrt(2.0 * float(area_m2) / (3.0 * _SQRT3))
+
+
+def hex_area_for_scale(scale: float, cell_mm: float = HEX_CELL_MM) -> float:
+    """Área (km²) da célula com ``cell_mm`` de largura no papel, arredondada a ``HEX_NICE_AREAS_KM2``."""
+    if not scale > 0:
+        raise ValueError(f"escala inválida: {scale!r}")
+    width_m = float(cell_mm) * float(scale) / 1000.0
+    side = width_m / _SQRT3
+    area_km2 = 1.5 * _SQRT3 * side * side / 1e6
+    return min(HEX_NICE_AREAS_KM2, key=lambda nice: abs(math.log(nice / area_km2)))
+
+
+def hex_cell(x: float, y: float, side: float) -> tuple[int, int]:
+    """Célula (q, r) de pontas para cima que contém (x, y), em coordenadas axiais (arredondamento cúbico)."""
+    q = (_SQRT3 / 3.0 * x - y / 3.0) / side
+    r = (2.0 / 3.0 * y) / side
+    s = -q - r
+    rq, rr, rs = round(q), round(r), round(s)
+    dq, dr, ds = abs(rq - q), abs(rr - r), abs(rs - s)
+    if dq > dr and dq > ds:
+        rq = -rr - rs
+    elif dr > ds:
+        rr = -rq - rs
+    return int(rq), int(rr)
+
+
+def hex_bin(points: Iterable[tuple[float, float, int]], side: float) -> dict[tuple[int, int], int]:
+    """Soma as contagens de (x, y, n) por célula hexagonal de lado ``side`` (mesma unidade de x e y)."""
+    if not side > 0:
+        raise ValueError(f"lado inválido: {side!r}")
+    cells: dict[tuple[int, int], int] = {}
+    for x, y, count in points:
+        key = hex_cell(float(x), float(y), side)
+        cells[key] = cells.get(key, 0) + int(count)
+    return cells
+
+
+def hex_ring(q: int, r: int, side: float) -> list[tuple[float, float]]:
+    """Os seis vértices da célula (q, r), fechados no primeiro."""
+    cx = side * _SQRT3 * (q + r / 2.0)
+    cy = side * 1.5 * r
+    ring = [(cx + side * math.cos(math.radians(30 + 60 * k)), cy + side * math.sin(math.radians(30 + 60 * k)))
+            for k in range(6)]
+    return ring + [ring[0]]

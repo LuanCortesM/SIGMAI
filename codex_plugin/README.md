@@ -1,7 +1,7 @@
 # SIGMAI for Codex
-### Secure GIS-AI Interface
+### GIS-AI Interface
 
-This kit teaches Codex how to work with QGIS through SIGMAI, the Secure GIS-AI Interface.
+This kit teaches Codex how to work with QGIS through SIGMAI, the GIS-AI Interface.
 
 Public name and plugin identity: SIGMAI.
 

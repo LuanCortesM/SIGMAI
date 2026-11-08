@@ -25,6 +25,10 @@ O SIGMAI expõe o QGIS por comandos validados. Estas instruções descrevem como
 
 O autor do plugin **não** é o autor dos mapas. Pergunte ao usuário o que deve constar em `map_author`, `data_source` e `organization`. Sem fonte declarada o mapa não é citável, e a regra `CART007` reprova.
 
+**Revista:** numa figura de artigo, pergunte para qual revista ela vai e passe `journal` (e `journal_column`, se o autor disser a coluna). Cada revista tem largura de coluna, altura máxima, fonte mínima, formatos e resolução próprios, e o SIGMAI tem perfis verificados de 17 revistas e editoras. Revista fora da lista: leia a instrução aos autores dela e passe `journal_profile` só com o que a norma diz. Exporte num formato que a revista aceita: várias não aceitam PDF (PLOS ONE, Springer, Zootaxa, Biota Neotropica); o EPS sai vetorial pelo Ghostscript que o QGIS para Windows instala. CART083 confere.
+
+**Painéis:** `panels` põe os quadros na grade em que saem maiores, com a letra no estilo da revista. Painéis em que cada um cabe no anterior (país, estado, área de estudo) viram figura de localização: cada um com escala, projeção e barra próprias, e o recorte do seguinte marcado. Para comparar (2000 × 2020), os painéis ficam na mesma escala.
+
 **Título e créditos:** pergunte onde vão. Numa figura de artigo, as revistas pedem título e fontes na legenda do texto, e não na imagem: use `title_placement: "caption"`, e a legenda volta pronta em `caption`. Há mapas que vão sem título (`"none"`) e relatórios que o querem no mapa (`"map"`, o padrão).
 
 **Legenda de símbolos:** simples (até 8 linhas) vai no mapa. Complexa, pergunte onde vai: ao lado (`legend_placement: "map"`), embaixo (`"below"`), num arquivo à parte para outro lugar do artigo (`"separate"`) ou fora da figura, explicada no texto (`"none"`). A simulação avisa quando a legenda passa de 8 linhas. Os nomes na legenda são os das camadas: renomeie com `rename_layer` para o nome que o leitor entende, na língua do mapa; nome de arquivo reprova (`CART082`).

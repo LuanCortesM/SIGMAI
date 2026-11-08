@@ -2,6 +2,45 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento é [semântico](https://semver.org/lang/pt-BR/).
 
+## [1.5.0] — 2026-11-08
+
+### Adicionado
+- `journal` em `compose_map` e `sigmai_plan_map`: normas de figura de 17 revistas e editoras (largura das colunas, altura máxima, fonte e linha mínimas, formatos, resolução, letra dos painéis, título na legenda do texto), cada uma lida na página oficial, com o endereço e a data. `journal_profile` recebe as normas de outra revista; `journal_column` escolhe a coluna dela.
+- Regra `CART083`: a figura cumpre as normas da revista informada (largura, altura, fonte, linha mais fina, formato e resolução). São 45 regras.
+- Exportação em EPS vetorial, pelo Ghostscript que o QGIS para Windows instala; sem ele, o pedido é recusado antes de compor, com os formatos que a revista aceita.
+- `dense_points: "grid"`: registros contados em hexágonos de área redonda (3 mm no papel, ou `grid_cell_km2`), em até seis classes da viridis.
+- Figura de revista com legenda, barra e norte dentro do quadro, em cantos sem dados (`legend_placement: "inside"` força), e um inserto de localização com o país num canto que sobrar.
+- Figura de localização: painéis em que cada um cabe no anterior (Brasil, estado, área de estudo) ganham escala, projeção e barra próprias, e o recorte do painel seguinte vai marcado.
+- `grid_coordinates` (graus na figura de revista por padrão) e `relief_opacity` (relevo sob o dado clareado).
+
+### Mudou
+- Painéis: o número de colunas e o lugar da legenda saem do arranjo em que os painéis ficam maiores (um sobre o outro na coluna simples; legenda na célula que sobra da grade). A letra segue o estilo da revista, no canto superior esquerdo, e a grade é a mesma em todos.
+- Pontos dos painéis com o mesmo tamanho; polígono de fundo sob os pontos em contorno; camadas com as mesmas classes com um título só na legenda ("Uso da terra").
+- Intervalo da grade aberto até os rótulos caberem no quadro impresso; graus com hemisfério ("42°W") e coordenadas planas com "mE"/"mN".
+- Figura de revista: a escala numérica vai para `caption['scale']`; a página cresce ou encolhe até a legenda desenhada; a coluna lateral tem a largura da legenda; com a altura fixada e a legenda sem caber, ela vai para um arquivo à parte.
+- Recorte alto numa coluna larga: a figura estreita para a coluna da revista em que o mapa sai do mesmo tamanho, com a legenda ao lado.
+- Fuso UTM julgado pelo recorte impresso: fuso vizinho ou Transversa de Mercator centrada no recorte, com a grade em graus.
+- Traços abaixo da linha mínima da revista são engrossados.
+- Classes graduadas numa coluna só da legenda; rios e drenagem em azul; classes de contagem na viridis contínua.
+- A paleta do SIGMAI de uma composição anterior é refeita quando o papel da camada muda (o estado que era contorno vira destaque).
+- Mapa de pontos: o polígono de contexto sem classes (o parque sob os registros) vai em contorno; a água continua preenchida. Mapa de linhas: o polígono que cobre a maior parte delas (o estado sob a malha rodoviária) também. Com o polígono como assunto, ele vai em contorno quando recebe a maior parte dos pontos (o parque sob os registros do GBIF, a fazenda sob os pontos de vistoria).
+- A subdivisão em contorno (os municípios) sai em cinza; pela paleta ela podia sair vermelha sobre um mapa de calor.
+- Numa folha, a coluna lateral é escolhida também quando leva o mapa a um degrau melhor da escala (o Piauí a 1:5.000.000 em vez de 1:7.500.000).
+- `CART063`: o piso de tamanho do arquivo é por pixel.
+- O subtítulo passa a ser "Interface GIS-IA" ("GIS-AI Interface"), sem "segura", no painel em todas as línguas, na descrição do plugin e na citação do software.
+
+### Corrigido
+- `subject_layer_id` de um painel fora das `layer_ids` dele era ignorado em silêncio, e o painel enquadrava outra extensão; agora é recusado.
+- O título da classe virava o nome da camada quando a legenda era refeita para caber.
+- Recompor com `dense_points` no Windows falhava ao regravar o GeoPackage de locais, preso pela camada anterior.
+- `CART042` media os itens sobre o quadro principal só; agora cada item no quadro em que está.
+- Polígono de assunto preenchido sobre o uso da terra escondia as classes; agora vai em contorno.
+- `recompose_from_recipe` no mesmo projeto mantinha o estilo atual de uma camada restilizada depois do mapa (o parque em contorno para a figura seguinte); agora vale o estilo da receita, como já valia para a camada achada pelo nome.
+- No inserto, uma camada em vermelho saturado (a divisa estadual no terceiro contorno da paleta) escondia a marca vermelha do recorte; agora ela vai para o cinza, com o traço fino das outras camadas do inserto.
+- Numa folha com inserto, a legenda numa linha própria empurrava o inserto para uma tira baixa, e o estado do mapa de localização saía minúsculo; agora fica a faixa em que o inserto é maior.
+- Com a escala fixada (`scale`), a resposta repetia a margem efetiva e a nota da escala que o ajuste automático tinha escolhido ("para fechar na escala 1:400.000" num mapa a 1:350.000).
+- `CART006` e `CART027` dispensavam a rosa dos ventos e os rótulos de qualquer grade em graus sobre um mapa projetado, o que valia também para a figura de revista regional, que agora leva grade em graus; a dispensa volta a ser só do mapa de continente ou do mundo.
+
 ## [1.4.0] — 2026-10-31
 
 ### Adicionado

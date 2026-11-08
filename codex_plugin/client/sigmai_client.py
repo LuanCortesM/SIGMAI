@@ -255,7 +255,7 @@ def build_parser() -> argparse.ArgumentParser:
     professional_map = subcommands.add_parser("professional-map")
     professional_map.add_argument("--layer-id", required=True)
     professional_map.add_argument("--title", default="SIGMAI Professional Map")
-    professional_map.add_argument("--subtitle", default="SIGMAI - Secure GIS-AI Interface")
+    professional_map.add_argument("--subtitle", default="SIGMAI - GIS-AI Interface")
     professional_map.add_argument("--output", required=True)
     professional_map.add_argument("--format", default="pdf")
     professional_map.add_argument("--layout-template", default="scientific_publication")

@@ -225,7 +225,7 @@ def main() -> int:
     professional_map = sub.add_parser("professional-map")
     professional_map.add_argument("--layer-id", required=True)
     professional_map.add_argument("--title", default="SIGMAI Professional Map")
-    professional_map.add_argument("--subtitle", default="SIGMAI - Secure GIS-AI Interface")
+    professional_map.add_argument("--subtitle", default="SIGMAI - GIS-AI Interface")
     professional_map.add_argument("--output", required=True)
     professional_map.add_argument("--format", default="pdf")
     professional_map.add_argument("--layout-template", default="scientific_publication")

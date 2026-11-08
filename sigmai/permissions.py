@@ -315,7 +315,7 @@ def capabilities_payload(developer_mode: bool = False) -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
         "display_name": "SIGMAI",
-        "subtitle": "Secure GIS-AI Interface",
+        "subtitle": "GIS-AI Interface",
         "author": "MACIEL, L. S. C.",
         "author_email": "herpetomantiqueira@gmail.com",
         "associated_project": "Herpeto Mantiqueira",

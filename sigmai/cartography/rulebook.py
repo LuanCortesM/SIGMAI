@@ -333,6 +333,41 @@ _FILE_LIKE_LABEL = re.compile(
 )
 
 
+def _check_journal_norms(observation: dict[str, Any]) -> CheckOutcome:
+    """CART083 — a figura cumpre as normas de figura da revista informada (journals.py)."""
+    from .journals import JournalProfile, check_figure
+
+    journal = observation.get("journal")
+    if not journal:
+        return _skip("Nenhuma revista informada (journal ou journal_profile).")
+    fields = set(JournalProfile.__dataclass_fields__)
+    data = {key: (tuple(value) if isinstance(value, list) else value) for key, value in journal.items() if key in fields}
+    try:
+        profile = JournalProfile(**data)
+    except TypeError:
+        return _skip("Perfil de revista ilegível no layout.")
+    page = observation.get("page") or {}
+    page_width = float(page.get("width_mm") or 0.0)
+    print_width = float(observation.get("print_width_mm") or page_width or 0.0)
+    factor = print_width / page_width if page_width > 0 else 1.0
+    height = float(page.get("height_mm") or 0.0) * factor or None
+    sizes = [float(item["font_size_pt"]) * factor for item in _texts(observation) if item.get("font_size_pt")]
+    output = observation.get("output") or {}
+    dpi = None
+    if output.get("pixel_width") and print_width > 0:
+        dpi = float(output["pixel_width"]) / (print_width / 25.4)
+    thinnest = observation.get("thinnest_line") or {}
+    line_mm = float(thinnest["mm"]) * factor if thinnest.get("mm") is not None else None
+    problems = check_figure(profile, print_width or None, height, min(sizes) if sizes else None,
+                            output.get("format"), dpi, bool(observation.get("has_halftone")),
+                            line_mm, str(thinnest.get("where") or ""))
+    if not problems:
+        return _pass(f"A figura cumpre as normas de figura da {profile.name} (largura, altura, fonte, linha, "
+                     "formato e resolução que dá para medir).")
+    return _fail(f"Fora das normas da {profile.name}: " + "; ".join(problems) + ".", journal=profile.name,
+                 problems=problems)
+
+
 def _check_legend_names(observation: dict[str, Any]) -> CheckOutcome:
     """CART082 — a legenda mostra nomes que o leitor entende, e não nomes de arquivo."""
     legend = observation.get("legend")
@@ -559,6 +594,12 @@ def _check_scale_indication(observation: dict[str, Any]) -> CheckOutcome:
 def _check_scale_text(observation: dict[str, Any]) -> CheckOutcome:
     if _has_text(observation, "1:"):
         return _pass("Escala numérica presente.")
+    scale = _caption(observation).get("scale")
+    if scale:
+        # Figura de revista: a barra vale em qualquer redução, e a escala
+        # numérica, que deixa de valer quando a revista reduz a figura, vai
+        # para a legenda do texto.
+        return _pass(f"Escala numérica na legenda do texto (caption['scale'] = {scale}); a barra fica na figura.")
     return _fail(
         "Falta a escala numérica (ex.: 'Escala 1:250.000'). A barra sobrevive ao "
         "redimensionamento, mas a escala numérica é o que se cita em texto."
@@ -789,6 +830,12 @@ def _check_date(observation: dict[str, Any]) -> CheckOutcome:
         text = str(item.get("text", ""))
         if re.search(r"\b(19|20)\d{2}\b", text):
             return _pass("O layout informa uma data/ano.")
+    if _caption(observation).get("title_placement") == "caption":
+        # Figura de revista: os créditos foram para a legenda do texto, e a data
+        # é a da publicação do artigo. Passava ou reprovava por acaso, conforme
+        # houvesse um "2020" no nome de alguma camada da legenda.
+        return _skip("Créditos na legenda do texto (figura de revista): a data é a da publicação do artigo; a "
+                     "dos dados vai na citação da fonte.")
     return _fail("O layout não informa a data de elaboração, necessária para citação e versionamento.")
 
 
@@ -953,8 +1000,16 @@ def _check_no_overlaps(observation: dict[str, Any]) -> CheckOutcome:
             other = by_id.get(collision["b"])
         elif collision["b"] in map_ids and collision["a"] not in map_ids:
             other = by_id.get(collision["a"])
+        # O critério medido nas feições vem primeiro: vale para o PDF, e o
+        # relevo sombreado (fundo) não conta como dado coberto.
+        under = other.get("data_under") if other is not None else None
         ring = other.get("surroundings_ink_fraction") if other is not None else None
-        if ring is not None and float(ring) < OVERLAY_MAX_SURROUNDINGS_INK:
+        if under is not None:
+            if under == "":
+                overlays.append({**collision, "data_under": ""})
+            else:
+                real.append({**collision, "data_under": under})
+        elif ring is not None and float(ring) < OVERLAY_MAX_SURROUNDINGS_INK:
             overlays.append({**collision, "surroundings_ink_fraction": ring})
         else:
             real.append(collision)
@@ -966,7 +1021,10 @@ def _check_no_overlaps(observation: dict[str, Any]) -> CheckOutcome:
                 overlays=overlays,
             )
         return _pass("Nenhuma sobreposição entre itens do layout.")
-    described = ", ".join(f"{item['a']}/{item['b']}" for item in real)
+    described = ", ".join(
+        f"{item['a']}/{item['b']}" + (f" (cobre '{item['data_under']}')" if item.get("data_under") else "")
+        for item in real
+    )
     return _fail(f"Itens sobrepostos: {described}.", collisions=real, overlays=overlays)
 
 
@@ -994,14 +1052,24 @@ def _check_map_dominance(observation: dict[str, Any]) -> CheckOutcome:
     )
 
 
+def _font_floor(observation: dict[str, Any]) -> float:
+    """O menor corpo aceito: o da revista informada, se ela pede mais que o piso do SIGMAI."""
+    journal = observation.get("journal") or {}
+    try:
+        return max(MIN_PRINT_FONT_PT, float(journal.get("min_font_pt") or 0.0))
+    except (TypeError, ValueError):
+        return MIN_PRINT_FONT_PT
+
+
 def _check_font_sizes(observation: dict[str, Any]) -> CheckOutcome:
+    floor = _font_floor(observation)
     small = [
         {"id": item.get("id"), "font_size_pt": item.get("font_size_pt")}
         for item in _texts(observation)
-        if item.get("font_size_pt") and float(item["font_size_pt"]) < MIN_PRINT_FONT_PT
+        if item.get("font_size_pt") and float(item["font_size_pt"]) < floor
     ]
     if not small:
-        return _pass(f"Nenhum texto abaixo de {MIN_PRINT_FONT_PT:g} pt.")
+        return _pass(f"Nenhum texto abaixo de {floor:g} pt.")
     return _fail(
         "Textos abaixo do mínimo legível: " +
         ", ".join(f"{item['id']} ({item['font_size_pt']:g} pt)" for item in small) + ".",
@@ -1079,6 +1147,12 @@ def _check_comparison_panels(observation: dict[str, Any]) -> CheckOutcome:
         return _pass(f"Os {len(frames)} quadros estão na mesma escala (1:{_num(min(scales))}).")
 
     has_bar = bool((observation.get("scalebar") or {}).get("item_id"))
+    # Uma barra ligada a cada quadro (figura de localização): cada painel
+    # anuncia a sua escala, e a comparação não é sugerida.
+    linked = {str(bar.get("linked_map") or "") for bar in observation.get("scalebars") or []} - {""}
+    frame_ids = {str(frame.get("item_id") or "") for frame in frames}
+    if frame_ids and frame_ids <= linked:
+        return _pass(f"Os {len(frames)} quadros estão em escalas diferentes e cada um tem a sua barra de escala.")
     captions = [
         str(item.get("text", "")) for item in _items(observation)
         if item.get("type") == "label" and "1:" in str(item.get("text", ""))
@@ -1314,7 +1388,7 @@ def _check_fonts_at_print_width(observation: dict[str, Any]) -> CheckOutcome:
         if not size:
             continue
         effective = float(size) * factor
-        if effective < MIN_PRINT_FONT_PT:
+        if effective < _font_floor(observation):
             small.append({"id": item.get("id"), "font_size_pt": float(size), "effective_pt": round(effective, 1)})
     if not small:
         return _pass(f"Reduzida a {print_width:g} mm de largura ({factor:.0%}), nenhuma fonte cai abaixo de {MIN_PRINT_FONT_PT:g} pt.")
@@ -1382,6 +1456,16 @@ def _check_output_written(observation: dict[str, Any]) -> CheckOutcome:
         return _fail("O arquivo de saída não foi criado.", path=output.get("path"))
     size = int(output.get("size_bytes") or 0)
     floor = 10_000 if str(output.get("format", "")).lower() == "png" else 5_000
+    pixels = output.get("pixels")
+    if pixels:
+        # Uma figura de 88 mm a 72 dpi, com dois polígonos lisos, tem 8,8 kB, e
+        # uma de 1,2 milhão de pixels com pouco desenho, 9,97 kB; nenhuma está
+        # vazia, e o piso fixo de 10 kB reprovava as duas. Um PNG todo branco
+        # do QGIS comprime a 1 byte a cada 200 a 260 pixels (6.009 bytes em
+        # 1039 x 1180, medido); o piso fica em 1 a cada 150. Acima de 10 kB o
+        # piso não cresce: um branco grande passa aqui, e CART062, que mede a
+        # tinta do quadro, é quem o reprova.
+        floor = min(floor, max(1_000, int(pixels) // 150))
     if size >= floor:
         return _pass(f"Saída gravada com {_num(size)} bytes.")
     return _fail(f"A saída tem apenas {size} bytes, abaixo do piso de {floor}; provável exportação vazia.", size_bytes=size)
@@ -1413,6 +1497,16 @@ RULES: tuple[Rule, ...] = (
          "Slocum et al. (2009), Thematic Cartography and Geovisualization — legend design; sublinhado, extensão "
          "de arquivo ou ano colado ao nome como sinal de nome de arquivo: decisão de projeto do SIGMAI",
          _check_legend_names),
+    Rule("CART083", "geometria", SEVERITY_ERROR,
+         "A figura cumpre as normas da revista", "Figure meets the journal's figure specifications",
+         "Cada revista imprime as figuras em colunas de largura fixa, com altura máxima, corpo mínimo de texto, "
+         "formatos e resolução próprios. Figura fora disso volta do editor, ou é reduzida pela revista e perde a "
+         "escala e a legibilidade.",
+         "Passe journal (ou journal_profile, com os dados da instrução aos autores) e journal_column; o "
+         "compositor usa a largura, a altura, a fonte e a resolução da revista. Exporte num formato que ela aceita.",
+         "PLOS ONE, Figure requirements, e as instruções aos autores das demais revistas, com endereço e data em "
+         "cada perfil (sigmai/cartography/journals.py); o perfil por revista é decisão de projeto do SIGMAI",
+         _check_journal_norms),
     Rule("CART020", "elementos", SEVERITY_ERROR,
          "A legenda explica todas as camadas visíveis", "Legend covers every visible layer",
          "Feição desenhada sem entrada correspondente na legenda é ruído: o leitor vê e não sabe o que é. "

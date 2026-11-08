@@ -102,7 +102,7 @@ class ParametrosDeclaradosDoCompositor(unittest.TestCase):
 
         fonte = inspect.getsource(compose)
         self.assertNotIn(">= 1.12", fonte)
-        self.assertEqual(fonte.count("LAYOUT_SWITCH_GAIN"), 4)  # definição + três usos
+        self.assertEqual(fonte.count("LAYOUT_SWITCH_GAIN"), 5)  # definição + quatro usos
 
 
 class AnaliseDeSensibilidadeSemQgis(unittest.TestCase):

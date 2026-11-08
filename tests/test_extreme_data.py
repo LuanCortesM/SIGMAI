@@ -345,7 +345,7 @@ class NoQgis(unittest.TestCase):
         self.assertNotIn("scale_bar", resultado["items_created"])
         self.assertNotEqual(self._status(resultado, "CART024"), rulebook.STATUS_FAIL)
         self.assertEqual(self._status(resultado, "CART003"), rulebook.STATUS_PASSED)
-        self.assertEqual(rotulos, {("x", -210): "", ("x", -180): "-180°", ("x", 30): "30°", ("y", 90): "90°",
+        self.assertEqual(rotulos, {("x", -210): "", ("x", -180): "180°W", ("x", 30): "30°E", ("y", 90): "90°N",
                                    ("y", -120): ""})
 
     @staticmethod
@@ -362,9 +362,10 @@ class NoQgis(unittest.TestCase):
     def test_rotulo_em_graus_usa_o_separador_da_lingua(self):
         from sigmai.cartography.compose import _degree_label_expression
 
-        self.assertEqual(self._rotulo(_degree_label_expression(1, ","), "y", -22.5), "-22,5°")
-        self.assertEqual(self._rotulo(_degree_label_expression(1, "."), "y", -22.0), "-22.0°")
-        self.assertEqual(self._rotulo(_degree_label_expression(3, ","), "x", -44.0833333333), "-44,083°")
+        self.assertEqual(self._rotulo(_degree_label_expression(1, ","), "y", -22.5), "22,5°S")
+        self.assertEqual(self._rotulo(_degree_label_expression(1, "."), "y", -22.0), "22.0°S")
+        self.assertEqual(self._rotulo(_degree_label_expression(3, ","), "x", -44.0833333333), "44,083°W")
+        self.assertEqual(self._rotulo(_degree_label_expression(0, ","), "x", 0.0), "0°")
 
     def test_poligonos_pequenos_ganham_contorno_fino(self):
         lado = 150

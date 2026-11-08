@@ -170,8 +170,14 @@ def observe_layout(
                 map_item = item
         elif role == "legend" and legend_item is None:
             legend_item = item
-        elif role == "scalebar" and scalebar_item is None:
-            scalebar_item = item
+        elif role == "scalebar":
+            # Cada painel de uma figura de localização tem a sua barra: CART066
+            # confere que todo quadro tem uma ligada a ele.
+            linked = _safe(lambda item=item: item.linkedMap(), None)
+            observation.setdefault("scalebars", []).append(
+                {"item_id": item_id, "linked_map": _safe(lambda: linked.id(), "") if linked is not None else ""})
+            if scalebar_item is None:
+                scalebar_item = item
         elif role == "north" and north_item is None:
             north_item = item
         elif role == "inset" and inset_item is None:
@@ -457,9 +463,10 @@ def _observe_map(
             "interval_x": float(_safe(grid.intervalX, 0.0) or 0.0),
             "interval_y": float(_safe(grid.intervalY, 0.0) or 0.0),
             "annotations": bool(_safe(grid.annotationEnabled, False)),
-            # Grade em graus sobre um mapa projetado (map_crs="auto" num
-            # continente ou no mundo): os meridianos mostram o norte.
-            "graticule": bool(_graticule_over_projection(grid, crs)),
+            # Grade em graus sobre um mapa projetado de continente ou do
+            # mundo (map_crs="auto"): os meridianos mostram o norte, e as
+            # linhas terminam no contorno do globo, sem rótulo na moldura.
+            "graticule": bool(_graticule_over_projection(grid, crs, _safe(map_item.extent))),
         }
     else:
         info["grid"] = {"enabled": False, "interval_x": 0.0, "interval_y": 0.0, "annotations": False}
@@ -493,16 +500,38 @@ def _observe_inset(inset_item: Any, main_map: Any) -> dict[str, Any]:
 
         for layer in layers:
             layer_extent = layer.extent()
+            name = str(layer.name())
+            # O mundo do inserto automático (Natural Earth): o que precisa caber
+            # é o país do recorte, guardado no próprio inserto, e não o globo.
+            if _safe(lambda layer=layer: layer.customProperty("sigmai/locator", ""), "") == "countries":
+                stored = _safe(lambda: inset_item.customProperty("sigmai/locator_country", ""), "") or ""
+                try:
+                    import json
+
+                    from qgis.core import QgsRectangle  # type: ignore
+
+                    country = json.loads(stored)
+                    layer_extent = QgsRectangle(country["xmin"], country["ymin"], country["xmax"], country["ymax"])
+                    name = f"{country.get('name') or 'país'} (Natural Earth)"
+                except Exception:
+                    continue
             if layer_extent is None or layer_extent.isEmpty() or crs is None:
                 continue
             if layer.crs().isValid() and crs.isValid() and layer.crs().authid() != crs.authid():
                 layer_extent = QgsCoordinateTransform(layer.crs(), crs, QgsProject.instance()).transformBoundingBox(layer_extent)
             shown = layer_extent.intersect(extent)
             area = layer_extent.width() * layer_extent.height()
-            info["layer_coverage"][str(layer.name())] = round((shown.width() * shown.height()) / area, 3) if area > 0 else 1.0
+            info["layer_coverage"][name] = round((shown.width() * shown.height()) / area, 3) if area > 0 else 1.0
         if main_map is not None and extent is not None:
             main_extent = _safe(main_map.extent)
+            main_crs = _safe(main_map.crs)
             if main_extent is not None:
+                # O inserto automático está em graus e o mapa em UTM: sem a
+                # transformação, o retângulo em metros nunca cabia no de graus.
+                if (main_crs is not None and crs is not None and main_crs.isValid() and crs.isValid()
+                        and main_crs.authid() != crs.authid()):
+                    main_extent = QgsCoordinateTransform(main_crs, crs, QgsProject.instance()).transformBoundingBox(
+                        main_extent)
                 info["shows_main_frame"] = bool(extent.contains(main_extent))
     except Exception:
         pass
@@ -651,12 +680,35 @@ def _size_mm(size: float, raw_unit: Any, scale: float, map_units_metres: bool) -
     return None
 
 
-def _graticule_over_projection(grid: Any, map_crs: Any) -> bool:
+#: Maior lado, em graus, a partir do qual o mapa é de continente ou do mundo
+#: (o mesmo limiar de compose.REGIONAL_MAX_SPAN_DEGREES).
+GRATICULE_MIN_SPAN_DEGREES = 40.0
+
+
+def _graticule_over_projection(grid: Any, map_crs: Any, extent: Any = None) -> bool:
+    """Grade em graus sobre um mapa projetado de continente ou do mundo.
+
+    Só aí a grade sem rótulos e sem rosa dos ventos é dispensada. A figura de
+    revista regional também leva grade em graus sobre a UTM, e com a dispensa
+    valendo para ela, tirar os rótulos da grade e o norte passaria sem aviso.
+    """
     try:
         grid_crs = grid.crs()
-        return bool(grid_crs.isValid() and grid_crs.isGeographic() and map_crs is not None and not map_crs.isGeographic())
+        if not (grid_crs.isValid() and grid_crs.isGeographic() and map_crs is not None and not map_crs.isGeographic()):
+            return False
     except Exception:
         return False
+    if extent is None:
+        return False
+    try:
+        from qgis.core import QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject  # type: ignore
+
+        box = QgsCoordinateTransform(map_crs, QgsCoordinateReferenceSystem("EPSG:4326"),
+                                     QgsProject.instance()).transformBoundingBox(extent)
+        return max(float(box.width()), float(box.height())) > GRATICULE_MIN_SPAN_DEGREES
+    except Exception:
+        # O mundo inteiro numa projeção que não volta para graus.
+        return True
 
 
 def _sites_of(layer: Any) -> str:
@@ -1368,12 +1420,24 @@ def _observe_output(output_path: str | None) -> dict[str, Any]:
         return {}
     path = Path(output_path)
     exists = path.exists()
-    return {
+    info = {
         "path": str(path),
         "exists": exists,
         "size_bytes": path.stat().st_size if exists else 0,
         "format": path.suffix.lstrip(".").lower(),
     }
+    # Pixels do raster: o piso de tamanho de CART063 é por pixel, e não fixo.
+    if exists and info["format"] in ("png", "jpg", "jpeg", "tif", "tiff"):
+        try:
+            from qgis.PyQt.QtGui import QImageReader  # type: ignore
+
+            size = QImageReader(str(path)).size()
+            if size.isValid():
+                info["pixels"] = int(size.width()) * int(size.height())
+                info["pixel_width"] = int(size.width())
+        except Exception:
+            pass
+    return info
 
 
 def _load_image(png_path: str | Path) -> Any:

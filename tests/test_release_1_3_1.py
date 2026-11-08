@@ -169,8 +169,8 @@ class NoQgis(unittest.TestCase):
         from sigmai.qgis_actions.symbology import apply_proportional_symbol_style
 
         camada = self._pontos("Records per site", campo=True)
-        plano = apply_proportional_symbol_style({"layer_id": camada.id(), "field_name": "records", "legend_title": ""},
-                                                {"dry_run": False})
+        plano = apply_proportional_symbol_style({"layer_id": camada.id(), "field_name": "records", "legend_title": "",
+                                                 "scaling": "area"}, {"dry_run": False})
         self.assertEqual(plano["legend_title"], "")
         self.assertEqual(camada.renderer().dataDefinedSizeLegend().title(), "")
         sem = apply_proportional_symbol_style({"layer_id": camada.id(), "field_name": "records"}, {"dry_run": True})
@@ -218,7 +218,10 @@ class NoQgis(unittest.TestCase):
         legenda = QgsLayoutItemLegend(layout)
         layout.addLayoutItem(legenda)
         self.assertFalse(_has_size_legend(legenda))
-        apply_proportional_symbol_style({"layer_id": camada.id(), "field_name": "records"}, {"dry_run": False})
+        # Área proporcional pedida: com scaling="auto", contagens de 1 a mais de
+        # 100 vão para classes (1.5.0), e a legenda de classes se divide.
+        apply_proportional_symbol_style({"layer_id": camada.id(), "field_name": "records", "scaling": "area"},
+                                        {"dry_run": False})
         self.assertTrue(_has_size_legend(legenda))
 
 

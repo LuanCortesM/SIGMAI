@@ -1,7 +1,7 @@
 [general]
 name=SIGMAI
-description=Secure local bridge between AI assistants and QGIS, with a built-in chat and cartographic quality control.
-version=1.4.0
+description=Local bridge between AI assistants and QGIS, with a built-in chat and cartographic quality control.
+version=1.5.0
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=MACIEL, L. S. C.
@@ -16,6 +16,8 @@ homepage=https://github.com/LuanCortesM/SIGMAI
 repository=https://github.com/LuanCortesM/SIGMAI
 tracker=https://github.com/LuanCortesM/SIGMAI/issues
 license=MIT
-changelog=1.4.0
-    - AI API support: Claude, OpenAI, Gemini, Ollama
+changelog=1.5.0
+    - Journal figure standards for 17 journals
+    - Multi-panel and location figures
+    - Vector EPS export
     - Bug fixes

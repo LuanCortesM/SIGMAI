@@ -8,8 +8,8 @@ from __future__ import annotations
 
 STRINGS: dict[str, str] = {
     # cabeçalho e estado
-    "window_title": "SIGMAI — 安全的 GIS-AI 介面",
-    "subtitle": "安全的 GIS-AI 介面",
+    "window_title": "SIGMAI — GIS-AI 介面",
+    "subtitle": "GIS-AI 介面",
     "context": "連接 AI 助理與 QGIS 的本機橋接",
     "online": "已連線",
     "offline": "已停止",

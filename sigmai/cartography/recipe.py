@@ -289,7 +289,7 @@ def methods_paragraph(recipe: dict[str, Any], language: str = "pt-BR") -> dict[s
             + (f"Elaboração: {author}. " if author else "")
             + place
         )
-        reference = (f"MACIEL, L. S. C. SIGMAI: Secure GIS-AI Interface. Versão {sigmai}. Zenodo, {year}. "
+        reference = (f"MACIEL, L. S. C. SIGMAI: GIS-AI Interface. Versão {sigmai}. Zenodo, {year}. "
                      f"Disponível em: https://doi.org/{SOFTWARE_DOI}.")
     elif lang == "es":
         text = (
@@ -305,7 +305,7 @@ def methods_paragraph(recipe: dict[str, Any], language: str = "pt-BR") -> dict[s
             + (f"Elaboración: {author}. " if author else "")
             + place
         )
-        reference = f"Maciel, L. S. C. {year}. SIGMAI: Secure GIS-AI Interface, versión {sigmai}. Zenodo. https://doi.org/{SOFTWARE_DOI}"
+        reference = f"Maciel, L. S. C. {year}. SIGMAI: GIS-AI Interface, versión {sigmai}. Zenodo. https://doi.org/{SOFTWARE_DOI}"
     else:
         text = (
             f"The map{(' ' + repr(title)) if title else ''} was produced in QGIS {qgis} through the SIGMAI plugin {sigmai} "
@@ -320,6 +320,6 @@ def methods_paragraph(recipe: dict[str, Any], language: str = "pt-BR") -> dict[s
             + (f"Prepared by: {author}. " if author else "")
             + place
         )
-        reference = f"Maciel, L. S. C. {year}. SIGMAI: Secure GIS-AI Interface, version {sigmai}. Zenodo. https://doi.org/{SOFTWARE_DOI}"
+        reference = f"Maciel, L. S. C. {year}. SIGMAI: GIS-AI Interface, version {sigmai}. Zenodo. https://doi.org/{SOFTWARE_DOI}"
     text = re.sub(r"\s+", " ", text).strip()
     return {"language": lang, "paragraph": text, "software_reference": reference, "note": note}

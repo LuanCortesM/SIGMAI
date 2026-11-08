@@ -489,6 +489,119 @@ def preview_sites_layer(params: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
     return sites(), {"source_layer_id": layer.id(), **summary}
 
 
+def count_points_in_hexagons(params: dict[str, Any], context: dict[str, Any]):
+    """Hexágonos de área igual com quantos pontos caem em cada um; só as células com pontos.
+
+    A alternativa aos locais de count_points_by_site quando os círculos se
+    amontoam: as células não se sobrepõem, e a cor diz quantos registros há
+    por km² em todo o mapa. ``crs`` é um sistema projetado em metros (o do
+    mapa); ``cell_area_km2``, a área de cada célula (``hex_area_for_scale``
+    dá a de 3 mm no papel). Grava um GeoPackage novo e não altera a camada de
+    origem.
+    """
+    _point_layer(params)
+    output_path = _check_output(require_param(params, "output_path", str), bool(params.get("confirm_overwrite")))
+    if Path(output_path).suffix.lower() != ".gpkg":
+        raise ValidationError("BAD_REQUEST", "output_path precisa terminar em .gpkg.", {"output_path": output_path})
+    layer, cells, summary = _hex_counts(params)
+    summary = {"source_layer_id": layer.id(), "output_path": output_path, **summary}
+    if context.get("dry_run"):
+        return {"dry_run": True, **summary, "changes": ["Grava um GeoPackage novo com as células e o adiciona ao projeto."]}
+    cells = cells()
+    from qgis.core import QgsVectorFileWriter, QgsVectorLayer  # type: ignore
+
+    options = QgsVectorFileWriter.SaveVectorOptions()
+    options.driverName = "GPKG"
+    options.layerName = "cells"
+    options.fileEncoding = "UTF-8"
+    result = QgsVectorFileWriter.writeAsVectorFormatV3(cells, output_path, project().transformContext(), options)
+    error_code = result[0] if isinstance(result, tuple) else result
+    if error_code != qt_enum(QgsVectorFileWriter, "WriterError", "NoError"):
+        raise ValidationError("WRITE_FAILED", "Não foi possível gravar as células.", {"result": str(result), "path": output_path})
+    persisted = QgsVectorLayer(f"{output_path}|layername=cells", cells.name(), "ogr")
+    if not persisted.isValid():
+        raise ValidationError("WRITE_FAILED", "O GeoPackage gravado não pôde ser lido de volta.", {"path": output_path})
+    persisted.setCustomProperty(SITES_OF_PROPERTY, str(layer.id()))
+    project().addMapLayer(persisted)
+    return {**summary, "layer_id": persisted.id(), "name": persisted.name()}
+
+
+def preview_hexagons_layer(params: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
+    """As células de count_points_in_hexagons numa camada de memória, sem gravar nem pôr no projeto."""
+    layer, cells, summary = _hex_counts(params)
+    return cells(), {"source_layer_id": layer.id(), **summary}
+
+
+def _hex_counts(params: dict[str, Any]) -> tuple[Any, Any, dict[str, Any]]:
+    """Conta os pontos por hexágono; devolve a camada, a fábrica da camada de memória das células e o resumo."""
+    layer = _point_layer(params)
+    from qgis.core import (  # type: ignore
+        QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsFeature, QgsFeatureRequest, QgsGeometry, QgsPointXY,
+        QgsVectorLayer,
+    )
+
+    from ..cartography.pointdensity import hex_bin, hex_ring, hex_side_for_area
+
+    crs = QgsCoordinateReferenceSystem(str(params.get("crs") or ""))
+    if not crs.isValid() or crs.isGeographic():
+        raise ValidationError("BAD_REQUEST", "crs precisa ser um sistema projetado (em metros), como o do mapa: "
+                              "em graus as células não teriam a mesma área.", {"crs": params.get("crs")})
+    try:
+        area_km2 = float(params.get("cell_area_km2"))
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("BAD_REQUEST", "cell_area_km2 precisa ser um número.", {}) from exc
+    if not 1e-4 <= area_km2 <= 1e6:
+        raise ValidationError("BAD_REQUEST", "cell_area_km2 vai de 0,0001 a 1.000.000.", {"cell_area_km2": area_km2})
+    count_field = str(params.get("count_field") or "records").strip()
+    if not count_field.replace("_", "").isalnum():
+        raise ValidationError("BAD_REQUEST", "count_field aceita letras, números e _.", {"count_field": count_field})
+    layer_name = str(params.get("layer_name") or f"{layer.name()} (cells)").strip()
+    try:
+        from qgis.core import QgsUnitTypes  # type: ignore
+
+        metres = float(QgsUnitTypes.fromUnitToUnitFactor(crs.mapUnits(),
+                                                         qt_enum(qgis_imports()["Qgis"], "DistanceUnit", "Meters")))
+    except Exception:
+        metres = 1.0
+    side = hex_side_for_area(area_km2 * 1e6) / (metres or 1.0)
+
+    exact: dict[tuple[float, float], int] = {}
+    for feature in layer.getFeatures(QgsFeatureRequest().setNoAttributes()):
+        geometry = feature.geometry()
+        if geometry is None or geometry.isEmpty():
+            continue
+        for point in (geometry.asMultiPoint() if geometry.isMultipart() else [geometry.asPoint()]):
+            key = (point.x(), point.y())
+            exact[key] = exact.get(key, 0) + 1
+    if not exact:
+        raise ValidationError("EMPTY_LAYER", "A camada não tem pontos.", {"layer_id": layer.id()})
+    transform = QgsCoordinateTransform(layer.crs(), crs, project())
+    moved = []
+    for (x, y), count in exact.items():
+        try:
+            point = transform.transform(QgsPointXY(x, y))
+        except Exception:
+            continue
+        moved.append((point.x(), point.y(), count))
+    counts = hex_bin(moved, side)
+    summary = {"count_field": count_field, "records": sum(counts.values()), "cells": len(counts),
+               "max_records_per_cell": max(counts.values()), "cell_area_km2": area_km2, "crs": crs_authid(crs)}
+
+    def cells() -> Any:
+        memory = QgsVectorLayer(f"Polygon?crs={crs_authid(crs)}&field={count_field}:integer", layer_name, "memory")
+        features = []
+        for (q, r), count in sorted(counts.items(), key=lambda item: (-item[1], item[0])):
+            feature = QgsFeature(memory.fields())
+            feature.setGeometry(QgsGeometry.fromPolygonXY([[QgsPointXY(x, y) for x, y in hex_ring(q, r, side)]]))
+            feature.setAttribute(count_field, count)
+            features.append(feature)
+        memory.dataProvider().addFeatures(features)
+        memory.updateExtents()
+        return memory
+
+    return layer, cells, summary
+
+
 def _point_layer(params: dict[str, Any]) -> Any:
     layer = _vector_layer(require_param(params, "layer_id", str))
     from ..cartography.qtcompat import geometry_type

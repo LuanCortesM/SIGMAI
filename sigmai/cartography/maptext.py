@@ -60,6 +60,7 @@ _PT_BR: dict[str, str] = {
     # CLDR (símbolo "decimal" do sistema latn).
     "separador_decimal": ",",
     "registros_por_local": "Registros por local",
+    "registros_por_celula": "Registros por célula de {area} km²",
     # Nomes das camadas que add_context_annotations cria ("Divisa — Piauí"):
     # entram na legenda, então seguem a língua do mapa.
     "camada_divisa": "Divisa",
@@ -91,6 +92,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ",",
         "separador_decimal": ".",
         "registros_por_local": "Records per site",
+        "registros_por_celula": "Records per {area} km² cell",
     },
     "es": {
         "camada_divisa": "Límite",
@@ -108,6 +110,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ".",
         "separador_decimal": ",",
         "registros_por_local": "Registros por sitio",
+        "registros_por_celula": "Registros por celda de {area} km²",
     },
     "fr": {
         "camada_divisa": "Limite",
@@ -125,6 +128,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": "\u202f",
         "separador_decimal": ",",
         "registros_por_local": "Enregistrements par site",
+        "registros_por_celula": "Enregistrements par cellule de {area} km²",
     },
     "de": {
         "camada_divisa": "Grenze",
@@ -142,6 +146,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ".",
         "separador_decimal": ",",
         "registros_por_local": "Datensätze pro Fundort",
+        "registros_por_celula": "Datensätze pro {area}-km²-Zelle",
     },
     "it": {
         "camada_divisa": "Confine",
@@ -159,6 +164,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ".",
         "separador_decimal": ",",
         "registros_por_local": "Record per sito",
+        "registros_por_celula": "Record per cella di {area} km²",
     },
     "ja": {
         "camada_divisa": "境界",
@@ -176,6 +182,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ",",
         "separador_decimal": ".",
         "registros_por_local": "地点あたりの記録数",
+        "registros_por_celula": "{area} km² セルあたりの記録数",
         "norte_reserva": "北",
     },
     "zh-Hans": {
@@ -194,6 +201,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ",",
         "separador_decimal": ".",
         "registros_por_local": "每个地点的记录数",
+        "registros_por_celula": "每 {area} km² 网格的记录数",
         "norte_reserva": "北",
     },
     "zh-Hant": {
@@ -212,6 +220,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ",",
         "separador_decimal": ".",
         "registros_por_local": "每個地點的記錄數",
+        "registros_por_celula": "每 {area} km² 網格的記錄數",
         "norte_reserva": "北",
     },
     "ko": {
@@ -230,6 +239,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ",",
         "separador_decimal": ".",
         "registros_por_local": "지점별 기록 수",
+        "registros_por_celula": "{area} km² 셀별 기록 수",
     },
     "ru": {
         "camada_divisa": "Граница",
@@ -247,6 +257,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": "\u00a0",
         "separador_decimal": ",",
         "registros_por_local": "Записей на точку",
+        "registros_por_celula": "Записей на ячейку {area} км²",
         "norte_reserva": "С",
     },
     # Árabe e hebraico: só o CONTEÚDO destes textos é traduzido aqui. A
@@ -274,6 +285,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ",",
         "separador_decimal": ".",
         "registros_por_local": "السجلات لكل موقع",
+        "registros_por_celula": "السجلات لكل خلية {area} كم²",
         "norte_reserva": "ش",
     },
     "he": {
@@ -292,6 +304,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ",",
         "separador_decimal": ".",
         "registros_por_local": "רשומות לכל אתר",
+        "registros_por_celula": "רשומות לכל תא של {area} קמ״ר",
         "norte_reserva": "צ",
     },
     "el": {
@@ -310,6 +323,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ".",
         "separador_decimal": ",",
         "registros_por_local": "Καταγραφές ανά θέση",
+        "registros_por_celula": "Καταγραφές ανά κελί {area} km²",
         "norte_reserva": "Β",
     },
     "th": {
@@ -328,6 +342,7 @@ MAP_TEXT: dict[str, dict[str, str]] = {
         "separador_milhar": ",",
         "separador_decimal": ".",
         "registros_por_local": "จำนวนบันทึกต่อจุด",
+        "registros_por_celula": "จำนวนบันทึกต่อเซลล์ {area} ตร.กม.",
     },
 }
 
@@ -429,3 +444,31 @@ def maptext(language: str, key: str) -> str:
     resolved = normalize_language(language)
     table = MAP_TEXT.get(resolved) or _PT_BR
     return table.get(key) or _PT_BR.get(key, key)
+
+
+def common_layer_title(names: list[str]) -> str:
+    """Título de uma entrada de legenda que vale por várias camadas com as mesmas classes.
+
+    "Uso da terra 2000" e "Uso da terra 2020" viram "Uso da terra": o ano é
+    o que distingue os painéis, e a letra do painel já o diz. Sem parte comum
+    que faça sentido, os nomes vão juntos, separados por " / ".
+    """
+    cleaned = [str(name).strip() for name in names if str(name).strip()]
+    if not cleaned:
+        return ""
+    if len(set(cleaned)) == 1:
+        return cleaned[0]
+    words = [name.split() for name in cleaned]
+    common: list[str] = []
+    for column in zip(*words):
+        if len(set(word.casefold() for word in column)) != 1:
+            break
+        common.append(column[0])
+    while common and not any(c.isalpha() for c in common[-1]):
+        common.pop()
+    while common and common[-1].casefold() in ("de", "da", "do", "das", "dos", "of", "the", "del", "des", "du", "e", "and", "-", "–", "—", ":"):
+        common.pop()
+    title = " ".join(common).rstrip(" -–—:,;(")
+    if len(title) >= 3 and sum(c.isalpha() for c in title) >= 3:
+        return title
+    return " / ".join(dict.fromkeys(cleaned))

@@ -100,11 +100,16 @@ GREY_GEOMETRY_DEFAULTS: dict[str, dict[str, Any]] = {
 }
 #: Espessura do contorno destacado de um polígono que contém outros (mm).
 OUTLINE_STROKE_MM = 0.7
+#: O mesmo contorno numa figura de revista (88 a 180 mm): a 0,7 mm o limite
+#: do parque pesava mais que os registros dentro dele.
+FIGURE_OUTLINE_STROKE_MM = 0.45
 #: Contorno de uma subdivisão (municípios sobre a APA): fino, para não pesar.
 OUTLINE_SUBDIVISION_STROKE_MM = 0.3
 #: Cores dos contornos, uma por camada: dois contornos no mesmo cinza-escuro
 #: eram indistinguíveis no mapa e na legenda (CART070).
 OUTLINE_COLOURS = ("#1A1A1A", "#7B3294", "#B2182B", "#2166AC")
+#: Contorno da primeira subdivisão (municípios): cinza, fundo do mapa.
+SUBDIVISION_OUTLINE_COLOUR = "#737373"
 #: Curvas de nível em sépia, como nas cartas topográficas.
 CONTOUR_COLOUR = "#8C510A"
 
@@ -140,6 +145,26 @@ def _is_contour_layer(layer: Any) -> bool:
         return layer.fields().indexOf("ELEV") >= 0
     except Exception:
         return False
+
+#: Rios e drenagem.
+WATER_LINE_COLOUR = "#0072B2"
+#: Trechos de nome de camada de linha que são água corrente, em qualquer posição.
+WATER_LINE_FRAGMENTS = ("drenag", "drainage", "hidrograf", "hydrograph", "curso d", "cursos d", "cours d", "watercourse")
+#: Palavras inteiras (ou o começo delas) que são água corrente: "rios" sim, "territórios" não.
+WATER_LINE_WORDS = ("rio", "rios", "river", "stream", "córrego", "corrego", "riacho", "canal", "igarapé", "igarape",
+                    "arroio", "ribeirão", "ribeirao", "fluss", "rivière", "riviere", "río", "ríos")
+
+
+def _is_water_line(layer: Any) -> bool:
+    try:
+        name = str(layer.name()).casefold()
+    except Exception:
+        return False
+    if any(fragment in name for fragment in WATER_LINE_FRAGMENTS):
+        return True
+    words = "".join(c if c.isalnum() else " " for c in name).split()
+    return any(word in WATER_LINE_WORDS or word.rstrip("s") in WATER_LINE_WORDS for word in words)
+
 
 #: Traços e pontos em cinza: preto, cinza escuro e cinza médio.
 GREY_ACCENTS: tuple[str, ...] = ("#000000", "#4D4D4D", "#808080")
@@ -235,8 +260,12 @@ def apply_default_symbology(
     layers: list[Any], mode: str = "missing", dry_run: bool = False, colour_mode: str = "colour",
     outline_ids: set[str] | None = None,
     outline_parent_ids: set[str] | None = None,
+    outline_stroke_mm: float = OUTLINE_STROKE_MM,
 ) -> list[dict[str, Any]]:
     """Aplica a paleta padrão às camadas elegíveis.
+
+    ``outline_stroke_mm``: espessura do contorno destacado; a figura de
+    revista usa ``FIGURE_OUTLINE_STROKE_MM``.
 
     ``outline_parent_ids``: contornos que contêm outro contorno do mapa (os
     estados sobre os municípios). Ficam com o traço destacado mesmo com mais
@@ -295,6 +324,7 @@ def apply_default_symbology(
                         pass
     polygon_slot = 0
     outline_slot = 0
+    subdivision_grey_free = SUBDIVISION_OUTLINE_COLOUR.upper() not in outlines_in_use
 
     for index, layer in enumerate(layers):
         if not hasattr(layer, "renderer") or not hasattr(layer, "geometryType"):
@@ -310,8 +340,11 @@ def apply_default_symbology(
         # A paleta de uma composição anterior é do próprio SIGMAI: refaz-se
         # quando agora o polígono tem de ser contorno, ou quando a figura
         # passou a ser em cinza e a paleta anterior era colorida.
+        # E o inverso: o estado que foi contorno sobre os municípios num mapa e
+        # é o destaque preenchido na figura de localização seguinte.
         own_palette_outdated = style_origin(layer) == STYLE_ORIGIN_PALETTE and (
-            (needs_outline and _is_filled(layer)) or (greyscale and _renderer_has_colour(layer)))
+            (needs_outline and _is_filled(layer)) or (greyscale and _renderer_has_colour(layer))
+            or (outline_ids is not None and not needs_outline and _is_palette_outline(layer)))
         if mode == "missing" and not has_default_symbology(layer) and not own_palette_outdated:
             origem_estilo = style_origin(layer)
             reason = {
@@ -361,14 +394,25 @@ def apply_default_symbology(
             except Exception:
                 pass
             style.update({"fill": "255,255,255,0", "pattern": "no",
-                          "stroke_width": OUTLINE_SUBDIVISION_STROKE_MM if subdivision else OUTLINE_STROKE_MM})
+                          "stroke_width": OUTLINE_SUBDIVISION_STROKE_MM if subdivision else outline_stroke_mm})
             free = [colour for colour in OUTLINE_COLOURS if colour.upper() not in outlines_in_use] or list(OUTLINE_COLOURS)
-            accent = "#000000" if greyscale else free[outline_slot % len(free)]
+            if subdivision and subdivision_grey_free and not greyscale:
+                # A subdivisão (os municípios) é fundo: em cinza. Pela vez na
+                # paleta ela saía vermelha sobre o mapa de calor, onde vermelho
+                # é a densidade mais alta.
+                accent = SUBDIVISION_OUTLINE_COLOUR
+                subdivision_grey_free = False
+            else:
+                accent = "#000000" if greyscale else free[outline_slot % len(free)]
+                outline_slot += 1
             outlines_in_use.add(accent.upper())
-            outline_slot += 1
         elif kind == "Line" and _is_contour_layer(layer):
             accent = "#4D4D4D" if greyscale else CONTOUR_COLOUR
             style["stroke_width"] = _dense_line_width(layer, 0.25)
+        elif kind == "Line" and not greyscale and _is_water_line(layer):
+            # Rios em azul, como em toda carta: pela paleta em sequência a
+            # drenagem saía laranja por cima do uso da terra.
+            accent = WATER_LINE_COLOUR
         elif greyscale:
             accent = GREY_ACCENTS[index % len(GREY_ACCENTS)]
             if kind == "Polygon":
@@ -439,6 +483,21 @@ def apply_default_symbology(
             continue
 
     return applied
+
+
+def _is_palette_outline(layer: Any) -> bool:
+    """Polígono que uma composição anterior desenhou como contorno (símbolo único, sem preenchimento).
+
+    Divisas e nomes de add_context_annotations ficam de fora: são contorno por natureza.
+    """
+    try:
+        if layer.customProperty("sigmai/derived_from", ""):
+            return False
+        if int(layer.geometryType()) != 2 or str(layer.renderer().type()) != "singleSymbol":
+            return False
+    except Exception:
+        return False
+    return not _is_filled(layer)
 
 
 def _is_filled(layer: Any) -> bool:
@@ -725,6 +784,88 @@ def proportional_size_mm(value: float, minimum: float, maximum: float, min_size:
     return min_size + (max_size - min_size) * share ** 0.5
 
 
+#: Classes de contagem por ordem de grandeza (1–9, 10–99, 100–999…): cor da
+#: viridis, do claro ao escuro, legível sob as três deficiências de visão de
+#: cores e em tons de cinza, e tamanho crescente. Com círculos de área
+#: proporcional, quase todos os locais ficam no tamanho mínimo quando poucos
+#: concentram os registros, e não se lê quantos há em cada lugar.
+#: Mais classes que isto e duas vizinhas ficam a menos de ΔE 15 sob
+#: daltonismo (CART070): seis ordens de grandeza já vão de 1 a 999.999.
+COUNT_CLASS_MOST = 6
+COUNT_CLASS_MIN_MM = 1.0
+COUNT_CLASS_MAX_MM = 4.2
+#: Abaixo desta razão entre o maior e o menor valor (duas ordens de grandeza)
+#: o círculo de área proporcional ainda se lê, e scaling="auto" o mantém.
+COUNT_CLASS_MIN_RATIO = 100.0
+
+
+def count_classes(minimum: float, maximum: float, most: int = COUNT_CLASS_MOST) -> list[tuple[float, float]]:
+    """Classes por ordem de grandeza, de ``minimum`` a ``maximum``: [(1, 9), (10, 99), …, (10000, 68881)].
+
+    A primeira começa na potência de dez do mínimo (1, para contagens) e a
+    última termina no maior valor. Com mais ordens que ``most``, as primeiras
+    se juntam numa classe só, porque são as que menos se distinguem no mapa.
+    """
+    import math
+
+    low = max(1.0, float(minimum))
+    high = max(low, float(maximum))
+    start = 10 ** math.floor(math.log10(low))
+    edges: list[tuple[float, float]] = []
+    lower = float(start)
+    while lower <= high:
+        edges.append((lower, min(lower * 10 - 1, high)))
+        lower *= 10
+    while len(edges) > most:
+        edges[0:2] = [(edges[0][0], edges[1][1])]
+    return edges
+
+
+def count_class_sizes(classes: int, min_mm: float = COUNT_CLASS_MIN_MM, max_mm: float = COUNT_CLASS_MAX_MM) -> list[float]:
+    """Diâmetros das classes, do menor ao maior, em passos iguais."""
+    if classes <= 1:
+        return [max_mm if classes == 1 else min_mm][:classes]
+    step = (max_mm - min_mm) / (classes - 1)
+    return [round(min_mm + step * i, 2) for i in range(classes)]
+
+
+#: Viridis em onze pontos (0 a 1), do escuro ao claro, para interpolar.
+VIRIDIS_STOPS = ("#440154", "#482475", "#414487", "#355F8D", "#2A788E", "#21918C", "#22A884", "#44BF70", "#7AD151",
+                 "#BDDF26", "#FDE725")
+
+
+def viridis(t: float) -> str:
+    """Cor da viridis na posição ``t`` (0 escuro, 1 claro), interpolada em RGB entre os onze pontos."""
+    t = min(1.0, max(0.0, float(t)))
+    position = t * (len(VIRIDIS_STOPS) - 1)
+    index = min(int(position), len(VIRIDIS_STOPS) - 2)
+    fraction = position - index
+    a, b = VIRIDIS_STOPS[index], VIRIDIS_STOPS[index + 1]
+    channels = [round(int(a[i:i + 2], 16) + (int(b[i:i + 2], 16) - int(a[i:i + 2], 16)) * fraction) for i in (1, 3, 5)]
+    return "#" + "".join(f"{value:02X}" for value in channels)
+
+
+def count_class_colours(classes: int) -> list[str]:
+    """Cores das classes, da menor (clara) à maior (escura), em passos iguais ao longo da viridis inteira.
+
+    Tiradas de sete amostras fixas, duas classes vizinhas saíam com ΔE 13,7
+    sob tritanomalia (#35B779 e #21918C), abaixo do mínimo de CART070.
+    """
+    if classes <= 0:
+        return []
+    if classes == 1:
+        return [viridis(0.5)]
+    return [viridis(1.0 - i / (classes - 1)) for i in range(classes)]
+
+
+def count_class_label(low: float, high: float, thousands: str = ",") -> str:
+    """'1–9', '10–99', '10,000–68,881' ou '7' quando a classe tem um valor só."""
+    def number(value: float) -> str:
+        return f"{int(round(value)):,}".replace(",", thousands)
+
+    return number(low) if round(low) == round(high) else f"{number(low)}–{number(high)}"
+
+
 def size_legend_values(minimum: float, maximum: float, min_size: float, max_size: float,
                        gap_mm: float = SIZE_LEGEND_GAP_MM) -> list[float]:
     """Valores da legenda de círculos aninhados: o menor e o maior símbolo do mapa e, se couber, um valor redondo
@@ -785,3 +926,196 @@ def _build_symbol(kind: str, style: dict[str, Any], accent: str, imports: dict[s
     except Exception:
         pass
     return symbol
+
+
+#: Unidade de traço do QGIS (Qgis.RenderUnit, pelo valor) para milímetros no papel.
+_STROKE_UNIT_MM = {0: 1.0, 4: 25.4 / 72.0, 5: 25.4}
+
+
+def _enum_value(value: Any) -> int | None:
+    try:
+        return int(value)
+    except Exception:
+        try:
+            return int(value.value)
+        except Exception:
+            return None
+
+
+def stroke_parts(symbol: Any) -> list[tuple[Any, str, str, str, str]]:
+    """Os traços de um símbolo, sub-símbolos inclusive: (camada do símbolo, ler, gravar, unidade, estilo)."""
+    parts: list[tuple[Any, str, str, str, str]] = []
+    try:
+        count = int(symbol.symbolLayerCount())
+    except Exception:
+        return parts
+    for index in range(count):
+        layer = symbol.symbolLayer(index)
+        for getter, setter, unit, style in (("strokeWidth", "setStrokeWidth", "strokeWidthUnit", "strokeStyle"),
+                                            ("width", "setWidth", "widthUnit", "penStyle")):
+            if all(hasattr(layer, name) for name in (getter, setter, unit)):
+                parts.append((layer, getter, setter, unit, style))
+                break
+        sub = layer.subSymbol() if hasattr(layer, "subSymbol") else None
+        if sub is not None:
+            parts.extend(stroke_parts(sub))
+    return parts
+
+
+def stroke_width_mm(part: tuple[Any, str, str, str, str]) -> float | None:
+    """Espessura do traço no papel (mm); 0 é o traço fino do QGIS (um pixel); None se não se mede ou não há traço."""
+    layer, getter, _setter, unit, style = part
+    try:
+        if hasattr(layer, style) and _enum_value(getattr(layer, style)()) == 0:
+            return None  # sem traço (Qt.NoPen)
+        factor = _STROKE_UNIT_MM.get(_enum_value(getattr(layer, unit)()))
+        if factor is None:
+            return None
+        return float(getattr(layer, getter)()) * factor
+    except Exception:
+        return None
+
+
+def thicken_strokes(symbol: Any, minimum_mm: float) -> int:
+    """Engrossa até ``minimum_mm`` os traços mais finos do símbolo; devolve quantos mudaram."""
+    changed = 0
+    for part in stroke_parts(symbol):
+        width = stroke_width_mm(part)
+        if width is None or width >= minimum_mm - 1e-6:
+            continue
+        layer, _getter, setter, unit, _style = part
+        factor = _STROKE_UNIT_MM.get(_enum_value(getattr(layer, unit)()), 1.0)
+        try:
+            getattr(layer, setter)(minimum_mm / factor)
+            changed += 1
+        except Exception:
+            continue
+    return changed
+
+
+def _renderer_symbols(layer: Any) -> list[Any]:
+    try:
+        from qgis.core import QgsRenderContext  # type: ignore
+
+        renderer = layer.renderer()
+        return list(renderer.symbols(QgsRenderContext())) if renderer is not None else []
+    except Exception:
+        return []
+
+
+def _layout_measurement_mm(measurement: Any) -> float | None:
+    try:
+        units = _enum_value(measurement.units())
+        factor = {0: 1.0, 1: 10.0, 2: 1000.0, 3: 25.4, 4: 304.8, 5: 25.4 / 72.0}.get(units)
+        return float(measurement.length()) * factor if factor is not None else None
+    except Exception:
+        return None
+
+
+def layout_strokes(layout: Any) -> list[tuple[str, float, Any]]:
+    """Cada traço que a figura vai imprimir: (onde, espessura em mm, como engrossar).
+
+    Camadas dos quadros de mapa (contornos, linhas, bordas de ponto),
+    molduras dos itens, traços da grade, recortes marcados e a barra de
+    escala. ``como engrossar`` recebe o mínimo em mm e o aplica.
+    """
+    found: list[tuple[str, float, Any]] = []
+    seen_layers: set[str] = set()
+    try:
+        items = list(layout.items())
+    except Exception:
+        return found
+    for item in items:
+        kind = type(item).__name__
+        item_id = str(getattr(item, "id", lambda: "")() or kind)
+        if kind == "QgsLayoutItemMap":
+            try:
+                layers = list(item.layers()) if item.keepLayerSet() else list(item.layersToRender())
+            except Exception:
+                layers = []
+            for layer in layers:
+                if not hasattr(layer, "renderer") or layer.id() in seen_layers:
+                    continue
+                seen_layers.add(layer.id())
+                widths = [w for symbol in _renderer_symbols(layer) for w in
+                          (stroke_width_mm(part) for part in stroke_parts(symbol)) if w is not None]
+                if widths:
+                    found.append((f"camada {layer.name()!r}", min(widths), lambda m, layer=layer: _thicken_layer(layer, m)))
+            try:
+                for grid in item.grids().asList():
+                    if grid.enabled():
+                        found.append((f"moldura da grade de {item_id}", float(grid.framePenSize()),
+                                      lambda m, grid=grid: grid.setFramePenSize(m)))
+                        if _enum_value(grid.style()) == 0:  # linhas contínuas
+                            widths = [w for w in (stroke_width_mm(p) for p in stroke_parts(grid.lineSymbol()))
+                                      if w is not None]
+                            if widths:
+                                found.append((f"linhas da grade de {item_id}", min(widths),
+                                              lambda m, grid=grid: _thicken_grid_lines(grid, m)))
+                for overview in item.overviews().asList():
+                    symbol = overview.frameSymbol()
+                    widths = [w for w in (stroke_width_mm(part) for part in stroke_parts(symbol)) if w is not None]
+                    if overview.enabled() and widths:
+                        found.append((f"recorte marcado em {item_id}", min(widths),
+                                      lambda m, overview=overview: _thicken_overview(overview, m)))
+            except Exception:
+                pass
+        if kind == "QgsLayoutItemScaleBar":
+            try:
+                symbol = item.lineSymbol()
+                widths = [w for w in (stroke_width_mm(part) for part in stroke_parts(symbol)) if w is not None]
+                if widths:
+                    found.append((f"barra de escala {item_id}", min(widths), lambda m, item=item: _thicken_bar(item, m)))
+            except Exception:
+                pass
+        try:
+            if item.frameEnabled():
+                width = _layout_measurement_mm(item.frameStrokeWidth())
+                if width is not None:
+                    found.append((f"moldura de {item_id}", width, lambda m, item=item: _set_frame_width(item, m)))
+        except Exception:
+            pass
+    return found
+
+
+def _thicken_layer(layer: Any, minimum_mm: float) -> None:
+    renderer = layer.renderer().clone()
+    try:
+        from qgis.core import QgsRenderContext  # type: ignore
+
+        changed = sum(thicken_strokes(symbol, minimum_mm) for symbol in renderer.symbols(QgsRenderContext()))
+    except Exception:
+        return
+    if changed:
+        layer.setRenderer(renderer)
+        layer.triggerRepaint()
+
+
+def _thicken_overview(overview: Any, minimum_mm: float) -> None:
+    symbol = overview.frameSymbol().clone()
+    if thicken_strokes(symbol, minimum_mm):
+        overview.setFrameSymbol(symbol)
+
+
+def _thicken_bar(bar: Any, minimum_mm: float) -> None:
+    symbol = bar.lineSymbol().clone()
+    if thicken_strokes(symbol, minimum_mm):
+        bar.setLineSymbol(symbol)
+
+
+def _set_frame_width(item: Any, minimum_mm: float) -> None:
+    from qgis.core import QgsLayoutMeasurement  # type: ignore
+
+    from .qtcompat import layout_unit_mm
+
+    try:
+        from qgis.core import Qgis, QgsUnitTypes  # type: ignore
+    except Exception:
+        return
+    item.setFrameStrokeWidth(QgsLayoutMeasurement(minimum_mm, layout_unit_mm(Qgis, QgsUnitTypes)))
+
+
+def _thicken_grid_lines(grid: Any, minimum_mm: float) -> None:
+    symbol = grid.lineSymbol().clone()
+    if thicken_strokes(symbol, minimum_mm):
+        grid.setLineSymbol(symbol)

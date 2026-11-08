@@ -10,7 +10,7 @@ def handle(params, context):
     qgs_project = project()
     return {
         "display_name": "SIGMAI",
-        "subtitle": "Secure GIS-AI Interface",
+        "subtitle": "GIS-AI Interface",
         "bridge": "online",
         "host": context.get("host"),
         "port": context.get("port"),
@@ -32,7 +32,7 @@ def bridge_config(params, context):
         },
         "unsafe_developer_mode": bool(context.get("unsafe_developer_mode", False)),
         "display_name": "SIGMAI",
-        "subtitle": "Secure GIS-AI Interface",
+        "subtitle": "GIS-AI Interface",
         "local_only": True,
     }
 

@@ -778,7 +778,7 @@ def _default_logo_path() -> str:
 
 PLUGIN_AUTHOR = "MACIEL, L. S. C."
 PLUGIN_AUTHOR_EMAIL = "herpetomantiqueira@gmail.com"
-CREATED_WITH = "SIGMAI - Secure GIS-AI Interface"
+CREATED_WITH = "SIGMAI - GIS-AI Interface"
 
 
 def build_product_credit(params: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -839,7 +839,7 @@ def _quality_grade(assessment: dict[str, Any]) -> dict[str, Any]:
 def generate_professional_map(params: dict[str, Any], context: dict[str, Any]):
     layer_id = require_param(params, "layer_id", str)
     title = str(params.get("title", "SIGMAI Professional Map"))
-    subtitle = str(params.get("subtitle", "SIGMAI - Secure GIS-AI Interface"))
+    subtitle = str(params.get("subtitle", "SIGMAI - GIS-AI Interface"))
     output_path = normalize_output_path(require_param(params, "output_path", str))
     fmt = str(params.get("format", output_path.suffix.lstrip(".") or "pdf")).lower()
     confirm_overwrite = bool(params.get("confirm_overwrite", False))
@@ -1131,7 +1131,7 @@ def generate_workflow_report(params: dict[str, Any], context: dict[str, Any]):
             if path.is_file() and path.suffix.lower() in {".pdf", ".png", ".gpkg", ".md", ".json"}:
                 outputs.append({"path": str(path), "size": path.stat().st_size})
     credits = build_product_credit(params, context)
-    summary = {"product": "SIGMAI — Secure GIS-AI Interface", "qgis_version": context.get("qgis_version"), "plugin_version": context.get("plugin_version", ""), "host": context.get("host"), "port": context.get("port"), "project_crs": crs_authid(qgs_project.crs()), "layer_count": len(layers), "layout_count": len(layouts), "recent_log_count": len(logs), "output_count": len(outputs), "plugin_author": credits["plugin_author"], "map_author": credits["map_author"] or "not specified"}
+    summary = {"product": "SIGMAI — GIS-AI Interface", "qgis_version": context.get("qgis_version"), "plugin_version": context.get("plugin_version", ""), "host": context.get("host"), "port": context.get("port"), "project_crs": crs_authid(qgs_project.crs()), "layer_count": len(layers), "layout_count": len(layouts), "recent_log_count": len(logs), "output_count": len(outputs), "plugin_author": credits["plugin_author"], "map_author": credits["map_author"] or "not specified"}
     if context.get("dry_run"):
         return {"dry_run": True, "summary": summary, "credits": credits, "would_write": output_value}
     markdown = ["# SIGMAI Workflow Report", "", "## Environment", ""]

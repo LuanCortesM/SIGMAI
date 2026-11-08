@@ -1,5 +1,5 @@
 # SIGMAI for QGIS
-### Secure GIS-AI Interface
+### GIS-AI Interface
 
 This folder contains the QGIS-side plugin.
 

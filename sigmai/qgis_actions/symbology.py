@@ -6,7 +6,8 @@ from typing import Any
 from ..cartography.qtcompat import geometry_type as _geometry_type
 from ..security import ensure_parent_exists, normalize_output_path, reject_existing_path_without_confirmation
 from ..cartography.symbology import (
-    PROPORTIONAL_OUTLINE_SHADE, STYLE_ORIGIN_USER, mark_style_origin, shade, size_legend_values, style_origin,
+    COUNT_CLASS_MIN_RATIO, PROPORTIONAL_OUTLINE_SHADE, STYLE_ORIGIN_USER, mark_style_origin, shade, size_legend_values,
+    style_origin,
 )
 from ..validators import ValidationError, require_param
 from .common import layer_type_name, project
@@ -553,7 +554,10 @@ def apply_proportional_symbol_style(params: dict[str, Any], context: dict[str, A
     """
     layer = _layer(require_param(params, "layer_id", str))
     imports = _imports()
-    if layer.geometryType() != _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Point"):
+    # Polígonos (as células de count_points_in_hexagons) só em classes: a
+    # cor diz quantos; tamanho proporcional é de ponto.
+    polygons = layer.geometryType() == _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Polygon")
+    if layer.geometryType() != _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Point") and not polygons:
         raise ValidationError("POINT_LAYER_REQUIRED", "O símbolo proporcional precisa de uma camada de pontos.", {"layer_id": layer.id()})
     field_name = require_param(params, "field_name", str)
     if not _field_exists(layer, field_name):
@@ -582,6 +586,20 @@ def apply_proportional_symbol_style(params: dict[str, Any], context: dict[str, A
     max_size = float(params.get("max_size_mm", 8.0))
     if not 0 < min_size < max_size <= 30:
         raise ValidationError("BAD_REQUEST", "Use 0 < min_size_mm < max_size_mm <= 30.", {"min_size_mm": min_size, "max_size_mm": max_size})
+    scaling = str(params.get("scaling") or "auto").strip().lower()
+    if scaling not in PROPORTIONAL_SCALINGS:
+        raise ValidationError("BAD_REQUEST", f"scaling={scaling!r} não existe. Use 'auto', 'classes' ou 'area'.",
+                              {"scaling": scaling})
+    whole = all(float(v).is_integer() for v in values)
+    if scaling == "auto":
+        # Contagens que cobrem duas ordens de grandeza ou mais: classes. Com área
+        # proporcional, quase todos os locais saíam no tamanho mínimo.
+        scaling = "classes" if polygons or (whole and maximum >= COUNT_CLASS_MIN_RATIO * max(1.0, minimum)) else "area"
+    if polygons and scaling != "classes":
+        raise ValidationError("BAD_REQUEST", "Em polígonos só há scaling='classes': a cor diz quantos.",
+                              {"scaling": scaling})
+    if scaling == "classes":
+        return _apply_count_classes(layer, field_name, minimum, maximum, params, context, imports)
     colour = str(params.get("color") or "#0072B2")
     opacity = _opacity_param(params, "opacity", 0.75)
     outline = str(params.get("outline_color") or shade(colour, PROPORTIONAL_OUTLINE_SHADE))
@@ -631,6 +649,68 @@ def apply_proportional_symbol_style(params: dict[str, Any], context: dict[str, A
     legend.setTitle(title)
     renderer.setDataDefinedSizeLegend(legend)
     layer.setRenderer(renderer)
+    mark_style_origin(layer, STYLE_ORIGIN_USER)
+    layer.triggerRepaint()
+    return plan
+
+
+#: Como o tamanho do símbolo segue o valor: classes por ordem de grandeza ou área proporcional.
+PROPORTIONAL_SCALINGS = ("auto", "classes", "area")
+
+
+def _apply_count_classes(layer: Any, field_name: str, minimum: float, maximum: float, params: dict[str, Any],
+                         context: dict[str, Any], imports: dict[str, Any]) -> dict[str, Any]:
+    """Símbolos em classes por ordem de grandeza (1–9, 10–99…), com tamanho e cor da viridis.
+
+    Os maiores vão por cima: são os lugares que respondem "quantos", e por
+    baixo de dezenas de pontos de 1 a 9 registros os de 10.000 sumiam. O
+    título da legenda vai numa propriedade da camada, que a legenda do layout
+    usa no lugar do nome, sem renomear a camada.
+    """
+    from ..cartography.maptext import maptext, resolve_language
+    from ..cartography.symbology import count_class_colours, count_class_label, count_class_sizes, count_classes
+
+    language, _known = resolve_language(str(params.get("map_language") or "pt-BR"))
+    thousands = maptext(language, "separador_milhar") or ""
+    classes = count_classes(minimum, maximum)
+    sizes = count_class_sizes(len(classes))
+    colours = count_class_colours(len(classes))
+    labels = [count_class_label(low, high, thousands[:1] if thousands else "") for low, high in classes]
+    title = str(params["legend_title"] or "").strip() if "legend_title" in params else field_name
+    polygons = layer.geometryType() == _geometry_type(imports["Qgis"], imports["QgsWkbTypes"], "Polygon")
+    # Células: um pouco de transparência deixa o relevo aparecer por baixo
+    # sem mudar a leitura da cor (as figuras com hexágonos opacos da
+    # comparação apagavam o relevo do parque inteiro).
+    opacity = _opacity_param(params, "opacity", 0.85 if polygons else 0.9)
+    plan = {"layer_id": layer.id(), "style_type": "count_classes", "field_name": field_name, "min": minimum,
+            "max": maximum, "scaling": "classes", "classes": [{"from": low, "to": high, "label": label, "size_mm": size,
+                                                               "color": colour}
+                                                              for (low, high), label, size, colour
+                                                              in zip(classes, labels, sizes, colours)],
+            "legend_title": title, "opacity": opacity}
+    if context.get("dry_run"):
+        return {"dry_run": True, **plan}
+    from qgis.core import QgsFeatureRequest, QgsGraduatedSymbolRenderer, QgsRendererRange  # type: ignore
+
+    ranges = []
+    for (low, high), label, size, colour in zip(classes, labels, sizes, colours):
+        if polygons:
+            from qgis.core import QgsFillSymbol  # type: ignore
+
+            # Contorno branco fino: as células vizinhas se separam sem uma
+            # malha escura por cima do mapa.
+            symbol = QgsFillSymbol.createSimple({"color": colour, "outline_color": "#FFFFFF", "outline_width": "0.08"})
+        else:
+            symbol = imports["QgsMarkerSymbol"].createSimple({
+                "name": "circle", "color": colour, "outline_color": "#262626", "outline_width": "0.15", "size": str(size)})
+        symbol.setOpacity(opacity)
+        ranges.append(QgsRendererRange(low - 0.5, high + 0.5, symbol, label))
+    renderer = QgsGraduatedSymbolRenderer(field_name, ranges)
+    if not polygons:
+        renderer.setOrderBy(QgsFeatureRequest.OrderBy([QgsFeatureRequest.OrderByClause(field_name, True)]))
+        renderer.setOrderByEnabled(True)
+    layer.setRenderer(renderer)
+    layer.setCustomProperty("sigmai/legend_title", title)
     mark_style_origin(layer, STYLE_ORIGIN_USER)
     layer.triggerRepaint()
     return plan

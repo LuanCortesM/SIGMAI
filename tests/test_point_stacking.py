@@ -449,11 +449,20 @@ class NoQgis(unittest.TestCase):
                                                  "panel_title": "B"}, comparison_same_scale=True)
             derivadas = {d["source_layer_id"]: QgsProject.instance().mapLayer(d["layer_id"]) for d in resultado["derived_layers"]}
             self.assertEqual(set(derivadas), {antes.id(), depois.id()})
-            transformadores = [camada.renderer().symbol().dataDefinedSize().transformer() for camada in derivadas.values()]
-            self.assertEqual(len({(t.minValue(), t.maxValue()) for t in transformadores}), 1)  # mesma escala de tamanhos
+            # Mesma escala nos dois painéis: as mesmas classes (contagens de 1 a
+            # milhares vão para classes na 1.5.0) ou o mesmo transformador de tamanho.
+            escalas = set()
+            for camada in derivadas.values():
+                renderer = camada.renderer()
+                if renderer.type() == "graduatedSymbol":
+                    escalas.add(tuple((r.lowerValue(), r.upperValue(), r.symbol().size()) for r in renderer.ranges()))
+                else:
+                    t = renderer.symbol().dataDefinedSize().transformer()
+                    escalas.add((t.minValue(), t.maxValue()))
+            self.assertEqual(len(escalas), 1)
             regras = self._regras(resultado)
             self.assertEqual(regras["CART076"]["status"], rulebook.STATUS_PASSED, regras["CART076"])
-            del derivadas, transformadores
+            del derivadas
 
     def test_dense_points_simulado_nao_muda_nada(self):
         """E prevê a página do mapa: o plano de Itatiaia dava 88 x 120 mm e o mapa saía 88 x 134 (legenda de tamanhos)."""

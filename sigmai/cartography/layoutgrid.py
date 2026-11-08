@@ -148,6 +148,10 @@ NORTH_MAX_PAGE_FRACTION = 0.08
 #: Menor altura da faixa inferior quando ela é dimensionada pelo conteúdo:
 #: cabe a escala numérica sobre a barra e uma seta de norte legível.
 SUPPORT_BAND_MIN_MM = 22.0
+#: A coluna lateral cresce até esta fração da largura útil para caber a legenda.
+SIDE_COLUMN_MAX_FRACTION = 0.45
+#: Piso da faixa inferior que só tem a legenda (barra e norte dentro do quadro).
+LEGEND_ONLY_BAND_MIN_MM = 8.0
 #: Altura da faixa inferior sem legenda: a escala numérica (5 mm), a calha e
 #: a barra com seus rótulos (cerca de 8 mm). A seta de norte, se for maior
 #: nesta página, manda.
@@ -169,6 +173,9 @@ LEGEND_ROW_MIN_MM = 12.0
 #: mais nada. Um pedido cujas margens não deixam pelo menos isso para o mapa
 #: tem de ser recusado, não maquiado com um quadro que existe só no papel.
 MIN_MAP_MM = 20.0
+#: Recuo (mm) dos lados sem rótulo da grade na figura de revista: o traço
+#: externo da moldura (1 mm) e um respiro.
+GRID_TICK_ROOM_MM = 1.5
 
 
 @dataclass(frozen=True)
@@ -181,6 +188,8 @@ class LayoutPlan:
     slots: dict[str, Rect]
     fonts: dict[str, float]
     notes: list[str]
+    #: Menor corpo de texto do layout: 6 pt, ou o mínimo da revista (journals.py).
+    min_font_pt: float = 6.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -189,6 +198,7 @@ class LayoutPlan:
             "arrangement": self.arrangement,
             "slots": {name: rect.to_dict() for name, rect in self.slots.items()},
             "fonts_pt": self.fonts,
+            "min_font_pt": self.min_font_pt,
             "notes": list(self.notes),
         }
 
@@ -260,6 +270,10 @@ def solve_layout(
     arrangement: str | None = None,
     support_content_mm: float | None = None,
     legend_row: bool = False,
+    min_font_pt: float = 6.0,
+    support_width_mm: float | None = None,
+    panel_columns: int | None = None,
+    support_in_cell: bool = False,
 ) -> LayoutPlan:
     """Resolve o template escolhido para a página informada.
 
@@ -283,6 +297,12 @@ def solve_layout(
     própria, com escala e norte numa linha baixa embaixo: o caminho para uma
     legenda longa que, dividindo a faixa com a escala e o norte, não cabia
     (doze classes de solo numa figura de coluna, numa caixa de 34 mm).
+
+    ``panel_columns`` fixa as colunas da grade de painéis (o compositor
+    experimenta todas numa figura de revista: dois painéis numa coluna de
+    84 mm cabem maiores um sobre o outro). ``support_in_cell`` põe legenda,
+    escala e norte na célula que sobra da grade (três painéis em 2x2), em vez
+    de numa faixa embaixo.
     """
     spec = resolve_page(page)
     template_key = template if template in TEMPLATES else DEFAULT_TEMPLATE
@@ -349,11 +369,26 @@ def solve_layout(
         arrangement = "coluna_lateral" if (spec.aspect >= SIDE_COLUMN_MIN_ASPECT and needs_support) else "faixa_inferior"
     if not needs_support:
         arrangement = "mapa_cheio"
+    # Apoio na célula vazia da grade de painéis: só com colunas fixadas e
+    # célula sobrando, e sem logotipo nem inserto, que pedem faixa própria.
+    columns_fixed = max(1, min(int(panel_columns), max(1, int(panels)))) if panel_columns else None
+    in_cell = bool(
+        support_in_cell and needs_support and panels >= 3 and columns_fixed
+        and columns_fixed * int(math.ceil(panels / columns_fixed)) > panels
+        and not include_logo and not include_inset
+    )
+    if in_cell:
+        arrangement = "celula_vazia"
 
-    if arrangement == "mapa_cheio":
+    if arrangement in ("mapa_cheio", "celula_vazia"):
         slots["map"] = Rect(content_x, body_y, content_w, body_h)
     elif arrangement == "coluna_lateral":
         side_w = content_w * float(config["side_column_fraction"])
+        # A coluna tem a largura natural da legenda (medida pelo compositor),
+        # até SIDE_COLUMN_MAX_FRACTION: numa figura de 88 x 70 mm a fração fixa
+        # dava 15,6 mm, e "Cobertura Detrito-Laterítica" saía cortada.
+        if support_width_mm and include_legend:
+            side_w = max(side_w, min(float(support_width_mm), content_w * SIDE_COLUMN_MAX_FRACTION))
         map_w = content_w - side_w - gutter
         if map_w < MIN_MAP_MM:
             raise ValueError(
@@ -391,13 +426,20 @@ def solve_layout(
             )
     else:
         support_h = min(body_h * 0.30, max(26.0, body_h * 0.22))
-        narrow = include_legend and legend_row
+        # Só a legenda na faixa (barra e norte dentro do quadro): a faixa tem a
+        # altura dela, sem a linha de escala e norte embaixo. O piso de 22 mm é
+        # para a barra e o norte, e deixava 10 mm de papel em branco sob uma
+        # legenda de três linhas.
+        legend_only = include_legend and not (include_scale_bar or include_scale_text or include_north_arrow
+                                              or include_logo or include_inset)
+        narrow = include_legend and legend_row and not legend_only
         # O inserto precisa de altura própria para ser lido; com ele a faixa
         # fica na fração fixa.
         ceiling = LEGEND_ROW_MAX_FRACTION if narrow else SUPPORT_BAND_MAX_FRACTION
         if support_content_mm and support_content_mm > 0 and not include_inset:
             wanted = float(support_content_mm) + (LEGEND_ROW_SUPPORT_MM + gutter if narrow else 0.0)
-            support_h = min(body_h * ceiling, max(SUPPORT_BAND_MIN_MM, wanted))
+            floor = LEGEND_ONLY_BAND_MIN_MM if legend_only and not narrow else SUPPORT_BAND_MIN_MM
+            support_h = min(body_h * ceiling, max(floor, wanted))
         elif not include_legend and not include_inset:
             # Só escala e norte (a legenda foi para um arquivo à parte ou para o
             # texto): a fração fixa deixava 14 mm de branco sob a barra numa
@@ -435,7 +477,8 @@ def solve_layout(
     if panels == 2 and "map" in slots:
         base = slots["map"]
         panel_gutter = gutter * 1.5
-        if base.width >= base.height:
+        side_by_side = (columns_fixed == 2) if columns_fixed else base.width >= base.height
+        if side_by_side:
             half = (base.width - panel_gutter) / 2.0
             slots["map"] = Rect(base.x, base.y, half, base.height)
             slots["map_2"] = Rect(base.x + half + panel_gutter, base.y, half, base.height)
@@ -460,7 +503,10 @@ def solve_layout(
         # um quadrado e nenhuma célula sobra.
         base = slots["map"]
         panel_gutter = gutter * 1.5
-        columns, rows = panel_grid(panels, base.width, base.height, panel_gutter)
+        if columns_fixed:
+            columns, rows = columns_fixed, int(math.ceil(panels / columns_fixed))
+        else:
+            columns, rows = panel_grid(panels, base.width, base.height, panel_gutter)
         cell_w = (base.width - panel_gutter * (columns - 1)) / columns
         cell_h = (base.height - panel_gutter * (rows - 1)) / rows
         caption_h = max(5.0, content_h * 0.028)
@@ -472,12 +518,29 @@ def solve_layout(
             slots[key + "_caption"] = Rect(x, y, cell_w, caption_h)
             slots[key] = Rect(x, y + caption_h, cell_w, cell_h - caption_h)
         notes.append(f"Corpo dividido em {panels} quadros de mapa ({rows}x{columns}), cada um com legenda de painel.")
+        if arrangement == "celula_vazia":
+            # A célula que sobra na última linha recebe legenda, escala e norte:
+            # numa faixa embaixo eles tiravam altura dos painéis e deixavam a
+            # célula vazia ao lado.
+            first_empty = panels - (rows - 1) * columns
+            x = base.x + first_empty * (cell_w + panel_gutter)
+            cell = Rect(x, base.y + (rows - 1) * (cell_h + panel_gutter) + caption_h,
+                        base.x + base.width - x, cell_h - caption_h)
+            _fill_support_cell(slots, cell, gutter=gutter, north_max=_north_max(spec),
+                               include_legend=include_legend, include_scale_bar=include_scale_bar,
+                               include_scale_text=include_scale_text, include_north_arrow=include_north_arrow)
+            notes.append("Legenda, escala e norte na célula que sobrou da grade de painéis.")
 
     # Os rótulos da grade são desenhados FORA do quadro do mapa e invadem o
     # que estiver ao lado. Encolher o quadro é o que impede a colisão com o
     # subtítulo e com a coluna de apoio.
     if grid_annotation_gutter_mm > 0:
         annotation_gutter = float(grid_annotation_gutter_mm)
+        # Na figura de revista os rótulos vão só à esquerda e embaixo (como nas
+        # revistas): em cima e à direita ficam só os traços da moldura, que
+        # cabem na margem. Os quatro lados rotulados tiravam 10 mm de largura
+        # de um quadro de 88 mm para repetir os mesmos números.
+        two_sides = template_key == "publicacao"
         for key in map_slot_keys(slots):
             raw = slots[key]
             # Sem piso aqui de propósito: um ``max(20.0, ...)`` faria o mesmo
@@ -486,11 +549,12 @@ def solve_layout(
             # quem decide se o que sobrou ainda é um mapa.
             slots[key] = Rect(
                 raw.x + annotation_gutter,
-                raw.y + annotation_gutter,
-                raw.width - 2 * annotation_gutter,
-                raw.height - 2 * annotation_gutter,
+                raw.y + (GRID_TICK_ROOM_MM if two_sides else annotation_gutter),
+                raw.width - annotation_gutter - (GRID_TICK_ROOM_MM if two_sides else annotation_gutter),
+                raw.height - annotation_gutter - (GRID_TICK_ROOM_MM if two_sides else annotation_gutter),
             )
-        notes.append(f"Quadro do mapa recuado {annotation_gutter:g} mm para acomodar os rótulos da grade.")
+        where = "à esquerda e embaixo" if two_sides else "nos quatro lados"
+        notes.append(f"Quadro do mapa recuado {annotation_gutter:g} mm {where} para acomodar os rótulos da grade.")
 
     # Checagem final e única: depois de painéis e recuo de grade, o quadro do
     # mapa (e o do segundo painel, se houver) precisa mesmo existir. Fazer essa
@@ -517,9 +581,10 @@ def solve_layout(
         "legend": float(config["legend_font_pt"]),
         "scale_text": float(config["scale_text_font_pt"]),
     }
-    fonts = _scale_fonts(fonts, spec)
+    fonts = _scale_fonts(fonts, spec, max(6.0, float(min_font_pt)))
 
-    return LayoutPlan(page=spec, template=template_key, arrangement=arrangement, slots=slots, fonts=fonts, notes=notes)
+    return LayoutPlan(page=spec, template=template_key, arrangement=arrangement, slots=slots, fonts=fonts, notes=notes,
+                      min_font_pt=max(6.0, float(min_font_pt)))
 
 
 def _north_max(spec: PageSpec) -> float:
@@ -588,6 +653,40 @@ def _fill_support_column(
         slots["scale_text"] = Rect(column.x, bottom, column.width, text_h)
 
 
+def _fill_support_cell(
+    slots: dict[str, Rect],
+    cell: Rect,
+    *,
+    gutter: float,
+    north_max: float = float("inf"),
+    include_legend: bool,
+    include_scale_bar: bool,
+    include_scale_text: bool,
+    include_north_arrow: bool,
+) -> None:
+    """Itens de apoio na célula vazia da grade: legenda em cima, escala e norte numa linha embaixo."""
+    row_h = 0.0
+    if include_scale_bar or include_north_arrow:
+        row_h = min(cell.height * 0.35, max(MIN_SCALEBAR_MM, min(north_max, MIN_NORTH_MM)))
+    text_h = max(5.0, cell.height * 0.06) if include_scale_text else 0.0
+    bottom = cell.bottom
+    if row_h:
+        north_w = 0.0
+        if include_north_arrow:
+            north_h = row_h
+            north_w = min(cell.width * 0.3, north_h * 0.72)
+            slots["north"] = Rect(cell.x + cell.width - north_w, bottom - north_h, north_w, north_h)
+        if include_scale_bar:
+            bar_w = cell.width - (north_w + gutter if north_w else 0.0)
+            slots["scale_bar"] = Rect(cell.x, bottom - row_h, bar_w, row_h)
+        bottom -= row_h + gutter
+    if text_h:
+        slots["scale_text"] = Rect(cell.x, bottom - text_h, cell.width, text_h)
+        bottom -= text_h + gutter
+    if include_legend:
+        slots["legend"] = Rect(cell.x, cell.y, cell.width, max(8.0, bottom - cell.y))
+
+
 def _fill_support_band(
     slots: dict[str, Rect],
     band: Rect,
@@ -644,16 +743,16 @@ def _fill_support_band(
         cursor += width + gutter
 
 
-def _scale_fonts(fonts: dict[str, float], page: PageSpec) -> dict[str, float]:
+def _scale_fonts(fonts: dict[str, float], page: PageSpec, floor: float = 6.0) -> dict[str, float]:
     """Ajusta o corpo tipográfico ao tamanho da página.
 
     Um título de 15 pt numa A0 some; numa A5 ocupa metade da folha. A escala é
     proporcional à raiz da área, que é como o tamanho aparente de fonte se
     comporta a distâncias de leitura diferentes, com piso de 6 pt para não
-    violar a regra CART044.
+    violar a regra CART044 (ou o mínimo da revista, em ``floor``).
     """
     reference_diagonal = (297.0 ** 2 + 210.0 ** 2) ** 0.5  # A4 paisagem
     diagonal = (page.width_mm ** 2 + page.height_mm ** 2) ** 0.5
     factor = (diagonal / reference_diagonal) ** FONT_SCALE_EXPONENT
     factor = max(FONT_SCALE_MIN, min(FONT_SCALE_MAX, factor))
-    return {name: round(max(6.0, value * factor), 1) for name, value in fonts.items()}
+    return {name: round(max(floor, value * factor), 1) for name, value in fonts.items()}

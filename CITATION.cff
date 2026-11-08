@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "SIGMAI: Secure GIS-AI Interface"
+title: "SIGMAI: GIS-AI Interface"
 message: "If you use this software in research, please cite it as below."
 type: software
 authors:
@@ -27,10 +27,10 @@ keywords:
   - reproducible research
   - map quality
 license: MIT
-version: 1.4.0
+version: 1.5.0
 doi: 10.5281/zenodo.20389286
 identifiers:
   - type: doi
     value: 10.5281/zenodo.20389286
     description: All versions of SIGMAI (resolves to the latest)
-date-released: "2026-10-31"
+date-released: "2026-11-08"
